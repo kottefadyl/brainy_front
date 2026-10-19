@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "828931163138",
+    "project_id": "brainy-6d65c",
+    "storage_bucket": "brainy-6d65c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:828931163138:android:30ffe358c92798e934531b",
+        "android_client_info": {
+          "package_name": "com.example.brainy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "828931163138-ga1folbkiofsvugqjdvrof6v2q85gq66.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoRkSlPOT7bt1SNIg-_lOroulCXY3h1UI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "828931163138-ga1folbkiofsvugqjdvrof6v2q85gq66.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
