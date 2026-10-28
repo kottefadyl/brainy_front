@@ -24,10 +24,9 @@ class GoogleAuthService extends ChangeNotifier {
     try {
       await Firebase.initializeApp(options: FirebaseConfig.options)
           .timeout(const Duration(seconds: 12));
-      if (!kIsWeb &&
-          (defaultTargetPlatform == TargetPlatform.android ||
-              defaultTargetPlatform == TargetPlatform.iOS ||
-              defaultTargetPlatform == TargetPlatform.macOS)) {
+      if (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS) {
         await GoogleSignIn.instance.initialize(
           serverClientId: FirebaseConfig.webClientId,
           clientId: defaultTargetPlatform == TargetPlatform.android
@@ -51,11 +50,7 @@ class GoogleAuthService extends ChangeNotifier {
     }
     try {
       UserCredential credential;
-      if (kIsWeb) {
-        credential = await FirebaseAuth.instance.signInWithPopup(
-          GoogleAuthProvider(),
-        );
-      } else if (defaultTargetPlatform == TargetPlatform.windows) {
+      if (defaultTargetPlatform == TargetPlatform.windows) {
         credential = await FirebaseAuth.instance.signInWithProvider(
           GoogleAuthProvider(),
         );
@@ -90,10 +85,9 @@ class GoogleAuthService extends ChangeNotifier {
   Future<void> signOut() async {
     if (!_ready) return;
     await FirebaseAuth.instance.signOut();
-    if (!kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS ||
-            defaultTargetPlatform == TargetPlatform.macOS)) {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
       await GoogleSignIn.instance.signOut();
     }
   }

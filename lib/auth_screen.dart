@@ -3,16 +3,25 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'auth_api.dart';
+import 'app_strings.dart';
 import 'google_auth.dart';
+import 'brand_assets.dart';
 
 const ink = Color(0xFF202A43);
 const mutedInk = Color(0xFF788198);
 const fedoraBlue = Color(0xFF3989DD);
 
 class BrandScaffold extends StatelessWidget {
-  const BrandScaffold({super.key, required this.child});
+  const BrandScaffold({
+    super.key,
+    required this.child,
+    this.onLanguageChanged,
+    this.themeButton,
+  });
 
   final Widget child;
+  final ValueChanged<String>? onLanguageChanged;
+  final Widget? themeButton;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +36,7 @@ class BrandScaffold extends StatelessWidget {
               color: const Color(0xFF151A2B),
               child: Row(
                 children: [
-                  const Icon(Icons.circle, size: 7, color: Color(0xFF89BBF2)),
+                  const BrainyMark(size: 18),
                   const SizedBox(width: 7),
                   const Text(
                     'brainy',
@@ -39,19 +48,19 @@ class BrandScaffold extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  Text(
-                    'A space for every thought',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.62),
-                      fontSize: 11,
+                  if (MediaQuery.sizeOf(context).width >= 550)
+                    Text(
+                      AppStrings.of(context).text('A space for every thought'),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.62),
+                        fontSize: 11,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 15),
-                  const Icon(
-                    Icons.auto_awesome_outlined,
-                    color: Color(0xFFB9C6E7),
-                    size: 15,
-                  ),
+                  if (onLanguageChanged != null) ...[
+                    const SizedBox(width: 10),
+                    LanguageMenu(onChanged: onLanguageChanged, onDark: true),
+                  ],
+                  ?themeButton,
                 ],
               ),
             ),
@@ -78,17 +87,22 @@ class AuthScreen extends StatefulWidget {
     required this.api,
     required this.onAuthenticated,
     this.googleAuth,
+    this.onLanguageChanged,
+    this.themeButton,
   });
 
   final AuthApi api;
   final GoogleAuthService? googleAuth;
   final ValueChanged<AppUser> onAuthenticated;
+  final ValueChanged<String>? onLanguageChanged;
+  final Widget? themeButton;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  String _t(String value) => AppStrings.of(context).text(value);
   final GoogleAuthService _fallbackGoogleAuth = GoogleAuthService();
   GoogleAuthService get _googleAuth => widget.googleAuth ?? _fallbackGoogleAuth;
   final _form = GlobalKey<FormState>();
@@ -159,7 +173,9 @@ class _AuthScreenState extends State<AuthScreen> {
           : await widget.api.login(_email.text.trim(), _password.text);
       if (mounted) widget.onAuthenticated(user);
     } on AuthApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        setState(() => _error = error.message);
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'Something went wrong. Please try again.');
@@ -181,7 +197,9 @@ class _AuthScreenState extends State<AuthScreen> {
     } on GoogleAuthCancelled {
       // Closing the account picker leaves the form as it was.
     } on AuthApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        setState(() => _error = error.message);
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'Google sign-in failed. Please try again.');
@@ -194,6 +212,8 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return BrandScaffold(
+      onLanguageChanged: widget.onLanguageChanged,
+      themeButton: widget.themeButton,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= 850;
@@ -231,7 +251,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             Expanded(
                               flex: 10,
                               child: _StoryPanel(
-                                height: _registering ? 850 : 740,
+                                height: AppStrings.of(context).isFrench
+                                    ? (_registering ? 910 : 790)
+                                    : (_registering ? 850 : 740),
                               ),
                             ),
                             Expanded(flex: 11, child: _formPanel(wide: true)),
@@ -263,7 +285,7 @@ class _AuthScreenState extends State<AuthScreen> {
           children: [
             Row(
               children: [
-                const _BrandMark(),
+                const BrainyMark(),
                 const SizedBox(width: 10),
                 const Text(
                   'brainy',
@@ -276,9 +298,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const Spacer(),
                 if (wide)
-                  const Text(
-                    'YOUR CREATIVE SPACE',
-                    style: TextStyle(
+                  Text(
+                    _t('YOUR CREATIVE SPACE'),
+                    style: const TextStyle(
                       fontSize: 9,
                       color: mutedInk,
                       fontWeight: FontWeight.w700,
@@ -289,7 +311,7 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
             SizedBox(height: wide ? 43 : 30),
             Text(
-              _registering ? 'Make room for ideas.' : 'Welcome back.',
+              _registering ? _t('Make room for ideas.') : _t('Welcome back.'),
               style: const TextStyle(
                 fontSize: 31,
                 height: 1.15,
@@ -301,8 +323,8 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 9),
             Text(
               _registering
-                  ? 'Create your account and start collecting every spark.'
-                  : 'Your notes, sketches, and big ideas are waiting.',
+                  ? _t('Create your account and start collecting every spark.')
+                  : _t('Your notes, sketches, and big ideas are waiting.'),
               style: const TextStyle(
                 fontSize: 13.5,
                 height: 1.5,
@@ -311,19 +333,20 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
             const SizedBox(height: 29),
             if (_registering) ...[
-              _label('Your name'),
+              _label(_t('Your name')),
               const SizedBox(height: 7),
               _field(
                 _name,
-                hint: 'What should we call you?',
+                hint: _t('What should we call you?'),
                 icon: Icons.person_outline_rounded,
                 autofillHints: const [AutofillHints.name],
-                validator: (value) =>
-                    (value?.trim().length ?? 0) < 2 ? 'Enter your name' : null,
+                validator: (value) => (value?.trim().length ?? 0) < 2
+                    ? _t('Enter your name')
+                    : null,
               ),
               const SizedBox(height: 17),
             ],
-            _label('Email address'),
+            _label(_t('Email address')),
             const SizedBox(height: 7),
             _field(
               _email,
@@ -335,16 +358,16 @@ class _AuthScreenState extends State<AuthScreen> {
                   RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
                       .hasMatch(value?.trim() ?? '')
                   ? null
-                  : 'Enter a valid email address',
+                  : _t('Enter a valid email address'),
             ),
             const SizedBox(height: 17),
-            _label('Password'),
+            _label(_t('Password')),
             const SizedBox(height: 7),
             _field(
               _password,
               hint: _registering
-                  ? 'At least 8 characters'
-                  : 'Enter your password',
+                  ? _t('At least 8 characters')
+                  : _t('Enter your password'),
               icon: Icons.lock_outline_rounded,
               obscure: !_showPassword,
               autofillHints: [
@@ -353,7 +376,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     : AutofillHints.password,
               ],
               suffix: IconButton(
-                tooltip: _showPassword ? 'Hide password' : 'Show password',
+                tooltip: _showPassword
+                    ? _t('Hide password')
+                    : _t('Show password'),
                 onPressed: () => setState(() => _showPassword = !_showPassword),
                 icon: Icon(
                   _showPassword
@@ -364,23 +389,24 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
               ),
               validator: (value) => _registering && (value?.length ?? 0) < 8
-                  ? 'Use at least 8 characters'
+                  ? _t('Use at least 8 characters')
                   : (value?.isEmpty ?? true)
-                  ? 'Enter your password'
+                  ? _t('Enter your password')
                   : null,
             ),
             if (_registering) ...[
               const SizedBox(height: 17),
-              _label('Confirm password'),
+              _label(_t('Confirm password')),
               const SizedBox(height: 7),
               _field(
                 _confirm,
-                hint: 'Repeat your password',
+                hint: _t('Repeat your password'),
                 icon: Icons.verified_user_outlined,
                 obscure: !_showPassword,
                 autofillHints: const [AutofillHints.newPassword],
-                validator: (value) =>
-                    value != _password.text ? 'Passwords do not match' : null,
+                validator: (value) => value != _password.text
+                    ? _t('Passwords do not match')
+                    : null,
               ),
             ],
             if (_error != null) ...[
@@ -393,7 +419,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  _error!,
+                  AppStrings.of(context).error(_error!),
                   style: const TextStyle(
                     color: Color(0xFFB4433E),
                     fontSize: 12.5,
@@ -425,11 +451,17 @@ class _AuthScreenState extends State<AuthScreen> {
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            _registering ? 'Create account' : 'Sign in',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
+                          Flexible(
+                            child: Text(
+                              _registering
+                                  ? _t('Create account')
+                                  : _t('Sign in'),
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 9),
@@ -439,14 +471,14 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            const Row(
+            Row(
               children: [
-                Expanded(child: Divider(color: Color(0xFFE9EBF1))),
+                const Expanded(child: Divider(color: Color(0xFFE9EBF1))),
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 13),
+                  padding: const EdgeInsets.symmetric(horizontal: 13),
                   child: Text(
-                    'OR',
-                    style: TextStyle(
+                    _t('OR'),
+                    style: const TextStyle(
                       color: mutedInk,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -454,7 +486,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
                 ),
-                Expanded(child: Divider(color: Color(0xFFE9EBF1))),
+                const Expanded(child: Divider(color: Color(0xFFE9EBF1))),
               ],
             ),
             const SizedBox(height: 15),
@@ -493,12 +525,16 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Text(
-                      'Continue with Google',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: ink,
+                    Expanded(
+                      child: Text(
+                        _t('Continue with Google'),
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: ink,
+                        ),
                       ),
                     ),
                   ],
@@ -509,8 +545,8 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 7),
               Text(
                 _googleAuth.setupError == null
-                    ? 'Preparing Google sign-in…'
-                    : 'Google sign-in is unavailable. Try reloading.',
+                    ? _t('Preparing Google sign-in…')
+                    : _t('Google sign-in is unavailable. Try reloading.'),
                 style: const TextStyle(color: mutedInk, fontSize: 10.5),
               ),
             ],
@@ -521,8 +557,8 @@ class _AuthScreenState extends State<AuthScreen> {
                 children: [
                   Text(
                     _registering
-                        ? 'Already have an account? '
-                        : 'New to Brainy? ',
+                        ? _t('Already have an account? ')
+                        : _t('New to Brainy? '),
                     style: const TextStyle(color: mutedInk, fontSize: 12.5),
                   ),
                   TextButton(
@@ -532,7 +568,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       visualDensity: VisualDensity.compact,
                     ),
                     child: Text(
-                      _registering ? 'Sign in' : 'Create an account',
+                      _registering ? _t('Sign in') : _t('Create an account'),
                       style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
@@ -546,14 +582,20 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 21),
             const Divider(height: 1, color: Color(0xFFE9EBF1)),
             const SizedBox(height: 17),
-            const Row(
+            Row(
               children: [
-                Icon(Icons.lock_outline_rounded, size: 14, color: mutedInk),
-                SizedBox(width: 7),
+                const Icon(
+                  Icons.lock_outline_rounded,
+                  size: 14,
+                  color: mutedInk,
+                ),
+                const SizedBox(width: 7),
                 Expanded(
                   child: Text(
-                    'Your ideas stay with your account, wherever you sign in.',
-                    style: TextStyle(color: mutedInk, fontSize: 11.5),
+                    _t(
+                      'Your ideas stay with your account, wherever you sign in.',
+                    ),
+                    style: const TextStyle(color: mutedInk, fontSize: 11.5),
                   ),
                 ),
               ],
@@ -619,25 +661,6 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-class _BrandMark extends StatelessWidget {
-  const _BrandMark();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 34,
-    height: 34,
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [Color(0xFF5BB9F2), Color(0xFF2779D4)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: const Icon(Icons.edit_note_rounded, color: Colors.white, size: 22),
-  );
-}
-
 class _StoryPanel extends StatelessWidget {
   const _StoryPanel({required this.height});
 
@@ -645,6 +668,7 @@ class _StoryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = AppStrings.of(context).text;
     return Container(
       height: height,
       decoration: const BoxDecoration(
@@ -687,23 +711,11 @@ class _StoryPanel extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 29,
-                      height: 29,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: Color(0xFFBAE2FF),
-                        size: 17,
-                      ),
-                    ),
+                    const BrainyMark(size: 29),
                     const SizedBox(width: 10),
-                    const Text(
-                      'YOUR IDEAS, EVERYWHERE',
-                      style: TextStyle(
+                    Text(
+                      t('YOUR IDEAS, EVERYWHERE'),
+                      style: const TextStyle(
                         color: Color(0xFFCBE7FF),
                         letterSpacing: 1.5,
                         fontSize: 10,
@@ -713,9 +725,9 @@ class _StoryPanel extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 67),
-                const Text(
-                  'A little space for\nbig thoughts.',
-                  style: TextStyle(
+                Text(
+                  t('A little space for\nbig thoughts.'),
+                  style: const TextStyle(
                     color: Colors.white,
                     height: 1.16,
                     fontSize: 37,
@@ -725,7 +737,9 @@ class _StoryPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Capture a passing thought. Draw out a new idea. Pick up where you left off, on any device.',
+                  t(
+                    'Capture a passing thought. Draw out a new idea. Pick up where you left off, on any device.',
+                  ),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.78),
                     height: 1.55,
@@ -733,79 +747,15 @@ class _StoryPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 42),
-                Transform.rotate(
-                  angle: -0.045,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(23, 21, 23, 19),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFDFDFD),
-                      borderRadius: BorderRadius.circular(17),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x44203B67),
-                          blurRadius: 28,
-                          offset: Offset(0, 17),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 29,
-                              height: 29,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFE7F3FF),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.lightbulb_outline_rounded,
-                                size: 18,
-                                color: fedoraBlue,
-                              ),
-                            ),
-                            const Spacer(),
-                            const Icon(
-                              Icons.more_horiz_rounded,
-                              color: Color(0xFFADB5C3),
-                              size: 19,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 17),
-                        const Text(
-                          'The next big idea',
-                          style: TextStyle(
-                            fontSize: 17,
-                            color: ink,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'It starts with one small thought...',
-                          style: TextStyle(fontSize: 12, color: mutedInk),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            _pill(
-                              const Color(0xFFE8F2FF),
-                              const Color(0xFF4B8DD1),
-                              'IDEAS',
-                            ),
-                            const SizedBox(width: 7),
-                            _pill(
-                              const Color(0xFFFFF0DC),
-                              const Color(0xFFC58D43),
-                              'TODAY',
-                            ),
-                          ],
-                        ),
-                      ],
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(17),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.asset(
+                      brainyShowcaseAsset,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.high,
+                      semanticLabel: 'Brainy logo',
                     ),
                   ),
                 ),
@@ -818,11 +768,13 @@ class _StoryPanel extends StatelessWidget {
                       color: Color(0xFFB8DCFF),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      'One account. Every device.',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.78),
-                        fontSize: 12,
+                    Expanded(
+                      child: Text(
+                        t('One account. Every device.'),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.78),
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
@@ -831,149 +783,6 @@ class _StoryPanel extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  static Widget _pill(Color background, Color foreground, String text) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(5),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 9,
-            letterSpacing: 0.6,
-            fontWeight: FontWeight.w800,
-            color: foreground,
-          ),
-        ),
-      );
-}
-
-class WorkspaceScreen extends StatelessWidget {
-  const WorkspaceScreen({
-    super.key,
-    required this.user,
-    required this.onSignOut,
-  });
-
-  final AppUser user;
-  final Future<void> Function() onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return BrandScaffold(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Container(
-            width: 660,
-            padding: const EdgeInsets.all(35),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x66091A35),
-                  blurRadius: 35,
-                  offset: Offset(0, 18),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    const _BrandMark(),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'brainy',
-                      style: TextStyle(
-                        color: ink,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: onSignOut,
-                      icon: const Icon(Icons.logout_rounded, size: 17),
-                      label: const Text('Sign out'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 42),
-                Text(
-                  'Welcome, ${user.name.split(' ').first}.',
-                  style: const TextStyle(
-                    color: ink,
-                    fontSize: 30,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Your account is ready. Your thoughts will have a home here.',
-                  style: TextStyle(color: mutedInk, fontSize: 14),
-                ),
-                const SizedBox(height: 30),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F7FF),
-                    borderRadius: BorderRadius.circular(17),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.auto_awesome_outlined,
-                        color: fedoraBlue,
-                        size: 26,
-                      ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Your workspace is coming next',
-                              style: TextStyle(
-                                color: ink,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Notes, sketches, and brainstorming tools will live here.',
-                              style: TextStyle(color: mutedInk, fontSize: 12.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'SIGNED IN AS  ${user.email.toUpperCase()}',
-                  style: const TextStyle(
-                    color: mutedInk,
-                    fontSize: 10,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

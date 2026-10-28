@@ -1,0 +1,543 @@
+import 'package:flutter/material.dart';
+
+import 'collections_api.dart';
+
+Future<void> showStockScreen(
+  BuildContext context,
+  CollectionsApi api,
+  BrainyCollection collection,
+) => Navigator.of(context).push(
+  MaterialPageRoute(
+    builder: (_) => _StockScreen(api: api, collection: collection),
+  ),
+);
+
+class _StockScreen extends StatefulWidget {
+  const _StockScreen({required this.api, required this.collection});
+  final CollectionsApi api;
+  final BrainyCollection collection;
+  @override
+  State<_StockScreen> createState() => _StockScreenState();
+}
+
+class _StockScreenState extends State<_StockScreen> {
+  late BrainyCollection collection = widget.collection;
+  List<BrainyEntry> entries = [];
+  List<Map<String, dynamic>> positions = [], movements = [];
+  final quantity = TextEditingController(),
+      from = TextEditingController(),
+      to = TextEditingController(),
+      lot = TextEditingController(),
+      reason = TextEditingController(),
+      packageFactor = TextEditingController(text: '1'),
+      priceSnapshot = TextEditingController(),
+      occurredAt = TextEditingController(text: DateTime.now().toIso8601String().substring(0, 16));
+  String priceUnit = '';
+  String? productId;
+  String? reversalOf;
+  String kind = 'IN';
+  Map<String, dynamic>? draft, preview, sourcePreview;
+  List<Map<String, dynamic>>? report;
+  late bool allowNegative = collection.allowNegativeStock;
+  final reportFrom = TextEditingController(
+    text: DateTime.now().toIso8601String().substring(0, 10),
+  );
+  final reportTo = TextEditingController(
+    text: DateTime.now().toIso8601String().substring(0, 10),
+  );
+  final ruleName = TextEditingController();
+  String? ruleFormatId, ruleProductId, ruleQuantityId, ruleDateId, ruleFromId, ruleToId, ruleLotId, ruleReasonId;
+  String ruleKind = 'IN';
+  BrainyEntry? sourceEntry;
+  String? sourceRuleId, error;
+  bool busy = false;
+  bool get fr => Localizations.localeOf(context).languageCode == 'fr';
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  @override
+  void dispose() {
+    for (final field in [
+      quantity,
+      from,
+      to,
+      lot,
+      reason,
+      packageFactor,
+      priceSnapshot,
+      occurredAt,
+      reportFrom,
+      reportTo,
+      ruleName,
+    ]) {
+      field.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> load() async {
+    try {
+      final results = await Future.wait<dynamic>([
+        widget.api.entries(collection.id),
+        widget.api.stockPositions(collection.id),
+        widget.api.stockMovements(collection.id),
+      ]);
+      if (mounted) {
+        setState(() {
+          entries = results[0] as List<BrainyEntry>;
+          positions = results[1] as List<Map<String, dynamic>>;
+          movements = results[2] as List<Map<String, dynamic>>;
+        });
+      }
+    } catch (cause) {
+      if (mounted) setState(() => error = '$cause');
+    }
+  }
+
+  String name(BrainyEntry entry) {
+    final format = collection.formats.firstWhere(
+      (item) => item.id == entry.formatId,
+    );
+    final titles = format.fields.where(
+      (field) => field.kind == BrainyFieldKind.title,
+    );
+    return titles.isEmpty
+        ? entry.id
+        : entry.values[titles.first.id] ?? entry.id;
+  }
+
+  Future<void> previewManual() async {
+    if (productId == null || quantity.text.trim().isEmpty) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      final input = <String, dynamic>{
+        'kind': kind,
+        'productId': productId,
+        'quantity': quantity.text.trim().replaceAll(',', '.'),
+        'packageFactor': packageFactor.text.trim().replaceAll(',', '.'),
+        'fromLocation': from.text.trim(),
+        'toLocation': to.text.trim(),
+        'lot': lot.text.trim(),
+        'reason': reason.text.trim(),
+        'occurredAt': DateTime.parse(occurredAt.text).toUtc().toIso8601String(),
+        if (priceSnapshot.text.trim().isNotEmpty) 'priceSnapshot': priceSnapshot.text.trim().replaceAll(',', '.'),
+        if (priceSnapshot.text.trim().isNotEmpty && priceUnit.isNotEmpty) 'priceUnit': priceUnit,
+        'idempotencyKey': 'manual:${DateTime.now().microsecondsSinceEpoch}',
+      };
+      final effect = await widget.api.previewStock(collection.id, input);
+      if (mounted) {
+        setState(() {
+          draft = input;
+          preview = effect;
+        });
+      }
+    } catch (cause) {
+      if (mounted) setState(() => error = '$cause');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> confirmManual() async {
+    if (draft == null || preview?['allowed'] != true) return;
+    setState(() => busy = true);
+    try {
+      await widget.api.commitStock(collection.id, draft!);
+      if (mounted) {
+        setState(() {
+          draft = null;
+          preview = null;
+          quantity.clear();
+        });
+      }
+      await load();
+    } catch (cause) {
+      if (mounted) setState(() => error = '$cause');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> previewReturn() async {
+    if (reversalOf == null || quantity.text.trim().isEmpty) return;
+    final original = movements.firstWhere((item) => item['id'] == reversalOf);
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      final input = <String, dynamic>{
+        'kind': 'RETURN',
+        'productId': original['productId'],
+        'quantity': quantity.text.trim().replaceAll(',', '.'),
+        'toLocation': original['fromLocation'],
+        'lot': original['lot'],
+        'reversalOf': reversalOf,
+        'occurredAt': DateTime.now().toUtc().toIso8601String(),
+        'idempotencyKey': 'return:${DateTime.now().microsecondsSinceEpoch}',
+      };
+      final effect = await widget.api.previewStock(collection.id, input);
+      if (mounted) {
+        setState(() {
+          draft = input;
+          preview = effect;
+        });
+      }
+    } catch (cause) {
+      if (mounted) setState(() => error = '$cause');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> loadReport() async {
+    if (productId == null) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      final rows = await widget.api.stockDailyReport(
+        collection.id,
+        productId!,
+        reportFrom.text,
+        reportTo.text,
+        'UTC',
+      );
+      if (mounted) setState(() => report = rows);
+    } catch (cause) {
+      if (mounted) setState(() => error = '$cause');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> previewSource(BrainyEntry entry, String ruleId) async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      final effect = await widget.api.previewEntryStock(
+        collection.id,
+        entry.id,
+        ruleId,
+      );
+      if (mounted) {
+        setState(() {
+          sourceEntry = entry;
+          sourceRuleId = ruleId;
+          sourcePreview = effect;
+        });
+      }
+    } catch (cause) {
+      if (mounted) setState(() => error = '$cause');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> confirmSource() async {
+    if (sourceEntry == null ||
+        sourceRuleId == null ||
+        sourcePreview?['allowed'] != true) {
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      await widget.api.commitEntryStock(
+        collection.id,
+        sourceEntry!.id,
+        sourceRuleId!,
+        sourceEntry!.updatedAt.toUtc().toIso8601String(),
+      );
+      if (mounted) {
+        setState(() {
+          sourceEntry = null;
+          sourcePreview = null;
+        });
+      }
+      await load();
+    } catch (cause) {
+      if (mounted) setState(() => error = '$cause');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> saveRule() async {
+    if (ruleFormatId == null || ruleProductId == null || ruleQuantityId == null || ruleName.text.trim().isEmpty) return;
+    setState(() { busy = true; error = null; });
+    try {
+      final updated = await widget.api.saveStockRule(collection.id, {'name': ruleName.text.trim(), 'formatId': ruleFormatId, 'productFieldId': ruleProductId, 'quantityFieldId': ruleQuantityId, 'kind': ruleKind, if (ruleDateId != null) 'dateFieldId': ruleDateId, if (ruleFromId != null) 'fromLocationFieldId': ruleFromId, if (ruleToId != null) 'toLocationFieldId': ruleToId, if (ruleLotId != null) 'lotFieldId': ruleLotId, if (ruleReasonId != null) 'reasonFieldId': ruleReasonId});
+      if (mounted) setState(() { collection = updated; ruleName.clear(); });
+    } catch (cause) { if (mounted) setState(() => error = '$cause'); }
+    finally { if (mounted) setState(() => busy = false); }
+  }
+
+  Widget ruleField(String label, String? value, List<BrainyField> fields, void Function(String?) changed) => DropdownButtonFormField<String>(
+    initialValue: value,
+    decoration: InputDecoration(labelText: label),
+    items: [const DropdownMenuItem<String>(value: null, child: Text('—')), ...fields.map((field) => DropdownMenuItem(value: field.id, child: Text(field.name)))],
+    onChanged: changed,
+  );
+
+  Widget effect(Map<String, dynamic> value, VoidCallback confirm) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${value['productName']} · ${value['kind']} · ${value['baseQuantity']}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          Text(
+            '${fr ? 'Source' : 'From'}: ${value['beforeFrom']} → ${value['afterFrom']}',
+          ),
+          Text(
+            '${fr ? 'Destination' : 'To'}: ${value['beforeTo']} → ${value['afterTo']}',
+          ),
+          if (value['reason'] != null)
+            Text(
+              '${value['reason']}',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          FilledButton(
+            onPressed:
+                busy ||
+                    value['allowed'] != true ||
+                    value['existingMovementId'] != null
+                ? null
+                : confirm,
+            child: Text(fr ? 'Valider' : 'Confirm'),
+          ),
+        ],
+      ),
+    ),
+  );
+  @override
+  Widget build(BuildContext context) {
+    final rules = collection.stockRules;
+    final productFormats = collection.formats
+        .where(
+          (format) =>
+              format.objectModel &&
+              (rules.isEmpty ||
+                  rules.any(
+                    (rule) => collection.formats.any(
+                      (item) =>
+                          item.id == rule['formatId'] &&
+                          item.fields.any(
+                            (field) =>
+                                field.id == rule['productFieldId'] &&
+                                field.targetObjectFormatId == format.id,
+                          ),
+                    ),
+                  )),
+        )
+        .map((format) => format.id)
+        .toSet();
+    final products = entries
+        .where((entry) => productFormats.contains(entry.formatId))
+        .toList();
+    final ruleFormat = collection.formats.where((item) => item.id == ruleFormatId).firstOrNull;
+    final ruleFields = ruleFormat?.fields ?? <BrainyField>[];
+    return Scaffold(
+      appBar: AppBar(title: Text(fr ? 'Stock' : 'Stock')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            fr
+                ? 'Soldes issus des mouvements validés. Vérifiez chaque effet avant validation.'
+                : 'Balances come from confirmed movements. Review each effect before confirming.',
+          ),
+          ExpansionTile(title: Text(fr ? 'Configurer l’effet d’un format de données' : 'Configure a data format effect'), childrenPadding: const EdgeInsets.all(12), children: [
+            Text(fr ? 'Associez un objet, une quantité et un effet. Chaque entrée demande une validation.' : 'Map an object, quantity and effect. Each entry requires confirmation.'),
+            TextField(controller: ruleName, onChanged: (_) => setState(() {}), decoration: InputDecoration(labelText: fr ? 'Nom de la règle' : 'Rule name')),
+            DropdownButtonFormField<String>(initialValue: ruleFormatId, decoration: InputDecoration(labelText: fr ? 'Format de données' : 'Data format'), items: [const DropdownMenuItem<String>(value: null, child: Text('—')), ...collection.formats.where((item) => !item.objectModel).map((item) => DropdownMenuItem(value: item.id, child: Text(item.name)))], onChanged: (value) => setState(() { ruleFormatId = value; ruleProductId = null; ruleQuantityId = null; ruleDateId = null; ruleFromId = null; ruleToId = null; ruleLotId = null; ruleReasonId = null; })),
+            DropdownButtonFormField<String>(initialValue: ruleKind, decoration: InputDecoration(labelText: fr ? 'Effet' : 'Effect'), items: const ['IN', 'OUT', 'TRANSFER', 'CORRECTION'].map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(), onChanged: (value) => setState(() => ruleKind = value!)),
+            ruleField(fr ? 'Objet' : 'Object', ruleProductId, ruleFields.where((field) => field.kind == BrainyFieldKind.objectRef && !field.multiple && collection.formats.any((item) => item.id == field.targetObjectFormatId && item.objectModel)).toList(), (value) => setState(() => ruleProductId = value)),
+            ruleField(fr ? 'Quantité' : 'Quantity', ruleQuantityId, ruleFields.where((field) => field.kind == BrainyFieldKind.number).toList(), (value) => setState(() => ruleQuantityId = value)),
+            ruleField(fr ? 'Date du fait' : 'Occurred at', ruleDateId, ruleFields.where((field) => field.kind == BrainyFieldKind.date || field.kind == BrainyFieldKind.datetime).toList(), (value) => setState(() => ruleDateId = value)),
+            ruleField(fr ? 'Lieu source' : 'From location', ruleFromId, ruleFields.where((field) => field.kind == BrainyFieldKind.text || field.kind == BrainyFieldKind.select).toList(), (value) => setState(() => ruleFromId = value)),
+            ruleField(fr ? 'Lieu destination' : 'To location', ruleToId, ruleFields.where((field) => field.kind == BrainyFieldKind.text || field.kind == BrainyFieldKind.select).toList(), (value) => setState(() => ruleToId = value)),
+            ruleField(fr ? 'Lot' : 'Lot', ruleLotId, ruleFields.where((field) => field.kind == BrainyFieldKind.text || field.kind == BrainyFieldKind.select).toList(), (value) => setState(() => ruleLotId = value)),
+            ruleField(fr ? 'Motif' : 'Reason', ruleReasonId, ruleFields.where((field) => [BrainyFieldKind.title, BrainyFieldKind.text, BrainyFieldKind.longText].contains(field.kind)).toList(), (value) => setState(() => ruleReasonId = value)),
+            FilledButton.tonal(onPressed: busy || ruleName.text.trim().isEmpty || ruleFormatId == null || ruleProductId == null || ruleQuantityId == null || (ruleKind == 'TRANSFER' && (ruleFromId == null || ruleToId == null)) ? null : saveRule, child: Text(fr ? 'Enregistrer la règle' : 'Save rule')),
+            for (final rule in collection.stockRules) ListTile(title: Text('${rule['name']} · ${rule['kind']}'), trailing: IconButton(icon: const Icon(Icons.delete_outline), tooltip: fr ? 'Supprimer' : 'Delete', onPressed: busy ? null : () async { try { final updated = await widget.api.deleteStockRule(collection.id, rule['id'] as String); if (mounted) setState(() => collection = updated); } catch (cause) { if (mounted) setState(() => error = '$cause'); } })),
+          ]),
+          if (error != null)
+            Text(
+              error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          const SizedBox(height: 16),
+          Text(
+            fr ? 'Positions' : 'Positions',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          if (positions.isEmpty)
+            Text(
+              fr ? 'Aucun mouvement validé.' : 'No confirmed movements yet.',
+            ),
+          for (final item in positions)
+            Card(
+              child: ListTile(
+                title: Text('${item['productName']} · ${item['quantity']}'),
+                subtitle: Text(
+                  '${item['location'] == '' ? (fr ? 'Lieu par défaut' : 'Default location') : item['location']}${item['lot'] == '' ? '' : ' · ${item['lot']}'}',
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          Text(
+            fr ? 'Nouveau mouvement' : 'New movement',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: productId,
+            decoration: InputDecoration(labelText: fr ? 'Produit' : 'Product'),
+            items: products
+                .map(
+                  (entry) => DropdownMenuItem(
+                    value: entry.id,
+                    child: Text(name(entry)),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => setState(() {
+              productId = value;
+              preview = null;
+            }),
+          ),
+          DropdownButtonFormField<String>(
+            initialValue: kind,
+            decoration: InputDecoration(labelText: fr ? 'Effet' : 'Effect'),
+            items: const ['IN', 'OUT', 'TRANSFER', 'CORRECTION']
+                .map(
+                  (value) => DropdownMenuItem(value: value, child: Text(value)),
+                )
+                .toList(),
+            onChanged: (value) => setState(() {
+              kind = value!;
+              preview = null;
+            }),
+          ),
+          TextField(
+            controller: quantity,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: fr ? 'Quantité' : 'Quantity',
+            ),
+          ),
+          TextField(
+            controller: from,
+            decoration: InputDecoration(
+              labelText: fr ? 'Lieu source' : 'From location',
+            ),
+          ),
+          TextField(
+            controller: to,
+            decoration: InputDecoration(
+              labelText: fr ? 'Lieu destination' : 'To location',
+            ),
+          ),
+          TextField(
+            controller: lot,
+            decoration: InputDecoration(labelText: fr ? 'Lot' : 'Lot'),
+          ),
+          TextField(
+            controller: reason,
+            decoration: InputDecoration(labelText: fr ? 'Motif' : 'Reason'),
+          ),
+          ExpansionTile(title: Text(fr ? 'Date du fait, conditionnement et prix' : 'Occurred at, package and price'), childrenPadding: const EdgeInsets.all(12), children: [
+            TextField(controller: occurredAt, decoration: InputDecoration(labelText: fr ? 'Date du fait · AAAA-MM-JJThh:mm' : 'Occurred at · YYYY-MM-DDThh:mm')),
+            TextField(controller: packageFactor, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: fr ? 'Unités par conditionnement' : 'Units per package')),
+            TextField(controller: priceSnapshot, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: fr ? 'Prix instantané' : 'Price snapshot')),
+            DropdownButtonFormField<String>(initialValue: priceUnit, decoration: InputDecoration(labelText: fr ? 'Devise du prix' : 'Price currency'), items: ['', 'EUR', 'USD', 'GBP', 'NGN'].map((value) => DropdownMenuItem(value: value, child: Text(value.isEmpty ? '—' : value))).toList(), onChanged: (value) => setState(() => priceUnit = value!)),
+          ]),
+          FilledButton.tonal(
+            onPressed: busy ? null : previewManual,
+            child: Text(fr ? 'Voir l’effet' : 'Preview effect'),
+          ),
+          if (preview != null && draft?['kind'] != 'RETURN') effect(preview!, confirmManual),
+          const SizedBox(height: 16),
+          Text(fr ? 'Retour de vente' : 'Sale return', style: Theme.of(context).textTheme.titleLarge),
+          DropdownButtonFormField<String>(
+            initialValue: reversalOf,
+            decoration: InputDecoration(labelText: fr ? 'Sortie d’origine' : 'Original outgoing'),
+            items: movements.where((item) => item['kind'] == 'OUT').map((item) => DropdownMenuItem(value: item['id'] as String, child: Text('${item['productName']} · ${item['baseQuantity']}'))).toList(),
+            onChanged: (value) => setState(() { reversalOf = value; preview = null; }),
+          ),
+          Text(fr ? 'Utilisez la quantité ci-dessus ; le lieu et le lot d’origine sont repris.' : 'Use the quantity above; the original location and lot are reused.'),
+          FilledButton.tonal(onPressed: busy || reversalOf == null ? null : previewReturn, child: Text(fr ? 'Voir le retour' : 'Preview return')),
+          if (preview != null && draft?['kind'] == 'RETURN') effect(preview!, confirmManual),
+          const SizedBox(height: 16),
+          Text(fr ? 'Règle de stock négatif' : 'Negative stock policy', style: Theme.of(context).textTheme.titleLarge),
+          SwitchListTile(title: Text(fr ? 'Autoriser un solde négatif' : 'Allow negative balance'), value: allowNegative, onChanged: busy ? null : (value) async { setState(() => busy = true); try { final updated = await widget.api.setStockNegativePolicy(collection.id, value); if (mounted) setState(() => allowNegative = updated.allowNegativeStock); } catch (cause) { if (mounted) setState(() => error = '$cause'); } finally { if (mounted) setState(() => busy = false); } }),
+          const SizedBox(height: 16),
+          Text(fr ? 'Rapport quotidien (UTC)' : 'Daily report (UTC)', style: Theme.of(context).textTheme.titleLarge),
+          TextField(controller: reportFrom, decoration: InputDecoration(labelText: fr ? 'Du · AAAA-MM-JJ' : 'From · YYYY-MM-DD')),
+          TextField(controller: reportTo, decoration: InputDecoration(labelText: fr ? 'Au · AAAA-MM-JJ' : 'To · YYYY-MM-DD')),
+          FilledButton.tonal(onPressed: busy || productId == null ? null : loadReport, child: Text(fr ? 'Afficher' : 'Show')),
+          if (report != null) for (final row in report!) ListTile(title: Text('${row['date']} · ${row['opening']} + ${row['incoming']} − ${row['outgoing']} = ${row['closing']}'), subtitle: Text((row['movements'] as List<dynamic>).cast<Map<String, dynamic>>().map((item) => '${item['kind']} ${item['baseQuantity']}').join(' · '))),
+          const SizedBox(height: 16),
+          if (rules.isNotEmpty)
+            Text(
+              fr ? 'Entrées avec effet de stock' : 'Entries with stock effect',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          for (final entry in entries)
+            for (final rule in rules.where(
+              (rule) => rule['formatId'] == entry.formatId,
+            ))
+              ListTile(
+                title: Text(
+                  '${rule['name']} · ${entry.createdAt.toLocal().toString().substring(0, 10)}',
+                ),
+                trailing: TextButton(
+                  onPressed:
+                      busy ||
+                          movements.any(
+                            (movement) => movement['sourceEntryId'] == entry.id,
+                          )
+                      ? null
+                      : () => previewSource(entry, rule['id'] as String),
+                  child: Text(
+                    movements.any(
+                          (movement) => movement['sourceEntryId'] == entry.id,
+                        )
+                        ? (fr ? 'Validé' : 'Confirmed')
+                        : (fr ? 'Voir l’effet' : 'Preview effect'),
+                  ),
+                ),
+              ),
+          if (sourcePreview != null) effect(sourcePreview!, confirmSource),
+          const SizedBox(height: 16),
+          Text(
+            fr ? 'Historique' : 'History',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          for (final movement in movements)
+            ListTile(
+              title: Text(
+                '${movement['productName']} · ${movement['kind']} · ${movement['baseQuantity']}',
+              ),
+              subtitle: Text(
+                '${movement['occurredAt'].toString().substring(0, 10)} · ${movement['fromLocation']} → ${movement['toLocation']}',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

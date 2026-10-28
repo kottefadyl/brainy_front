@@ -1,17 +1,18 @@
-# brainy
+﻿# Brainy client
 
-A new Flutter project.
+Flutter client for Brainy's collections and entries on Android, iOS, Windows, macOS, and Linux. The browser client is the Next.js app in `../brainy_web_app/`.
+The interface is available in English and French. Each collection can have
+multiple named data formats, each with its own fields and required pale color.
+The first sign-in opens profile setup for name, profession, job, studies,
+interests, and hobbies; the profile can be edited later. Number
+fields support common units and a custom unit.
 
-## Getting Started
+Run `flutter pub get`, then `flutter run -d windows` or select a mobile or other desktop device. For a remote API, set
+`--dart-define=API_URL=https://your-host/graphql`.
 
-This project is a starting point for a Flutter application.
+See [the project README](../README.md) for API setup, authentication, and checks.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The flat Brainy mark in `assets/branding/brainy_mark.png` is used in the app and
+for platform launch icons. After replacing it, run
+`dart run tool/generate_brand_icons.dart` to refresh Android, iOS, macOS,
+and Windows icons. The Next.js web app has its own logo in `../brainy_web_app/public/`.

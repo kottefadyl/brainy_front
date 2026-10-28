@@ -1,0 +1,4496 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'brand_assets.dart';
+
+import 'auth_api.dart';
+import 'app_strings.dart';
+import 'collections_api.dart';
+import 'collection_copy_dialog.dart';
+import 'linked_format_dialog.dart';
+import 'saved_view_dialog.dart';
+import 'calendar_view.dart';
+import 'entry_reminder_dialog.dart';
+import 'push_registration.dart';
+import 'collection_transfer.dart';
+import 'entry_clipboard.dart';
+import 'number_units.dart';
+import 'object_dialog.dart';
+import 'unit_dialog.dart';
+import 'starter_dialog.dart';
+import 'insights_dialog.dart';
+import 'stock_screen.dart';
+import 'entry_links_dialog.dart';
+import 'quick_capture_sheet.dart';
+import 'quick_entry_sheet.dart';
+
+const _ink = Color(0xFF20242C);
+const _muted = Color(0xFF545E6D);
+const _blue = Color(0xFF2463CE);
+const _canvas = Color(0xFFF5F6F8);
+
+Color _dialogInk(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? const Color(0xFFF1F3F7)
+    : _ink;
+Color _dialogMuted(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? const Color(0xFFB5BECC)
+    : _muted;
+
+Color _pastelColor(String color) {
+  final hex = color.replaceFirst('#', '');
+  return Color(
+    int.tryParse(hex, radix: 16) == null
+        ? 0xFFEEF5FF
+        : 0xFF000000 | int.parse(hex, radix: 16),
+  );
+}
+
+Color _formatTint(BrainyFormat format) => _pastelColor(format.color);
+
+String _displayFormatName(BuildContext context, BrainyFormat format) =>
+    format.id.startsWith('legacy-') && format.name == 'General'
+    ? AppStrings.of(context).text('General')
+    : format.name;
+
+class WorkspaceScreen extends StatefulWidget {
+  const WorkspaceScreen({
+    super.key,
+    required this.user,
+    required this.api,
+    required this.onSignOut,
+    this.onEditProfile,
+    this.onLanguageChanged,
+    this.themeButton,
+  });
+
+  final AppUser user;
+  final AuthApi api;
+  final Future<void> Function() onSignOut;
+  final VoidCallback? onEditProfile;
+  final ValueChanged<String>? onLanguageChanged;
+  final Widget? themeButton;
+
+  @override
+  State<WorkspaceScreen> createState() => _WorkspaceScreenState();
+}
+
+class _WorkspaceScreenState extends State<WorkspaceScreen> {
+  bool get _dark => Theme.of(context).brightness == Brightness.dark;
+  Color get _panel => _dark ? const Color(0xFF24272E) : Colors.white;
+  Color get _panelBorder =>
+      _dark ? const Color(0xFF3E4653) : const Color(0xFFDDE2EA);
+  Color get _panelInk => _dark ? const Color(0xFFF1F3F7) : _ink;
+  Color get _panelMuted => _dark ? const Color(0xFFB5BECC) : _muted;
+  Color get _actionAccent => _dark ? const Color(0xFF96BDFF) : _blue;
+  Color _formatSurface(BrainyFormat format) => _dark
+      ? Color.alphaBlend(
+          _pastelColor(format.color).withValues(alpha: 0.12),
+          const Color(0xFF24272E),
+        )
+      : _formatTint(format);
+  Color _toolAccent(IconData _) => _actionAccent;
+
+  String _t(String value) => AppStrings.of(context).text(value);
+  AppStrings get _copy => AppStrings.of(context);
+  late final CollectionsApi _api = CollectionsApi(widget.api);
+  late final PushRegistration _push = PushRegistration(_api);
+  List<BrainyCollection> _collections = [];
+  List<BrainyEntry> _entries = [];
+  String? _pageCursor;
+  bool _loadingMore = false;
+  final _searchController = TextEditingController();
+  final _filterController = TextEditingController();
+  Timer? _filterDebounce;
+  int _entryRequest = 0;
+  String _search = '';
+  String? _filterFormatId;
+  String? _filterFieldId;
+  String _filterOperator = 'EQ';
+  String _filterValue = '';
+  String? _selectedViewId;
+  String? _selectedId;
+  bool _loading = true;
+  bool _loadingEntries = false;
+  String? _error;
+  Map<String, String>? _queuedShare;
+
+  BrainyCollection? get _selected {
+    for (final collection in _collections) {
+      if (collection.id == _selectedId) return collection;
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? get _selectedView {
+    for (final view
+        in _selected?.savedViews ?? const <Map<String, dynamic>>[]) {
+      if (view['id'] == _selectedViewId) return view;
+    }
+    return null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    QuickCaptureBridge.install((data) { _queuedShare = data; if (_collections.isNotEmpty) { _queuedShare = null; _showQuickCapture(data); } });
+    _load();
+    _push.refreshIfAuthorized().catchError((Object _) {});
+  }
+
+  @override
+  void dispose() {
+    QuickCaptureBridge.clear();
+    _filterDebounce?.cancel();
+    _push.dispose();
+    _searchController.dispose();
+    _filterController.dispose();
+    super.dispose();
+  }
+
+  void _scheduleEntries() {
+    _filterDebounce?.cancel();
+    _filterDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() {
+        _search = _searchController.text.trim();
+        _filterValue = _filterController.text.trim();
+      });
+      _loadEntries();
+    });
+  }
+
+  Future<void> _load() async {
+    try {
+      final collections = await _api.collections();
+      if (!mounted) return;
+      setState(() {
+        _collections = collections;
+        _selectedId = collections.any((item) => item.id == _selectedId)
+            ? _selectedId
+            : collections.firstOrNull?.id;
+        _loading = false;
+        _error = null;
+      });
+      await _loadEntries();
+      _queuedShare ??= await QuickCaptureBridge.takePending();
+      if (_queuedShare != null && mounted) {
+        final shared = _queuedShare!;
+        _queuedShare = null;
+        await _showQuickCapture(shared);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = error.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadEntries() async {
+    final id = _selectedId;
+    final request = ++_entryRequest;
+    if (id == null) {
+      if (mounted) {
+        setState(() {
+          _entries = [];
+          _pageCursor = null;
+        });
+      }
+      return;
+    }
+    setState(() {
+      _loadingEntries = true;
+      _pageCursor = null;
+      _error = null;
+    });
+    try {
+      final page = await _api.entriesPage(
+        id,
+        search: _search,
+        formatId: _filterFormatId,
+        fieldId: _filterFieldId,
+        operatorName: _filterOperator,
+        filterValue: _filterValue,
+        viewId: _selectedViewId,
+      );
+      if (mounted && _selectedId == id && request == _entryRequest) {
+        setState(() {
+          _entries = page.entries;
+          _pageCursor = page.nextCursor;
+          _loadingEntries = false;
+        });
+      }
+    } catch (error) {
+      if (mounted && _selectedId == id && request == _entryRequest) {
+        setState(() {
+          _loadingEntries = false;
+          _error = error.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _loadMoreEntries() async {
+    final id = _selectedId;
+    final cursor = _pageCursor;
+    if (id == null || cursor == null || _loadingMore) return;
+    final request = _entryRequest;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await _api.entriesPage(
+        id,
+        after: cursor,
+        search: _search,
+        formatId: _filterFormatId,
+        fieldId: _filterFieldId,
+        operatorName: _filterOperator,
+        filterValue: _filterValue,
+        viewId: _selectedViewId,
+      );
+      if (mounted && id == _selectedId && request == _entryRequest) {
+        setState(() {
+          final seen = _entries.map((entry) => entry.id).toSet();
+          _entries = [
+            ..._entries,
+            ...page.entries.where((entry) => !seen.contains(entry.id)),
+          ];
+          _pageCursor = page.nextCursor;
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  Future<void> _editSavedView(
+    BrainyCollection collection, [
+    Map<String, dynamic>? view,
+  ]) async {
+    final updated = await showSavedViewEditor(
+      context,
+      api: _api,
+      collection: collection,
+      existing: view,
+      search: _search,
+      formatId: _filterFormatId,
+      filterFieldId: _filterFieldId,
+      filterOperator: _filterOperator,
+      filterValue: _filterValue,
+    );
+    if (!mounted || updated == null) return;
+    setState(() {
+      _collections = _collections
+          .map((item) => item.id == updated.id ? updated : item)
+          .toList();
+      _selectedViewId =
+          view?['id'] as String? ?? updated.savedViews.last['id'] as String?;
+    });
+    await _loadEntries();
+  }
+
+  Future<void> _deleteSavedView(
+    BrainyCollection collection,
+    Map<String, dynamic> view,
+  ) async {
+    try {
+      final updated = await _api.deleteView(
+        collection.id,
+        view['id'] as String,
+      );
+      if (!mounted) return;
+      setState(() {
+        _collections = _collections
+            .map((item) => item.id == updated.id ? updated : item)
+            .toList();
+        _selectedViewId = null;
+      });
+      await _loadEntries();
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    }
+  }
+
+  void _select(BrainyCollection collection) {
+    if (_selectedId == collection.id) return;
+    setState(() {
+      _selectedId = collection.id;
+      _entries = [];
+      _pageCursor = null;
+      _filterFormatId = null;
+      _filterFieldId = null;
+      _filterValue = '';
+      _search = '';
+      _selectedViewId = null;
+    });
+    _searchController.clear();
+    _filterController.clear();
+    _loadEntries();
+  }
+
+  Future<void> _createCollection() async {
+    final collection = await showStarterDialog(context, _api);
+    if (!mounted || collection == null) return;
+    setState(() {
+      _collections = [collection, ..._collections];
+      _selectedId = collection.id;
+      _entries = [];
+    });
+  }
+
+  Future<void> _createCollectionManually() async {
+    final collection = await showDialog<BrainyCollection>(
+      context: context,
+      builder: (context) => _CollectionEditor(api: _api),
+    );
+    if (!mounted || collection == null) return;
+    setState(() {
+      _collections = [collection, ..._collections];
+      _selectedId = collection.id;
+      _entries = [];
+    });
+  }
+
+  Future<void> _showInsights(BrainyCollection collection) async {
+    final updated = await showInsightsDialog(
+      context,
+      _api,
+      collection,
+      onOpenEntry: (entryId) async {
+        final entry = await _api.entry(collection.id, entryId);
+        if (mounted) await _editEntry(entry);
+      },
+    );
+    if (!mounted || updated == null) return;
+    setState(
+      () => _collections = [
+        for (final item in _collections) item.id == updated.id ? updated : item,
+      ],
+    );
+  }
+
+  Future<void> _addFormat() async {
+    final collection = _selected;
+    if (collection == null) return;
+    final updated = await showDialog<BrainyCollection>(
+      context: context,
+      builder: (context) =>
+          _CollectionEditor(api: _api, collection: collection),
+    );
+    if (!mounted || updated == null) return;
+    setState(() {
+      _collections = [
+        for (final item in _collections) item.id == updated.id ? updated : item,
+      ];
+    });
+  }
+
+  Future<void> _editFormat(BrainyFormat format) async {
+    final collection = _selected;
+    if (collection == null) return;
+    final updated = await showDialog<BrainyCollection>(
+      context: context,
+      builder: (context) => _CollectionEditor(
+        api: _api,
+        collection: collection,
+        editingFormat: format,
+      ),
+    );
+    if (!mounted || updated == null) return;
+    setState(
+      () => _collections = [
+        for (final item in _collections) item.id == updated.id ? updated : item,
+      ],
+    );
+  }
+
+  Future<void> _changeFormatColor(BrainyFormat format) async {
+    final collection = _selected;
+    if (collection == null) return;
+    var chosen = format.color;
+    final color = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: Text(_t('Change color')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_displayFormatName(context, format)),
+              const SizedBox(height: 10),
+              Text(
+                _t(
+                  'Every entry in this data format uses this soft background.',
+                ),
+                style: const TextStyle(color: _muted, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (
+                    var index = 0;
+                    index < brainyFormatColors.length;
+                    index++
+                  )
+                    Builder(
+                      builder: (context) {
+                        final option = brainyFormatColors[index];
+                        final used = collection.formats.any(
+                          (item) =>
+                              item.id != format.id && item.color == option,
+                        );
+                        return Tooltip(
+                          message: '${_t('Color')} ${index + 1}',
+                          child: InkWell(
+                            onTap: used
+                                ? null
+                                : () => update(() => chosen = option),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Opacity(
+                              opacity: used ? 0.35 : 1,
+                              child: Container(
+                                width: 39,
+                                height: 39,
+                                decoration: BoxDecoration(
+                                  color: _pastelColor(option),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: chosen == option
+                                        ? _blue
+                                        : const Color(0xFFCCD9E7),
+                                    width: chosen == option ? 2.5 : 1,
+                                  ),
+                                ),
+                                child: chosen == option
+                                    ? const Icon(
+                                        Icons.check_rounded,
+                                        size: 20,
+                                        color: _blue,
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(_t('Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, chosen),
+              child: Text(_t('Save')),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || color == null || color == format.color) return;
+    try {
+      final updated = await _api.setFormatColor(
+        collection.id,
+        format.id,
+        color,
+      );
+      if (mounted) {
+        setState(
+          () => _collections = [
+            for (final item in _collections)
+              item.id == updated.id ? updated : item,
+          ],
+        );
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    }
+  }
+
+  Future<void> _editEntry([BrainyEntry? entry, String? initialFormatId]) async {
+    final collection = _selected;
+    if (collection == null) return;
+    final saved = await showDialog<BrainyEntry>(
+      context: context,
+      builder: (context) => _EntryEditor(
+        api: _api,
+        collection: collection,
+        entry: entry,
+        initialFormatId: initialFormatId,
+      ),
+    );
+    if (!mounted || saved == null || _selectedId != collection.id) return;
+    await _loadEntries();
+  }
+
+  Future<void> _manageObjects() async {
+    final collection = _selected;
+    if (collection == null) return;
+    final request = await showDialog<ObjectEditorRequest>(
+      context: context,
+      builder: (context) => ObjectDialog(
+        collection: collection,
+        api: _api,
+        onCollection: (updated) {
+          if (mounted) {
+            setState(
+              () => _collections = [
+                for (final item in _collections)
+                  item.id == updated.id ? updated : item,
+              ],
+            );
+          }
+        },
+        onEntriesChanged: () {
+          if (mounted) _loadEntries();
+        },
+      ),
+    );
+    if (!mounted || request == null) return;
+    await _editEntry(request.entry, request.formatId);
+  }
+
+  Future<bool> _confirm(String title, String message) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(_t('Cancel')),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(_t('Delete')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _deleteEntry(BrainyEntry entry) async {
+    if (!await _confirm(
+      _t('Delete entry?'),
+      _t('This entry will be removed permanently.'),
+    )) {
+      return;
+    }
+    try {
+      await _api.deleteEntry(entry.id);
+      if (mounted) {
+        setState(() => _entries.removeWhere((item) => item.id == entry.id));
+      }
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _renameCollection() async {
+    final collection = _selected;
+    if (collection == null) return;
+    final controller = TextEditingController(text: collection.name);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_t('Rename collection')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 80,
+          decoration: InputDecoration(labelText: _t('Collection name')),
+          onSubmitted: (value) => Navigator.pop(context, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(_t('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: Text(_t('Save')),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.trim().isEmpty) return;
+    try {
+      final updated = await _api.renameCollection(collection.id, name);
+      if (mounted) {
+        setState(() {
+          _collections = [
+            for (final item in _collections)
+              item.id == updated.id ? updated : item,
+          ];
+        });
+      }
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _deleteCollection() async {
+    final collection = _selected;
+    if (collection == null) return;
+    if (!await _confirm(
+      '${_t('Delete')} ${collection.name}?',
+      _t('The collection and every entry in it will be removed permanently.'),
+    )) {
+      return;
+    }
+    try {
+      await _api.deleteCollection(collection.id);
+      if (!mounted) return;
+      setState(() {
+        _collections.removeWhere((item) => item.id == collection.id);
+        _selectedId = _collections.firstOrNull?.id;
+        _entries = [];
+      });
+      _loadEntries();
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  void _showError(Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(_copy.error(error))));
+  }
+
+  Future<void> _copyEntry(
+    BrainyCollection collection,
+    BrainyEntry entry,
+  ) async {
+    try {
+      await Clipboard.setData(
+        ClipboardData(text: entryClipboardText(collection, entry, _copy)),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(_t('Copied to clipboard'))));
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _downloadAttachment(BrainyEntry entry, BrainyField field) async {
+    try {
+      final attachment = await _api.entryAttachment(entry.id, field.id);
+      final saved = await FilePicker.saveFile(
+        fileName: attachment.fileName,
+        bytes: attachment.bytes,
+      );
+      if (saved != null && mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_t('File saved'))));
+      }
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _openTransfer() async {
+    BrainyTransfer? transfer;
+    var targetNew = true;
+    var busy = false;
+    String? error;
+    String? resultText;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, update) => AlertDialog(
+          backgroundColor: _dark
+              ? const Color(0xFF1C1F23)
+              : const Color(0xFFF7FAFF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: Text(_t('Import and export')),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_selected != null) ...[
+                    Text(
+                      _t('Export collection'),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton(
+                          onPressed: busy
+                              ? null
+                              : () async {
+                                  update(() => busy = true);
+                                  try {
+                                    final backup = await BrainyTransfer.export(
+                                      _selected!,
+                                      _api,
+                                    );
+                                    final saved = await FilePicker.saveFile(
+                                      fileName:
+                                          'brainy-${_selected!.name}.json',
+                                      bytes: Uint8List.fromList(
+                                        utf8.encode(backup.json),
+                                      ),
+                                    );
+                                    if (dialogContext.mounted &&
+                                        saved != null) {
+                                      update(
+                                        () => resultText = _t('File saved'),
+                                      );
+                                    }
+                                  } catch (cause) {
+                                    if (dialogContext.mounted) {
+                                      update(() => error = _copy.error(cause));
+                                    }
+                                  } finally {
+                                    if (dialogContext.mounted) {
+                                      update(() => busy = false);
+                                    }
+                                  }
+                                },
+                          child: Text(_t('Brainy backup (JSON)')),
+                        ),
+                        OutlinedButton(
+                          onPressed: busy
+                              ? null
+                              : () async {
+                                  update(() => busy = true);
+                                  try {
+                                    final backup = await BrainyTransfer.export(
+                                      _selected!,
+                                      _api,
+                                    );
+                                    final saved = await FilePicker.saveFile(
+                                      fileName: 'brainy-${_selected!.name}.csv',
+                                      bytes: Uint8List.fromList(
+                                        utf8.encode(backup.csv()),
+                                      ),
+                                    );
+                                    if (dialogContext.mounted &&
+                                        saved != null) {
+                                      update(
+                                        () => resultText = _t('File saved'),
+                                      );
+                                    }
+                                  } catch (cause) {
+                                    if (dialogContext.mounted) {
+                                      update(() => error = _copy.error(cause));
+                                    }
+                                  } finally {
+                                    if (dialogContext.mounted) {
+                                      update(() => busy = false);
+                                    }
+                                  }
+                                },
+                          child: Text(_t('Readable table (CSV)')),
+                        ),
+                        if (_selected!.formats.any(
+                          (format) =>
+                              format.fields.any(
+                                (field) =>
+                                    field.kind == BrainyFieldKind.longText,
+                              ) &&
+                              format.fields.any(
+                                (field) =>
+                                    field.kind == BrainyFieldKind.number &&
+                                    [
+                                      'ordre',
+                                      'order',
+                                    ].contains(field.name.toLowerCase()),
+                              ),
+                        ))
+                          OutlinedButton(
+                            onPressed: busy
+                                ? null
+                                : () async {
+                                    update(() => busy = true);
+                                    try {
+                                      final backup =
+                                          await BrainyTransfer.export(
+                                            _selected!,
+                                            _api,
+                                          );
+                                      final saved = await FilePicker.saveFile(
+                                        fileName:
+                                            'brainy-${_selected!.name}.txt',
+                                        bytes: Uint8List.fromList(
+                                          utf8.encode(
+                                            backup.bookText(
+                                              french: _copy.isFrench,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                      if (dialogContext.mounted &&
+                                          saved != null) {
+                                        update(
+                                          () => resultText = _t('File saved'),
+                                        );
+                                      }
+                                    } catch (cause) {
+                                      if (dialogContext.mounted) {
+                                        update(
+                                          () => error = _copy.error(cause),
+                                        );
+                                      }
+                                    } finally {
+                                      if (dialogContext.mounted) {
+                                        update(() => busy = false);
+                                      }
+                                    }
+                                  },
+                            child: Text(
+                              _copy.isFrench ? 'Texte du livre' : 'Book text',
+                            ),
+                          ),
+                      ],
+                    ),
+                    const Divider(height: 30),
+                  ],
+                  Text(
+                    _t('Import collection'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            try {
+                              final selected = await FilePicker.pickFile(
+                                type: FileType.custom,
+                                allowedExtensions: ['json'],
+                              );
+                              if (selected == null) return;
+                              final bytes = await selected.readAsBytes();
+                              if (bytes.length > 100000000) {
+                                throw const FormatException(
+                                  'File is too large (100 MB maximum)',
+                                );
+                              }
+                              final parsed = BrainyTransfer.parse(
+                                utf8.decode(bytes),
+                              );
+                              if (dialogContext.mounted) {
+                                update(() {
+                                  transfer = parsed;
+                                  error = null;
+                                  resultText = null;
+                                });
+                              }
+                            } catch (cause) {
+                              if (dialogContext.mounted) {
+                                update(() => error = _copy.error(cause));
+                              }
+                            }
+                          },
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: Text(_t('Choose a Brainy backup')),
+                  ),
+                  if (transfer != null) ...[
+                    const SizedBox(height: 13),
+                    Text(
+                      '${transfer!.source['name']} · ${transfer!.entries.length} ${_t('entries')}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    if (_selected != null)
+                      SwitchListTile.adaptive(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(_t('Create a new collection')),
+                        subtitle: Text(
+                          targetNew
+                              ? _t('Create a new collection')
+                              : '${_t('Add to this collection')}: ${_selected!.name}',
+                        ),
+                        value: targetNew,
+                        onChanged: busy
+                            ? null
+                            : (value) => update(() => targetNew = value),
+                      ),
+                    Text(
+                      _t('Field mapping'),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    for (final format in transfer!.formats)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          '${format['name']}: ${(format['fields'] as List).map((field) => (field as Map)['name']).join(' → ')}',
+                          style: const TextStyle(color: _muted),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _t('Importing again skips entries already copied.'),
+                      style: const TextStyle(color: _muted, fontSize: 12),
+                    ),
+                  ],
+                  if (error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        error!,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  if (resultText != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        resultText!,
+                        style: const TextStyle(color: _blue),
+                      ),
+                    ),
+                  if (busy)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: LinearProgressIndicator(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(dialogContext),
+              child: Text(_t('Close')),
+            ),
+            if (transfer != null)
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        update(() {
+                          busy = true;
+                          error = null;
+                        });
+                        BrainyCollection? target = targetNew ? null : _selected;
+                        try {
+                          target ??= await _api.createCollectionWithFormats(
+                            transfer!.source['name'] as String,
+                            [
+                              for (final format in transfer!.formats)
+                                {
+                                  'name': format['name'],
+                                  'color': format['color'],
+                                  'objectModel': format['objectModel'] == true,
+                                  'fields': [
+                                    for (final field
+                                        in (format['fields'] as List)
+                                            .cast<Map<String, dynamic>>())
+                                      {
+                                        'name': field['name'],
+                                        'kind': field['kind'],
+                                        if (field['unit'] != null)
+                                          'unit': field['unit'],
+                                        if (field['options'] != null)
+                                          'options': field['options'],
+                                      },
+                                  ],
+                                },
+                            ],
+                            units: transfer!.units,
+                            exchangeRates:
+                                (transfer!.source['exchangeRates']
+                                        as List<dynamic>)
+                                    .cast<Map<String, dynamic>>(),
+                          );
+                          final preview = await transfer!.importInto(
+                            target,
+                            _api,
+                            dryRun: true,
+                          );
+                          if (preview.errors.isNotEmpty) {
+                            if (targetNew) {
+                              await _api.deleteCollection(target.id);
+                            }
+                            throw FormatException(
+                              preview.errors.take(10).join('\n'),
+                            );
+                          }
+                          final outcome = await transfer!.importInto(
+                            target,
+                            _api,
+                            dryRun: false,
+                          );
+                          if (!mounted || !dialogContext.mounted) return;
+                          setState(() {
+                            _collections = [
+                              target!,
+                              ..._collections.where(
+                                (item) => item.id != target!.id,
+                              ),
+                            ];
+                            _selectedId = target.id;
+                          });
+                          await _loadEntries();
+                          if (dialogContext.mounted) {
+                            update(() {
+                              resultText =
+                                  '${_t('Import complete')}: ${outcome.created} ${_t('created')}, ${outcome.skipped} ${_t('skipped')}';
+                              error = outcome.errors.isEmpty
+                                  ? null
+                                  : outcome.errors.take(10).join('\n');
+                            });
+                          }
+                        } catch (cause) {
+                          if (dialogContext.mounted) {
+                            update(() => error = _copy.error(cause));
+                          }
+                        } finally {
+                          if (dialogContext.mounted) update(() => busy = false);
+                        }
+                      },
+                child: Text(_t('Import entries')),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _manageUnits() async {
+    final selected = _selected;
+    if (selected == null) return;
+    final updated = await showDialog<BrainyCollection>(
+      context: context,
+      builder: (context) => UnitDialog(collection: selected, api: _api),
+    );
+    if (!mounted || updated == null) return;
+    setState(
+      () => _collections = [
+        for (final item in _collections) item.id == updated.id ? updated : item,
+      ],
+    );
+    await _loadEntries();
+  }
+
+  String _formatTimestamp(DateTime timestamp) {
+    final local = timestamp.toLocal();
+    final formatting = MaterialLocalizations.of(context);
+    final date = formatting.formatFullDate(local);
+    final time = formatting.formatTimeOfDay(
+      TimeOfDay.fromDateTime(local),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+    return '$date · $time';
+  }
+
+  Future<void> _showQuickCapture([Map<String, String>? shared]) async {
+    if (_collections.isEmpty) return;
+    final entry = await showQuickCaptureSheet(context, api: _api, collections: _collections, userId: widget.user.id, french: _copy.isFrench, incoming: shared, onOpenExisting: (collection, existing) { setState(() => _selectedId = collection.id); _editEntry(existing); });
+    if (entry == null || !mounted) return;
+    final owner = _collections.firstWhere((item) => item.formats.any((format) => format.id == entry.formatId), orElse: () => _selected ?? _collections.first);
+    setState(() => _selectedId = owner.id);
+    await _loadEntries();
+  }
+
+  Future<void> _showQuickEntry() async {
+    final collection = _selected;
+    if (collection == null) return;
+    final entry = await showQuickEntrySheet(context, api: _api, collection: collection, userId: widget.user.id, french: _copy.isFrench);
+    if (entry != null && mounted) await _loadEntries();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _dark ? const Color(0xFF1B1D22) : _canvas,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 760;
+            return Row(
+              children: [
+                if (wide) SizedBox(width: 260, child: _sidebar()),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _header(wide),
+                      if (!wide && _collections.isNotEmpty)
+                        _mobileCollectionPicker(),
+                      Expanded(child: _content()),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _header(bool wide) => Container(
+    height: 72,
+    padding: EdgeInsets.symmetric(horizontal: wide ? 36 : 18),
+    decoration: BoxDecoration(
+      color: _panel,
+      border: Border(bottom: BorderSide(color: _panelBorder)),
+    ),
+    child: Row(
+      children: [
+        if (!wide) ...[
+          const BrainyMark(size: 28),
+          if (MediaQuery.sizeOf(context).width >= 350) ...[
+            const SizedBox(width: 8),
+            Text(
+              'brainy',
+              style: TextStyle(
+                color: _panelInk,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+          const Spacer(),
+        ] else ...[
+          Expanded(
+            child: Text(
+              _t('Your workspace'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _panelInk,
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          if (MediaQuery.sizeOf(context).width > 1060)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Text(
+                widget.user.name,
+                style: TextStyle(color: _panelMuted),
+              ),
+            ),
+        ],
+        LanguageMenu(onChanged: widget.onLanguageChanged),
+        IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: _actionAccent)),
+        if (widget.themeButton != null) widget.themeButton!,
+        IconButton(
+          tooltip: _t('Import and export'),
+          onPressed: _openTransfer,
+          icon: Icon(Icons.import_export_rounded, color: _actionAccent),
+        ),
+        PopupMenuButton<String>(
+          tooltip: _t('Account'),
+          icon: CircleAvatar(
+            backgroundColor: _dark
+                ? const Color(0xFF303747)
+                : const Color(0xFFE6F1FC),
+            child: Icon(Icons.person_outline, color: _actionAccent),
+          ),
+          onSelected: (value) {
+            if (value == 'signout') widget.onSignOut();
+            if (value == 'profile') widget.onEditProfile?.call();
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(enabled: false, child: Text(widget.user.email)),
+            if (widget.onEditProfile != null)
+              PopupMenuItem(value: 'profile', child: Text(_t('Edit profile'))),
+            PopupMenuItem(value: 'signout', child: Text(_t('Sign out'))),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _sidebar() => Container(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: _dark
+            ? [
+                const Color(0xFF1B1D22),
+                const Color(0xFF1B1D22),
+                const Color(0xFF1B1D22),
+              ]
+            : [
+                const Color(0xFF20242C),
+                const Color(0xFF20242C),
+                const Color(0xFF20242C),
+              ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(24, 25, 20, 31),
+          child: Row(
+            children: [
+              BrainyMark(size: 32),
+              SizedBox(width: 10),
+              Text(
+                'brainy',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            _t('COLLECTIONS'),
+            style: const TextStyle(
+              color: Color(0xFF94A8C3),
+              fontSize: 11,
+              letterSpacing: 1.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final collection in _collections)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 2,
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      selected: collection.id == _selectedId,
+                      selectedTileColor: _dark
+                          ? const Color(0xFF333438)
+                          : const Color(0xFF3372BB),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      leading: Icon(
+                        collection.id == _selectedId
+                            ? Icons.folder_rounded
+                            : Icons.folder_outlined,
+                        color: collection.id == _selectedId
+                            ? Colors.white
+                            : const Color(0xFFADD0F3),
+                        size: 21,
+                      ),
+                      title: Text(
+                        collection.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                        ),
+                      ),
+                      onTap: () => _select(collection),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+          child: Text(
+            _t('One account. Every device.'),
+            style: const TextStyle(color: Color(0xFFBED6F2), fontSize: 11),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: OutlinedButton.icon(
+            onPressed: _createCollection,
+            icon: const Icon(Icons.add),
+            label: Text(_t('New collection')),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Color(0xFF6484AA)),
+              minimumSize: const Size(double.infinity, 46),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _mobileCollectionPicker() => Container(
+    color: _panel,
+    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+    child: Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            key: ValueKey(_selectedId),
+            initialValue: _selectedId,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: _t('Collection'),
+              isDense: true,
+              border: const OutlineInputBorder(),
+            ),
+            items: [
+              for (final item in _collections)
+                DropdownMenuItem(
+                  value: item.id,
+                  child: Text(item.name, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: (id) {
+              for (final item in _collections) {
+                if (item.id == id) _select(item);
+              }
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton.filledTonal(
+          tooltip: _t('New collection'),
+          onPressed: _createCollection,
+          icon: const Icon(Icons.create_new_folder_outlined),
+        ),
+        IconButton(
+          tooltip: _copy.isFrench ? 'Créer manuellement' : 'Create manually',
+          onPressed: _createCollectionManually,
+          icon: const Icon(Icons.tune_outlined),
+        ),
+      ],
+    ),
+  );
+
+  Widget _content() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null && _collections.isEmpty) {
+      return _message(
+        Icons.cloud_off_outlined,
+        _copy.error(_error!),
+        _t('Try again'),
+        _load,
+      );
+    }
+    if (_collections.isEmpty) {
+      return _message(
+        Icons.library_add_outlined,
+        _t(
+          'Start with a collection. Give it a name and choose the fields you want to keep.',
+        ),
+        _t('Create collection'),
+        _createCollection,
+        secondaryAction: _copy.isFrench
+            ? 'Créer manuellement'
+            : 'Create manually',
+        onSecondaryPressed: _createCollectionManually,
+      );
+    }
+    final collection = _selected;
+    if (collection == null) return const SizedBox.shrink();
+    return RefreshIndicator(
+      onRefresh: _loadEntries,
+      child: ListView(
+        padding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.sizeOf(context).width < 760 ? 16 : 32,
+          vertical: 26,
+        ),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1020),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _overviewBanner(collection),
+                  const SizedBox(height: 18),
+                  _collectionTools(collection),
+                  const SizedBox(height: 20),
+                  _collectionFormat(collection),
+                  const SizedBox(height: 28),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _t('Saved entries'),
+                          maxLines: 2,
+                          style: TextStyle(
+                            color: _panelInk,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${_entries.length}',
+                        style: TextStyle(color: _panelMuted, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _savedViewBar(collection),
+                  if (_selectedView == null) _entrySearchTools(collection),
+                  const SizedBox(height: 14),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        _copy.error(_error!),
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  if (_loadingEntries)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(40),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_entries.isEmpty &&
+                      _selectedView?['layout'] != 'CALENDAR')
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 38,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _panel,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: _panelBorder),
+                      ),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE8F2FE),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.note_add_outlined,
+                              color: _blue,
+                              size: 32,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _t('Nothing written yet'),
+                            style: TextStyle(
+                              color: _panelInk,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _t(
+                              'Add an entry using the fields in this collection.',
+                            ),
+                            style: TextStyle(color: _panelMuted),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 18),
+                          FilledButton(
+                            onPressed: () => _editEntry(),
+                            child: Text(_t('Write an entry')),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    _entryPresentation(collection),
+                  if (!_loadingEntries && _pageCursor != null)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: OutlinedButton(
+                          onPressed: _loadingMore ? null : _loadMoreEntries,
+                          child: Text(
+                            _t(
+                              _loadingMore ? 'Loading...' : 'Load more entries',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _savedViewBar(BrainyCollection collection) {
+    final view = _selectedView;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 210,
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('view-${collection.id}-$_selectedViewId'),
+            initialValue: _selectedViewId ?? '',
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: _t('View'),
+              border: const OutlineInputBorder(),
+            ),
+            items: [
+              DropdownMenuItem(value: '', child: Text(_t('Default list'))),
+              for (final item in collection.savedViews)
+                DropdownMenuItem(
+                  value: item['id'] as String,
+                  child: Text(item['name'] as String),
+                ),
+            ],
+            onChanged: (value) {
+              setState(
+                () => _selectedViewId = value?.isEmpty == true ? null : value,
+              );
+              _loadEntries();
+            },
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: () => _editSavedView(collection),
+          icon: const Icon(Icons.add, size: 18),
+          label: Text(_t('Save a view')),
+        ),
+        if (view != null)
+          OutlinedButton(
+            onPressed: () => _editSavedView(collection, view),
+            child: Text(_t('Edit view')),
+          ),
+        if (view != null)
+          TextButton(
+            onPressed: () => _deleteSavedView(collection, view),
+            child: Text(_t('Delete view')),
+          ),
+      ],
+    );
+  }
+
+  Widget _entryPresentation(BrainyCollection collection) {
+    final view = _selectedView;
+    if (view?['layout'] == 'CALENDAR') {
+      return CalendarView(
+        key: ValueKey('calendar-${view!['id']}-$_entryRequest'),
+        api: _api,
+        collection: collection,
+        view: view,
+        onEdit: (entry) => _editEntry(entry),
+        onRemind: (entry) => showEntryReminderDialog(
+          context,
+          api: _api,
+          collection: collection,
+          entry: entry,
+          push: _push,
+          view: view,
+        ),
+      );
+    }
+    if (view?['layout'] == 'TASKS') {
+      final doneId = view?['taskDoneFieldId'] as String?;
+      final dueId = view?['taskDueFieldId'] as String?;
+      final priorityId = view?['taskPriorityFieldId'] as String?;
+      return Column(
+        children: [
+          for (final entry in _entries)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: entry.values[doneId] == 'true',
+                      onChanged: (done) async {
+                        try {
+                          final updated = await _api.setTaskCompleted(
+                            collection.id,
+                            view!['id'] as String,
+                            entry.id,
+                            done ?? false,
+                          );
+                          if (mounted) {
+                            setState(() {
+                              _entries = _entries
+                                  .map(
+                                    (item) =>
+                                        item.id == updated.id ? updated : item,
+                                  )
+                                  .toList();
+                            });
+                          }
+                        } catch (error) {
+                          if (mounted) {
+                            setState(() => _error = error.toString());
+                          }
+                        }
+                      },
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.values[collection
+                                    .formatFor(entry)
+                                    .fields
+                                    .where(
+                                      (field) =>
+                                          field.kind == BrainyFieldKind.title,
+                                    )
+                                    .firstOrNull
+                                    ?.id] ??
+                                collection.formatFor(entry).name,
+                            style: TextStyle(
+                              decoration: entry.values[doneId] == 'true'
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
+                          ),
+                          if (entry.values[dueId] != null)
+                            Text(
+                              '${_t('Due date')}: ${entry.values[dueId]}',
+                              style: const TextStyle(
+                                color: _muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (entry.values[priorityId] != null)
+                      Text(
+                        entry.values[priorityId]!,
+                        style: const TextStyle(color: _muted),
+                      ),
+                    IconButton(
+                      onPressed: () => showEntryReminderDialog(
+                        context,
+                        api: _api,
+                        collection: collection,
+                        entry: entry,
+                        push: _push,
+                        view: view,
+                      ),
+                      tooltip: _copy.isFrench ? 'Rappels' : 'Reminders',
+                      icon: const Icon(Icons.notifications_outlined),
+                    ),
+                    IconButton(
+                      onPressed: () => _editEntry(entry),
+                      tooltip: _t('Edit'),
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+    if (view?['layout'] == 'TABLE') {
+      final ids = (view?['columnFieldIds'] as List<dynamic>? ?? const [])
+          .cast<String>();
+      final fields = collection.formats
+          .expand((format) => format.fields)
+          .toList();
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columns: [
+            DataColumn(label: Text(_t('Data format'))),
+            DataColumn(label: Text(_t('Created'))),
+            for (final id in ids)
+              DataColumn(
+                label: Text(
+                  fields.where((field) => field.id == id).firstOrNull?.name ??
+                      id,
+                ),
+              ),
+            DataColumn(label: Text(_t('Action'))),
+          ],
+          rows: [
+            for (final entry in _entries)
+              DataRow(
+                cells: [
+                  DataCell(Text(collection.formatFor(entry).name)),
+                  DataCell(
+                    Text(
+                      MaterialLocalizations.of(context)
+                          .formatMediumDate(entry.createdAt.toLocal()),
+                    ),
+                  ),
+                  for (final id in ids) DataCell(Text(entry.values[id] ?? '—')),
+                  DataCell(
+                    TextButton(
+                      onPressed: () => _editEntry(entry),
+                      child: Text(_t('Edit')),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      );
+    }
+    final groups = view?['groupByFormat'] == true
+        ? collection.formats
+              .where(
+                (format) =>
+                    _entries.any((entry) => entry.formatId == format.id),
+              )
+              .toList()
+        : <BrainyFormat>[];
+    if (groups.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final format in groups) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 8),
+              child: Text(
+                format.name,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            _viewCards(
+              collection,
+              _entries.where((entry) => entry.formatId == format.id).toList(),
+              view?['layout'] == 'CARDS',
+            ),
+          ],
+        ],
+      );
+    }
+    return _viewCards(collection, _entries, view?['layout'] == 'CARDS');
+  }
+
+  Widget _viewCards(
+    BrainyCollection collection,
+    List<BrainyEntry> entries,
+    bool cards,
+  ) {
+    if (!cards) {
+      return Column(
+        children: [for (final entry in entries) _entryCard(collection, entry)],
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth >= 700
+            ? (constraints.maxWidth - 12) / 2
+            : constraints.maxWidth;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final entry in entries)
+              SizedBox(width: width, child: _entryCard(collection, entry)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _entrySearchTools(BrainyCollection collection) {
+    final format = collection.formats
+        .where((item) => item.id == _filterFormatId)
+        .firstOrNull;
+    final field = format?.fields
+        .where((item) => item.id == _filterFieldId)
+        .firstOrNull;
+    final comparable =
+        field != null &&
+        [
+          BrainyFieldKind.number,
+          BrainyFieldKind.duration,
+          BrainyFieldKind.date,
+          BrainyFieldKind.datetime,
+          BrainyFieldKind.time,
+        ].contains(field.kind);
+    final contains =
+        field != null &&
+        [
+          BrainyFieldKind.title,
+          BrainyFieldKind.text,
+          BrainyFieldKind.longText,
+          BrainyFieldKind.link,
+          BrainyFieldKind.character,
+          BrainyFieldKind.attachment,
+        ].contains(field.kind);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _panel.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _panelBorder),
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          SizedBox(
+            width: 240,
+            child: TextField(
+              controller: _searchController,
+              onChanged: (_) => _scheduleEntries(),
+              decoration: InputDecoration(
+                labelText: _t('Search entries'),
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 185,
+            child: DropdownButtonFormField<String>(
+              key: ValueKey('format-$_selectedId-$_filterFormatId'),
+              isExpanded: true,
+              initialValue: _filterFormatId ?? '',
+              decoration: InputDecoration(
+                labelText: _t('Data format'),
+                isDense: true,
+                border: const OutlineInputBorder(),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: '',
+                  child: Text(
+                    _t('All data formats'),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                for (final item in collection.formats)
+                  DropdownMenuItem(
+                    value: item.id,
+                    child: Text(item.name, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _filterFormatId = value?.isEmpty == true ? null : value;
+                  _filterFieldId = null;
+                  _filterOperator = 'EQ';
+                  _filterValue = '';
+                  _filterController.clear();
+                });
+                _loadEntries();
+              },
+            ),
+          ),
+          if (format != null)
+            SizedBox(
+              width: 180,
+              child: DropdownButtonFormField<String>(
+                key: ValueKey('field-$_filterFormatId-$_filterFieldId'),
+                isExpanded: true,
+                initialValue: _filterFieldId ?? '',
+                decoration: InputDecoration(
+                  labelText: _t('Filter by field'),
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: '',
+                    child: Text(
+                      _t('No field filter'),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  for (final item in format.fields)
+                    DropdownMenuItem(
+                      value: item.id,
+                      child: Text(item.name, overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _filterFieldId = value?.isEmpty == true ? null : value;
+                    _filterOperator = 'EQ';
+                    _filterValue = '';
+                    _filterController.clear();
+                  });
+                  _loadEntries();
+                },
+              ),
+            ),
+          if (field != null)
+            SizedBox(
+              width: 150,
+              child: DropdownButtonFormField<String>(
+                key: ValueKey('operator-$_filterFieldId-$_filterOperator'),
+                isExpanded: true,
+                initialValue: _filterOperator,
+                decoration: InputDecoration(
+                  labelText: _t('Filter by field'),
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                ),
+                items: [
+                  DropdownMenuItem(value: 'EQ', child: Text(_t('Equals'))),
+                  if (contains)
+                    DropdownMenuItem(
+                      value: 'CONTAINS',
+                      child: Text(_t('Contains')),
+                    ),
+                  if (comparable) ...[
+                    DropdownMenuItem(
+                      value: 'GT',
+                      child: Text(_t('Greater than')),
+                    ),
+                    DropdownMenuItem(value: 'LT', child: Text(_t('Less than'))),
+                  ],
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _filterOperator = value);
+                  _loadEntries();
+                },
+              ),
+            ),
+          if (field != null)
+            SizedBox(
+              width: 180,
+              child:
+                  field.kind == BrainyFieldKind.boolean ||
+                      field.kind == BrainyFieldKind.select ||
+                      field.kind == BrainyFieldKind.multiSelect
+                  ? DropdownButtonFormField<String>(
+                      key: ValueKey('value-$_filterFieldId-$_filterValue'),
+                      isExpanded: true,
+                      initialValue: _filterValue,
+                      decoration: InputDecoration(
+                        labelText: _t('Filter value'),
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: '', child: Text('—')),
+                        for (final option
+                            in field.kind == BrainyFieldKind.boolean
+                                ? ['true', 'false']
+                                : field.options)
+                          DropdownMenuItem(
+                            value: option,
+                            child: Text(
+                              option == 'true'
+                                  ? _t('Yes')
+                                  : option == 'false'
+                                  ? _t('No')
+                                  : option,
+                            ),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _filterValue = value ?? '');
+                        _loadEntries();
+                      },
+                    )
+                  : TextField(
+                      controller: _filterController,
+                      onChanged: (_) => _scheduleEntries(),
+                      decoration: InputDecoration(
+                        labelText: _t('Filter value'),
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _overviewBanner(BrainyCollection collection) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(22),
+    decoration: BoxDecoration(
+      color: _panel,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: _panelBorder),
+    ),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 540;
+        final action = FilledButton.icon(
+          onPressed: () => _editEntry(),
+          icon: const Icon(Icons.add_rounded, size: 20),
+          label: Text(_t('New entry')),
+          style: FilledButton.styleFrom(
+            backgroundColor: _dark ? const Color(0xFF666DA6) : _blue,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(0, 46),
+          ),
+        );
+        final quickAction = OutlinedButton.icon(onPressed: _showQuickEntry, icon: const Icon(Icons.bolt_rounded, size: 18), label: Text(_copy.isFrench ? 'Saisie rapide' : 'Quick entry'));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: _dark
+                        ? const Color(0xFF303747)
+                        : const Color(0xFFE9ECF6),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Icon(
+                    Icons.folder_copy_outlined,
+                    color: _actionAccent,
+                    size: 27,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _t('Collection').toUpperCase(),
+                        style: TextStyle(
+                          color: _actionAccent,
+                          fontSize: 10,
+                          letterSpacing: 1.4,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        collection.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _panelInk,
+                          fontSize: 27,
+                          fontWeight: FontWeight.w800,
+                          height: 1.12,
+                          letterSpacing: -0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        _t('Save information in your own data format.'),
+                        style: TextStyle(color: _panelMuted, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!compact) ...[const SizedBox(width: 18), quickAction, const SizedBox(width: 8), action],
+              ],
+            ),
+            if (compact) ...[
+              const SizedBox(height: 18),
+              SizedBox(width: double.infinity, child: action),
+              const SizedBox(height: 8),
+              SizedBox(width: double.infinity, child: quickAction),
+            ],
+            const SizedBox(height: 20),
+            Wrap(
+              spacing: 9,
+              runSpacing: 9,
+              children: [
+                _statBadge(
+                  Icons.grid_view_rounded,
+                  '${collection.formats.length} ${_t(collection.formats.length == 1 ? 'data format' : 'data formats')}',
+                ),
+                _statBadge(
+                  Icons.notes_rounded,
+                  '${_entries.length} ${_t(_entries.length == 1 ? 'entry' : 'entries')}',
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
+  Widget _collectionTools(BrainyCollection collection) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 620;
+      final cardWidth = compact
+          ? constraints.maxWidth
+          : (constraints.maxWidth - 20) / 3;
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _toolCard(
+            cardWidth,
+            Icons.inventory_2_outlined,
+            'Stock',
+            _copy.isFrench ? 'Positions et mouvements validés' : 'Positions and confirmed movements',
+            () => showStockScreen(context, _api, collection),
+          ),
+          _toolCard(
+            cardWidth,
+            Icons.auto_graph_rounded,
+            _copy.isFrench
+                ? 'Calculs et graphiques'
+                : 'Calculations and charts',
+            _copy.isFrench ? 'Explorer les données' : 'Explore your data',
+            () => _showInsights(collection),
+            featured: true,
+          ),
+          _toolCard(
+            cardWidth,
+            Icons.straighten_rounded,
+            _t('Units and conversions'),
+            _copy.isFrench
+                ? 'Mesures et conversions'
+                : 'Measures and conversions',
+            _manageUnits,
+          ),
+          _toolCard(
+            cardWidth,
+            Icons.category_outlined,
+            _copy.isFrench ? 'Objets' : 'Objects',
+            _copy.isFrench ? 'Modèles et références' : 'Models and references',
+            _manageObjects,
+          ),
+        ],
+      );
+    },
+  );
+
+  Widget _toolCard(
+    double width,
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback action, {
+    bool featured = false,
+  }) => SizedBox(
+    width: width,
+    child: Material(
+      color: _dark
+          ? (featured ? const Color(0xFF242830) : _panel)
+          : (featured ? const Color(0xFFF0F2F8) : Colors.white),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(17),
+        side: BorderSide(color: _panelBorder),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(17),
+        onTap: action,
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Row(
+            children: [
+              Container(
+                width: 43,
+                height: 43,
+                decoration: BoxDecoration(
+                  color: _toolAccent(icon)
+                      .withValues(alpha: _dark ? 0.16 : 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: _toolAccent(icon)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: _panelInk,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: _panelMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 5),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: _toolAccent(icon),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _statBadge(IconData icon, String label) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+    decoration: BoxDecoration(
+      color: _dark ? const Color(0xFF303747) : const Color(0xFFEDEFF6),
+      borderRadius: BorderRadius.circular(9),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: _dark ? const Color(0xFFBEC9E6) : _blue, size: 15),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            color: _dark ? const Color(0xFFD3DAF0) : const Color(0xFF465783),
+            fontWeight: FontWeight.w700,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _collectionFormat(BrainyCollection collection) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.fromLTRB(20, 14, 12, 18),
+    decoration: BoxDecoration(
+      color: _panel,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: _panelBorder),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.tune_rounded, size: 20, color: _actionAccent),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                _t('Collection data formats'),
+                style: TextStyle(
+                  color: _panelInk,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            PopupMenuButton<String>(
+              tooltip: _t('Collection actions'),
+              icon: const Icon(Icons.more_horiz_rounded, color: _muted),
+              onSelected: (value) {
+                if (value == 'rename') {
+                  _renameCollection();
+                } else if (value == 'delete') {
+                  _deleteCollection();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(value: 'rename', child: Text(_t('Rename'))),
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Text(
+                    _t('Delete collection'),
+                    style: const TextStyle(color: Color(0xFFC54242)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth < 520
+                ? constraints.maxWidth
+                : (constraints.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final format in collection.formats)
+                  SizedBox(
+                    width: width,
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _formatSurface(format),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(
+                          color: _dark
+                              ? _pastelColor(format.color)
+                                    .withValues(alpha: 0.28)
+                              : const Color(0xFFE1E9F2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _displayFormatName(context, format),
+                                  style: TextStyle(
+                                    color: _panelInk,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => _editFormat(format),
+                                tooltip: _t('Edit data format'),
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(
+                                  Icons.edit_outlined,
+                                  size: 19,
+                                  color: _blue,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () async {
+                                  final copied = await showCopyToCollection(
+                                    context,
+                                    api: _api,
+                                    source: collection,
+                                    formatId: format.id,
+                                  );
+                                  if (copied) await _load();
+                                },
+                                tooltip: _t('Copy to collection'),
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(
+                                  Icons.copy_all_outlined,
+                                  size: 19,
+                                  color: _blue,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () async {
+                                  final linked = await showCopyToCollection(
+                                    context,
+                                    api: _api,
+                                    source: collection,
+                                    formatId: format.id,
+                                    link: true,
+                                  );
+                                  if (linked) await _load();
+                                },
+                                tooltip: _t('Share by link'),
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(
+                                  Icons.link_outlined,
+                                  size: 19,
+                                  color: _blue,
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () => _changeFormatColor(format),
+                                tooltip: _t('Change color'),
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(
+                                  Icons.palette_outlined,
+                                  size: 19,
+                                  color: _blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (format.linkedSource != null)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton.icon(
+                                onPressed: () async {
+                                  final changed = await showLinkedFormatUpdate(
+                                    context,
+                                    api: _api,
+                                    collection: collection,
+                                    format: format,
+                                  );
+                                  if (changed) await _load();
+                                },
+                                icon: const Icon(Icons.sync_outlined, size: 17),
+                                label: Text(
+                                  '${_t('Review updates')} · ${format.linkedSource!['acceptedVersion']}',
+                                ),
+                              ),
+                            ),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final field in format.fields)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.66),
+                                    borderRadius: BorderRadius.circular(7),
+                                  ),
+                                  child: Text(
+                                    '${field.name} · ${_t(field.kind.label)}${field.unit == null ? '' : ' · ${numberUnit(field.unit)?.symbol ?? field.unit}'}',
+                                    style: const TextStyle(
+                                      color: _ink,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: collection.formats.length >= brainyFormatColors.length
+              ? null
+              : _addFormat,
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: Text(_t('Add data format')),
+        ),
+      ],
+    ),
+  );
+
+  Widget _message(
+    IconData icon,
+    String message,
+    String action,
+    VoidCallback onPressed, {
+    String? secondaryAction,
+    VoidCallback? onSecondaryPressed,
+  }) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(25),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 430),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 54, color: _blue),
+            const SizedBox(height: 20),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _panelInk, fontSize: 19, height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            FilledButton(onPressed: onPressed, child: Text(action)),
+            if (secondaryAction != null && onSecondaryPressed != null) ...[
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: onSecondaryPressed,
+                child: Text(secondaryAction),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _entryCard(BrainyCollection collection, BrainyEntry entry) {
+    final format = collection.formatFor(entry);
+    final visibleFields = format.fields
+        .where((field) => entry.values[field.id]?.trim().isNotEmpty ?? false)
+        .toList();
+    final edited = entry.updatedAt.isAfter(
+      entry.createdAt.add(const Duration(seconds: 2)),
+    );
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _formatSurface(format),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _dark
+              ? _pastelColor(format.color).withValues(alpha: 0.28)
+              : const Color(0xFFDDE8F4),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showCopyLabel = constraints.maxWidth >= 310;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 3,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _dark
+                                ? Color.alphaBlend(
+                                    _pastelColor(format.color)
+                                        .withValues(alpha: 0.19),
+                                    const Color(0xFF252930),
+                                  )
+                                : Colors.white.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _displayFormatName(context, format),
+                            style: TextStyle(
+                              color: _dark
+                                  ? const Color(0xFFE4E8EC)
+                                  : _panelInk,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${_t('Created')} ${_formatTimestamp(entry.createdAt)}',
+                          style: TextStyle(
+                            color: _panelMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (edited)
+                          Text(
+                            '${_t('Edited')} ${_formatTimestamp(entry.updatedAt)}',
+                            style: TextStyle(color: _panelMuted, fontSize: 11),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (showCopyLabel)
+                    TextButton.icon(
+                      onPressed: () => _copyEntry(collection, entry),
+                      icon: const Icon(Icons.content_copy_rounded, size: 16),
+                      label: Text(_t('Copy entry')),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _blue,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    )
+                  else
+                    IconButton(
+                      onPressed: () => _copyEntry(collection, entry),
+                      tooltip: _t('Copy entry'),
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.content_copy_rounded,
+                        size: 18,
+                        color: _blue,
+                      ),
+                    ),
+                  PopupMenuButton<String>(
+                    tooltip: _t('Entry actions'),
+                    icon: const Icon(Icons.more_horiz_rounded, color: _muted),
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _editEntry(entry);
+                      } else if (value == 'reminder') {
+                        showEntryReminderDialog(
+                          context,
+                          api: _api,
+                          collection: collection,
+                          entry: entry,
+                          push: _push,
+                          view: _selectedView,
+                        );
+                      } else if (value == 'links') {
+                        showEntryLinksDialog(
+                          context,
+                          _api,
+                          collection,
+                          entry,
+                        ).then((linked) {
+                          if (linked != null && mounted) _editEntry(linked);
+                        });
+                      } else if (value == 'delete') {
+                        _deleteEntry(entry);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(value: 'edit', child: Text(_t('Edit'))),
+                      PopupMenuItem(
+                        value: 'reminder',
+                        child: Text(_copy.isFrench ? 'Rappels' : 'Reminders'),
+                      ),
+                      PopupMenuItem(
+                        value: 'links',
+                        child: Text(
+                          _copy.isFrench
+                              ? 'Liens entre entrées'
+                              : 'Entry links',
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text(
+                          _t('Delete'),
+                          style: const TextStyle(color: Color(0xFFC54242)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (visibleFields.isNotEmpty) ...[
+                const SizedBox(height: 5),
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 5,
+                  children: [
+                    for (final field in visibleFields)
+                      _entryFieldTile(field, entry.values[field.id]!, entry),
+                  ],
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showObjectReferences(
+    BrainyEntry entry,
+    BrainyField field,
+  ) async {
+    try {
+      final references = await _api.entryObjectReferences(entry.id);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(field.name),
+          content: SizedBox(
+            width: 480,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final reference in references.where(
+                  (item) => item['fieldId'] == field.id,
+                ))
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            reference['name'] as String? ??
+                                reference['objectId'] as String,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            reference['mode'] == 'SNAPSHOT'
+                                ? (_copy.isFrench
+                                      ? 'Valeurs figées'
+                                      : 'Snapshot')
+                                : (_copy.isFrench
+                                      ? 'Valeurs actuelles'
+                                      : 'Current values'),
+                          ),
+                          if (reference['missing'] == true)
+                            Text(
+                              _copy.isFrench
+                                  ? 'Objet indisponible'
+                                  : 'Object unavailable',
+                            )
+                          else
+                            for (final property
+                                in (reference['properties'] as List<dynamic>)
+                                    .cast<Map<String, dynamic>>())
+                              Text(
+                                '${property['name']}: ${property['value']}${property['unitSnapshot'] is Map<String, dynamic> ? ' ${(property['unitSnapshot'] as Map<String, dynamic>)['symbol']}' : ''}',
+                              ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(_t('Close')),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_copy.error(error))));
+      }
+    }
+  }
+
+  Future<void> _openSavedLink(String value) async {
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null || !['http', 'https'].contains(uri.scheme)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _copy.isFrench ? 'Lien web invalide' : 'Invalid web link',
+          ),
+        ),
+      );
+      return;
+    }
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        throw StateError('Could not open link');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _copy.isFrench
+                  ? 'Impossible d’ouvrir le lien'
+                  : 'Could not open link',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _copySavedLink(String value) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_copy.isFrench ? 'Lien copié' : 'Link copied')),
+      );
+    }
+  }
+
+  Widget _entryFieldTile(BrainyField field, String value, BrainyEntry entry) =>
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 240),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${field.name}:',
+              style: TextStyle(
+                color: _panelMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Flexible(
+              child: field.kind == BrainyFieldKind.objectRef
+                  ? TextButton(
+                      onPressed: () => _showObjectReferences(entry, field),
+                      child: Text(displayEntryValue(field, value, _copy)),
+                    )
+                  : field.kind == BrainyFieldKind.attachment
+                  ? TextButton(
+                      onPressed: () => _downloadAttachment(entry, field),
+                      child: Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )
+                  : Text(
+                      displayEntryValue(
+                        field,
+                        value,
+                        _copy,
+                        snapshot: entry.unitSnapshots[field.id],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: _panelInk, fontSize: 13),
+                    ),
+            ),
+            if (field.kind == BrainyFieldKind.link) ...[
+              IconButton(
+                onPressed: () => _openSavedLink(value),
+                tooltip: _copy.isFrench ? 'Ouvrir le lien' : 'Open link',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+              ),
+              IconButton(
+                onPressed: () => _copySavedLink(value),
+                tooltip: _copy.isFrench ? 'Copier le lien' : 'Copy link',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.copy_rounded, size: 18),
+              ),
+            ],
+          ],
+        ),
+      );
+}
+
+class _DraftField {
+  _DraftField({
+    String name = '',
+    this.kind = BrainyFieldKind.text,
+    this.id,
+    String options = '',
+  }) : controller = TextEditingController(text: name),
+       optionsController = TextEditingController(text: options);
+  final String? id;
+  final TextEditingController controller;
+  final TextEditingController customUnit = TextEditingController();
+  final TextEditingController optionsController;
+  final TextEditingController variableController = TextEditingController();
+  BrainyFieldKind kind;
+  String? targetObjectFormatId;
+  bool multiple = false;
+  String referenceMode = 'SNAPSHOT';
+  String unitChoice = '';
+  String? get unit => unitChoice == 'custom'
+      ? customUnit.text.trim()
+      : (unitChoice.isEmpty ? null : unitChoice);
+
+  void dispose() {
+    controller.dispose();
+    customUnit.dispose();
+    optionsController.dispose();
+    variableController.dispose();
+  }
+}
+
+class _CollectionEditor extends StatefulWidget {
+  const _CollectionEditor({
+    required this.api,
+    this.collection,
+    this.editingFormat,
+  });
+  final CollectionsApi api;
+  final BrainyCollection? collection;
+  final BrainyFormat? editingFormat;
+  @override
+  State<_CollectionEditor> createState() => _CollectionEditorState();
+}
+
+class _CollectionEditorState extends State<_CollectionEditor> {
+  String _t(String value) => AppStrings.of(context).text(value);
+  String _copyText(String french, String english) =>
+      AppStrings.of(context).isFrench ? french : english;
+  final _name = TextEditingController();
+  final _formatName = TextEditingController();
+  final List<_DraftField> _fields = [];
+  bool _saving = false;
+  bool _objectModel = false;
+  String? _error;
+
+  String? _selectedColor;
+  ({int entryCount, List<String> populatedFieldIds})? _impact;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_formatName.text.isEmpty) {
+      _formatName.text =
+          widget.editingFormat?.name ??
+          '${_t('Data format')} ${widget.collection == null ? 1 : widget.collection!.formats.length + 1}';
+    }
+    if (_fields.isEmpty) {
+      if (widget.editingFormat case final format?) {
+        _selectedColor = format.color;
+        for (final field in format.fields) {
+          final draft = _DraftField(
+            id: field.id,
+            name: field.name,
+            kind: field.kind,
+            options: field.options.join('\n'),
+          );
+          if (field.unit != null) {
+            if (numberUnit(field.unit) == null &&
+                !field.unit!.startsWith('local:')) {
+              draft.unitChoice = 'custom';
+              draft.customUnit.text = field.unit!;
+            } else {
+              draft.unitChoice = field.unit!;
+            }
+          }
+          draft.targetObjectFormatId = field.targetObjectFormatId;
+          draft.multiple = field.multiple;
+          draft.variableController.text = field.variableName ?? '';
+          draft.referenceMode = field.referenceMode;
+          _fields.add(draft);
+        }
+        widget.api
+            .formatImpact(widget.collection!.id, format.id)
+            .then((impact) {
+              if (mounted) setState(() => _impact = impact);
+            })
+            .catchError((Object error) {
+              if (mounted) {
+                setState(() => _error = AppStrings.of(context).error(error));
+              }
+            });
+      } else {
+        _fields.add(
+          _DraftField(name: _t('Title'), kind: BrainyFieldKind.title),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _formatName.dispose();
+    for (final field in _fields) {
+      field.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _name.text.trim();
+    final formatName = _formatName.text.trim();
+    final fields = [
+      for (final item in _fields)
+        (
+          name: item.controller.text.trim(),
+          kind: item.kind,
+          unit: item.kind == BrainyFieldKind.number ? item.unit : null,
+          options:
+              item.kind == BrainyFieldKind.select ||
+                  item.kind == BrainyFieldKind.multiSelect
+              ? item.optionsController.text
+                    .split('\n')
+                    .map((value) => value.trim())
+                    .where((value) => value.isNotEmpty)
+                    .toList()
+              : null,
+        ),
+    ];
+    if (formatName.isEmpty) {
+      setState(() => _error = 'Name the data format.');
+      return;
+    }
+    if (_objectModel &&
+        !fields.any((field) => field.kind == BrainyFieldKind.title)) {
+      setState(
+        () => _error = AppStrings.of(context).isFrench
+            ? 'Un modèle d’objet a besoin d’un champ titre.'
+            : 'An object model needs a title field.',
+      );
+      return;
+    }
+    if (_selectedColor == null && widget.editingFormat == null) {
+      setState(() => _error = 'Choose a color for this data format.');
+      return;
+    }
+    if ((widget.collection == null && name.isEmpty) ||
+        fields.any((item) => item.name.isEmpty)) {
+      setState(() => _error = 'Name the collection and every field.');
+      return;
+    }
+    if (fields.map((item) => item.name.toLowerCase()).toSet().length !=
+        fields.length) {
+      setState(() => _error = 'Field names must be unique.');
+      return;
+    }
+    if (_fields.any(
+      (item) =>
+          item.kind == BrainyFieldKind.number &&
+          item.unitChoice == 'custom' &&
+          (item.unit?.isEmpty ?? true),
+    )) {
+      setState(() => _error = 'Enter a unit');
+      return;
+    }
+    if (_fields.any((item) => item.unit != null && item.unit!.length > 24)) {
+      setState(() => _error = 'A unit can be at most 24 characters.');
+      return;
+    }
+    if (fields.any(
+      (item) =>
+          item.options != null &&
+          (item.options!.length < 2 ||
+              item.options!.length > 30 ||
+              item.options!
+                      .map((value) => value.toLowerCase())
+                      .toSet()
+                      .length !=
+                  item.options!.length),
+    )) {
+      setState(() => _error = _t('Add 2 to 30 different choices.'));
+      return;
+    }
+    if (_fields.any(
+      (field) =>
+          field.kind == BrainyFieldKind.objectRef &&
+          field.targetObjectFormatId == null,
+    )) {
+      setState(
+        () => _error = _copyText(
+          'Choisissez un modèle d’objets.',
+          'Choose an object model.',
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final collection = widget.editingFormat != null
+          ? await widget.api.updateFormat(
+              widget.collection!.id,
+              widget.editingFormat!,
+              formatName,
+              [
+                for (var index = 0; index < _fields.length; index++)
+                  {
+                    if (_fields[index].id != null) 'id': _fields[index].id,
+                    'name': fields[index].name,
+                    'kind': fields[index].kind.wireName,
+                    if (fields[index].unit != null) 'unit': fields[index].unit,
+                    if (fields[index].options != null)
+                      'options': fields[index].options,
+                    if (_fields[index].kind == BrainyFieldKind.objectRef) ...{
+                      'targetObjectFormatId':
+                          _fields[index].targetObjectFormatId,
+                      'multiple': _fields[index].multiple,
+                      'variableName': _fields[index].variableController.text
+                          .trim(),
+                      'referenceMode': _fields[index].referenceMode,
+                    },
+                  },
+              ],
+            )
+          : widget.collection == null
+          ? await widget.api.createCollection(
+              name,
+              fields,
+              formatName: formatName,
+              color: _selectedColor!,
+              objectModel: _objectModel,
+            )
+          : await widget.api.addFormat(
+              widget.collection!.id,
+              formatName,
+              _selectedColor!,
+              fields,
+              objectModel: _objectModel,
+            );
+      if (mounted) Navigator.pop(context, collection);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = AppStrings.of(context).error(error);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 560, maxHeight: 700),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _t(
+                widget.collection == null
+                    ? 'Create a collection'
+                    : widget.editingFormat == null
+                    ? 'Add data format'
+                    : 'Edit data format',
+              ),
+              style: TextStyle(
+                color: _dialogInk(context),
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              _t(
+                widget.collection == null
+                    ? 'Choose what each entry can hold. Keep one field or mix several types.'
+                    : widget.editingFormat == null
+                    ? 'Give this data format a name and choose its fields.'
+                    : 'Rename, reorder or add fields. Saved values stay safe.',
+              ),
+              style: TextStyle(color: _dialogMuted(context)),
+            ),
+            const SizedBox(height: 22),
+            Expanded(
+              child: ListView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                children: [
+                  if (widget.collection == null)
+                    TextField(
+                      controller: _name,
+                      maxLength: 80,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: _t('Collection name'),
+                        hintText: _t('Ideas, recipes, contacts…'),
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  TextField(
+                    controller: _formatName,
+                    maxLength: 80,
+                    autofocus: widget.collection != null,
+                    decoration: InputDecoration(
+                      labelText: _t('Data format name'),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  if (widget.editingFormat != null) ...[
+                    Text(
+                      '${_t('Entries using this data format')}: ${_impact?.entryCount ?? '…'}',
+                      style: TextStyle(color: _dialogMuted(context)),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  if (widget.editingFormat == null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _t('Data format color'),
+                      style: TextStyle(
+                        color: _dialogInk(context),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      _t(
+                        'Every entry in this data format uses this soft background.',
+                      ),
+                      style: TextStyle(
+                        color: _dialogMuted(context),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (
+                          var index = 0;
+                          index < brainyFormatColors.length;
+                          index++
+                        )
+                          Builder(
+                            builder: (context) {
+                              final color = brainyFormatColors[index];
+                              final used =
+                                  widget.collection?.formats.any(
+                                    (format) => format.color == color,
+                                  ) ??
+                                  false;
+                              return Tooltip(
+                                message: '${_t('Color')} ${index + 1}',
+                                child: InkWell(
+                                  onTap: used
+                                      ? null
+                                      : () => setState(
+                                          () => _selectedColor = color,
+                                        ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Opacity(
+                                    opacity: used ? 0.35 : 1,
+                                    child: Container(
+                                      width: 30,
+                                      height: 30,
+                                      decoration: BoxDecoration(
+                                        color: _pastelColor(color),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: _selectedColor == color
+                                              ? _blue
+                                              : const Color(0xFFCCD9E7),
+                                          width: _selectedColor == color
+                                              ? 2.5
+                                              : 1,
+                                        ),
+                                      ),
+                                      child: _selectedColor == color
+                                          ? const Icon(
+                                              Icons.check_rounded,
+                                              size: 20,
+                                              color: _blue,
+                                            )
+                                          : null,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  Text(
+                    _t('FIELDS'),
+                    style: TextStyle(
+                      color: _dialogMuted(context),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  for (var index = 0; index < _fields.length; index++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final narrow = constraints.maxWidth < 420;
+                          final protected =
+                              _fields[index].id != null &&
+                              (_impact?.populatedFieldIds.contains(
+                                    _fields[index].id,
+                                  ) ??
+                                  false);
+                          final name = TextField(
+                            controller: _fields[index].controller,
+                            maxLength: 80,
+                            decoration: InputDecoration(
+                              labelText: '${_t('Field')} ${index + 1}',
+                              counterText: '',
+                              border: const OutlineInputBorder(),
+                            ),
+                          );
+                          final kind = DropdownButtonFormField<BrainyFieldKind>(
+                            key: ObjectKey(_fields[index]),
+                            initialValue: _fields[index].kind,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              labelText: _t('Type'),
+                              border: const OutlineInputBorder(),
+                            ),
+                            items: [
+                              for (final type in BrainyFieldKind.values)
+                                if (type != BrainyFieldKind.objectRef ||
+                                    (widget.editingFormat != null &&
+                                        (widget.collection!.formats.any(
+                                              (format) => format.objectModel,
+                                            ) ||
+                                            widget.collection!.sharedObjects
+                                                .any(
+                                                  (grant) =>
+                                                      grant['revokedAt'] ==
+                                                      null,
+                                                ))))
+                                  DropdownMenuItem(
+                                    value: type,
+                                    child: Text(_t(type.label)),
+                                  ),
+                            ],
+                            onChanged: protected
+                                ? null
+                                : (type) {
+                                    if (type != null) {
+                                      setState(
+                                        () => _fields[index].kind = type,
+                                      );
+                                    }
+                                  },
+                          );
+                          final remove = IconButton(
+                            tooltip: _t('Remove field'),
+                            onPressed: _fields.length == 1 || protected
+                                ? null
+                                : () => setState(() {
+                                    _fields.removeAt(index).dispose();
+                                  }),
+                            icon: const Icon(Icons.close),
+                          );
+                          final fieldRow = narrow
+                              ? Column(
+                                  children: [
+                                    name,
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(child: kind),
+                                        remove,
+                                      ],
+                                    ),
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(flex: 3, child: name),
+                                    const SizedBox(width: 8),
+                                    Expanded(flex: 2, child: kind),
+                                    remove,
+                                  ],
+                                );
+                          final field = _fields[index];
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              fieldRow,
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  IconButton(
+                                    tooltip: _t('Move up'),
+                                    onPressed: index == 0
+                                        ? null
+                                        : () => setState(() {
+                                            final item = _fields.removeAt(
+                                              index,
+                                            );
+                                            _fields.insert(index - 1, item);
+                                          }),
+                                    icon: const Icon(
+                                      Icons.arrow_upward,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: _t('Move down'),
+                                    onPressed: index == _fields.length - 1
+                                        ? null
+                                        : () => setState(() {
+                                            final item = _fields.removeAt(
+                                              index,
+                                            );
+                                            _fields.insert(index + 1, item);
+                                          }),
+                                    icon: const Icon(
+                                      Icons.arrow_downward,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (field.kind == BrainyFieldKind.select ||
+                                  field.kind == BrainyFieldKind.multiSelect)
+                                TextField(
+                                  controller: field.optionsController,
+                                  enabled: true,
+                                  minLines: 2,
+                                  maxLines: 5,
+                                  decoration: InputDecoration(
+                                    labelText: _t('Choices (one per line)'),
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                ),
+                              if (field.kind == BrainyFieldKind.objectRef) ...[
+                                const SizedBox(height: 10),
+                                DropdownButtonFormField<String>(
+                                  initialValue: field.targetObjectFormatId,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: _copyText(
+                                      'Modèle d’objets cible',
+                                      'Target object model',
+                                    ),
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                  items: [
+                                    for (final model
+                                        in widget.collection!.formats)
+                                      if (model.objectModel)
+                                        DropdownMenuItem(
+                                          value: model.id,
+                                          child: Text(model.name),
+                                        ),
+                                    for (final grant in {
+                                      for (final item
+                                          in widget.collection!.sharedObjects)
+                                        if (item['revokedAt'] == null)
+                                          item['sourceFormatId'] as String:
+                                              item,
+                                    }.values)
+                                      DropdownMenuItem(
+                                        value:
+                                            grant['sourceFormatId'] as String,
+                                        child: Text(
+                                          '${grant['sourceName']} · ${grant['objectName']}',
+                                        ),
+                                      ),
+                                  ],
+                                  onChanged: protected
+                                      ? null
+                                      : (value) => setState(
+                                          () => field.targetObjectFormatId =
+                                              value,
+                                        ),
+                                ),
+                                TextField(
+                                  controller: field.variableController,
+                                  maxLength: 40,
+                                  decoration: InputDecoration(
+                                    labelText: _copyText(
+                                      'Variable d’objet (facultatif)',
+                                      'Object variable (optional)',
+                                    ),
+                                    hintText: 'produit',
+                                  ),
+                                ),
+                                SwitchListTile(
+                                  value: field.multiple,
+                                  title: Text(
+                                    _copyText(
+                                      'Plusieurs objets',
+                                      'Multiple objects',
+                                    ),
+                                  ),
+                                  onChanged: protected
+                                      ? null
+                                      : (value) => setState(
+                                          () => field.multiple = value,
+                                        ),
+                                ),
+                                DropdownButtonFormField<String>(
+                                  initialValue: field.referenceMode,
+                                  decoration: InputDecoration(
+                                    labelText: _copyText(
+                                      'Valeurs des propriétés',
+                                      'Property values',
+                                    ),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: 'SNAPSHOT',
+                                      child: Text(
+                                        _copyText(
+                                          'Figées à l’enregistrement',
+                                          'Snapshot when saved',
+                                        ),
+                                      ),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'CURRENT',
+                                      child: Text(
+                                        _copyText(
+                                          'Valeurs actuelles',
+                                          'Current values',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: protected
+                                      ? null
+                                      : (value) => setState(
+                                          () => field.referenceMode =
+                                              value ?? 'SNAPSHOT',
+                                        ),
+                                ),
+                              ],
+                              if (field.kind == BrainyFieldKind.number) ...[
+                                const SizedBox(height: 10),
+                                DropdownButtonFormField<String>(
+                                  key: ObjectKey(field.customUnit),
+                                  initialValue: field.unitChoice,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: _t('Unit'),
+                                    helperText: _t(
+                                      'Choose a unit or leave the number plain.',
+                                    ),
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: '',
+                                      child: Text(_t('No unit')),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'custom',
+                                      child: Text(_t('Custom unit')),
+                                    ),
+                                    for (final option in numberUnits)
+                                      DropdownMenuItem(
+                                        value: option.code,
+                                        child: Text(
+                                          unitChoiceLabel(
+                                            AppStrings.of(context),
+                                            option,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    for (final unit
+                                        in widget.collection?.units ??
+                                            <BrainyUnit>[])
+                                      DropdownMenuItem(
+                                        value: 'local:${unit.id}',
+                                        child: Text(
+                                          '${unit.name} (${unit.symbol})',
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                  ],
+                                  onChanged: protected
+                                      ? null
+                                      : (choice) => setState(
+                                          () => field.unitChoice = choice ?? '',
+                                        ),
+                                ),
+                                if (field.unitChoice == 'custom') ...[
+                                  const SizedBox(height: 10),
+                                  TextField(
+                                    controller: field.customUnit,
+                                    enabled: !protected,
+                                    maxLength: 24,
+                                    decoration: InputDecoration(
+                                      labelText: _t('Custom unit'),
+                                      hintText: _t('Enter a unit'),
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  TextButton.icon(
+                    onPressed: _fields.length >= 30
+                        ? null
+                        : () => setState(() => _fields.add(_DraftField())),
+                    icon: const Icon(Icons.add),
+                    label: Text(_t('Add field')),
+                  ),
+                  if (widget.editingFormat == null)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _objectModel,
+                      onChanged: (value) =>
+                          setState(() => _objectModel = value ?? false),
+                      title: Text(
+                        AppStrings.of(context).isFrench
+                            ? 'Utiliser ce format de données pour des objets'
+                            : 'Use this data format for objects',
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  AppStrings.of(context).error(_error!),
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                TextButton(
+                  onPressed: _saving ? null : () => Navigator.pop(context),
+                  child: Text(_t('Cancel')),
+                ),
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(
+                    _saving
+                        ? _t('Creating…')
+                        : _t(
+                            widget.collection == null
+                                ? 'Create collection'
+                                : widget.editingFormat == null
+                                ? 'Add data format'
+                                : 'Save',
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _EntryEditor extends StatefulWidget {
+  const _EntryEditor({
+    required this.api,
+    required this.collection,
+    this.entry,
+    this.initialFormatId,
+  });
+  final CollectionsApi api;
+  final BrainyCollection collection;
+  final BrainyEntry? entry;
+  final String? initialFormatId;
+  @override
+  State<_EntryEditor> createState() => _EntryEditorState();
+}
+
+class _EntryEditorState extends State<_EntryEditor> {
+  String _t(String value) => AppStrings.of(context).text(value);
+  AppStrings get _copy => AppStrings.of(context);
+  late String _selectedFormatId;
+  BrainyFormat get _activeFormat => widget.collection.formats.firstWhere(
+    (format) => format.id == _selectedFormatId,
+    orElse: () => widget.collection.formats.first,
+  );
+  late final Map<String, TextEditingController> _controllers = {
+    for (final format in widget.collection.formats)
+      for (final field in format.fields)
+        field.id: TextEditingController(
+          text: field.kind == BrainyFieldKind.number && _copy.isFrench
+              ? (widget.entry?.values[field.id] ?? '').replaceAll('.', ',')
+              : widget.entry?.values[field.id] ?? '',
+        ),
+  };
+  bool _saving = false;
+  String? _error;
+  final Map<String, Uint8List> _attachments = {};
+  final Map<String, String> _objectNames = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedFormatId =
+        widget.entry?.formatId ??
+        widget.initialFormatId ??
+        widget.collection.formats.first.id;
+    if (widget.entry != null) {
+      widget.api
+          .entryObjectReferences(widget.entry!.id)
+          .then((references) {
+            if (mounted) {
+              setState(() {
+                for (final item in references) {
+                  _objectNames[item['objectId'] as String] =
+                      item['name'] as String? ?? item['objectId'] as String;
+                }
+              });
+            }
+          })
+          .catchError((Object _) {});
+    }
+  }
+
+  Future<void> _chooseObjects(BrainyField field) async {
+    final targetId = field.targetObjectFormatId;
+    if (targetId == null) return;
+    final localTarget = widget.collection.formats
+        .where((item) => item.id == targetId)
+        .firstOrNull;
+    final linked = widget.collection.sharedObjects
+        .where(
+          (grant) =>
+              grant['sourceFormatId'] == targetId &&
+              grant['revokedAt'] == null &&
+              (grant['mode'] == 'CURRENT' || field.referenceMode == 'SNAPSHOT'),
+        )
+        .toList();
+    final titleId =
+        localTarget?.fields
+            .where((item) => item.kind == BrainyFieldKind.title)
+            .firstOrNull
+            ?.id ??
+        ((linked.firstOrNull?['snapshot'] as List<dynamic>?)
+                ?.cast<Map<String, dynamic>>()
+                .where((item) => item['kind'] == 'TITLE')
+                .firstOrNull?['fieldId']
+            as String?);
+    Future<BrainyEntryPage> loadPage(String query, {String? after}) async {
+      if (localTarget != null) {
+        return widget.api.objectsPage(
+          widget.collection.id,
+          targetId,
+          search: query,
+          after: after,
+        );
+      }
+      return BrainyEntryPage(
+        entries: [
+          for (final grant in linked)
+            if ((grant['objectName'] as String).toLowerCase().contains(
+              query.toLowerCase(),
+            ))
+              BrainyEntry(
+                id: grant['objectId'] as String,
+                formatId: targetId,
+                values: {
+                  ?titleId: grant['objectName'] as String,
+                },
+                createdAt: DateTime.parse(grant['createdAt'] as String),
+                updatedAt: DateTime.parse(grant['createdAt'] as String),
+              ),
+        ],
+        hasMore: false,
+      );
+    }
+
+    List<String> selected;
+    try {
+      selected = (jsonDecode(_controllers[field.id]!.text) as List<dynamic>)
+          .cast<String>();
+    } catch (_) {
+      selected = [];
+    }
+    final search = TextEditingController();
+    BrainyEntryPage page;
+    try {
+      page = await loadPage('');
+    } catch (error) {
+      if (mounted) setState(() => _error = _copy.error(error));
+      search.dispose();
+      return;
+    }
+    if (!mounted) {
+      search.dispose();
+      return;
+    }
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: Text(_copy.isFrench ? 'Choisir des objets' : 'Choose objects'),
+          content: SizedBox(
+            width: 450,
+            height: 420,
+            child: Column(
+              children: [
+                TextField(
+                  controller: search,
+                  decoration: InputDecoration(
+                    labelText: _copy.isFrench
+                        ? 'Rechercher des objets'
+                        : 'Search objects',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.search),
+                      onPressed: () async {
+                        final next = await loadPage(search.text);
+                        update(() => page = next);
+                      },
+                    ),
+                  ),
+                  onSubmitted: (text) async {
+                    final next = await loadPage(text);
+                    update(() => page = next);
+                  },
+                ),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      for (final object in page.entries)
+                        CheckboxListTile(
+                          value: selected.contains(object.id),
+                          title: Text(object.values[titleId] ?? object.id),
+                          onChanged: (value) => update(() {
+                            if (field.multiple) {
+                              if (value == true) {
+                                if (!selected.contains(object.id)) {
+                                  selected.add(object.id);
+                                }
+                              } else {
+                                selected.remove(object.id);
+                              }
+                            } else {
+                              selected = value == true ? [object.id] : [];
+                            }
+                          }),
+                        ),
+                      if (page.hasMore)
+                        TextButton(
+                          onPressed: () async {
+                            final next = await loadPage(
+                              search.text,
+                              after: page.nextCursor,
+                            );
+                            update(
+                              () => page = BrainyEntryPage(
+                                entries: [...page.entries, ...next.entries],
+                                hasMore: next.hasMore,
+                                nextCursor: next.nextCursor,
+                              ),
+                            );
+                          },
+                          child: Text(
+                            _copy.isFrench ? 'Voir plus' : 'Load more',
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(_t('Cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, selected),
+              child: Text(_t('Save')),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (mounted && result != null) {
+      setState(() {
+        _controllers[field.id]!.text = result.isEmpty ? '' : jsonEncode(result);
+        for (final object in page.entries) {
+          _objectNames[object.id] = object.values[titleId] ?? object.id;
+        }
+      });
+    }
+    search.dispose();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final values = {
+      for (final field in _activeFormat.fields)
+        field.id: field.kind == BrainyFieldKind.number
+            ? normalizeFieldNumber(_controllers[field.id]!.text)
+            : field.kind == BrainyFieldKind.multiSelect &&
+                  _controllers[field.id]!.text == '[]'
+            ? ''
+            : _controllers[field.id]!.text.trim(),
+    };
+    if (values.values.every((value) => value.isEmpty)) {
+      setState(() => _error = _t('Write something before saving.'));
+      return;
+    }
+    if (_attachments.values.fold<int>(0, (sum, bytes) => sum + bytes.length) >
+        8_388_608) {
+      setState(
+        () => _error = _t(
+          'Choose a file smaller than 2 MB. An entry can hold at most 8 MB of files.',
+        ),
+      );
+      return;
+    }
+    for (final field in _activeFormat.fields) {
+      final value = values[field.id]!;
+      if (field.kind == BrainyFieldKind.character && value.runes.length > 1) {
+        setState(
+          () => _error = '${field.name} ${_t('must contain one character.')}',
+        );
+        return;
+      }
+      if (field.kind == BrainyFieldKind.number &&
+          value.isNotEmpty &&
+          (!RegExp(r'^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$')
+                  .hasMatch(value) ||
+              double.tryParse(value)?.isFinite != true)) {
+        setState(() => _error = _t('Enter a valid number.'));
+        return;
+      }
+      if (field.kind == BrainyFieldKind.link && value.isNotEmpty) {
+        final uri = Uri.tryParse(value);
+        if (uri == null ||
+            !uri.hasAuthority ||
+            !['http', 'https'].contains(uri.scheme)) {
+          setState(
+            () => _error =
+                '${field.name} ${_t('must be a full web link, starting with https://.')}',
+          );
+          return;
+        }
+      }
+      if (field.kind == BrainyFieldKind.duration &&
+          value.isNotEmpty &&
+          !RegExp(r'^\d{1,6}:[0-5]\d$').hasMatch(value)) {
+        setState(() => _error = _t('Enter a duration as hours:minutes.'));
+        return;
+      }
+    }
+    for (final field in _activeFormat.fields.where(
+      (item) => item.kind == BrainyFieldKind.link,
+    )) {
+      final url = values[field.id] ?? '';
+      if (url.isEmpty) continue;
+      try {
+        final duplicates = await widget.api.duplicateLinks(
+          widget.collection.id,
+          _selectedFormatId,
+          field.id,
+          url,
+          excludeEntryId: widget.entry?.id,
+        );
+        if (duplicates.isNotEmpty && mounted) {
+          final proceed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: Text(
+                _copy.isFrench ? 'Lien déjà enregistré' : 'Link already saved',
+              ),
+              content: Text(
+                _copy.isFrench
+                    ? 'Ce lien existe déjà dans ${duplicates.length} entrée(s). Voulez-vous quand même enregistrer ?'
+                    : 'This link already exists in ${duplicates.length} entry or entries. Save anyway?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text(_copy.isFrench ? 'Vérifier' : 'Check'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: Text(
+                    _copy.isFrench ? 'Enregistrer encore' : 'Save anyway',
+                  ),
+                ),
+              ],
+            ),
+          );
+          if (proceed != true) return;
+        }
+      } catch (cause) {
+        if (mounted) setState(() => _error = _copy.error(cause));
+        return;
+      }
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final saved = await widget.api.saveEntry(
+        widget.collection.id,
+        values,
+        entryId: widget.entry?.id,
+        formatId: _selectedFormatId,
+        attachments: _attachments,
+      );
+      if (mounted) Navigator.pop(context, saved);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = _copy.error(error);
+        });
+      }
+    }
+  }
+
+  Future<void> _pickDate(BrainyField field) async {
+    final current = DateTime.tryParse(_controllers[field.id]!.text);
+    final value = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+    );
+    if (value != null) {
+      _controllers[field.id]!.text =
+          '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+    }
+  }
+
+  Future<void> _pickTime(BrainyField field) async {
+    final parts = _controllers[field.id]!.text.split(':');
+    final hour = parts.length == 2 ? int.tryParse(parts[0]) : null;
+    final minute = parts.length == 2 ? int.tryParse(parts[1]) : null;
+    final value = await showTimePicker(
+      context: context,
+      initialTime: hour != null && minute != null && hour < 24 && minute < 60
+          ? TimeOfDay(hour: hour, minute: minute)
+          : TimeOfDay.now(),
+    );
+    if (value != null) {
+      _controllers[field.id]!.text =
+          '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  Future<void> _pickDateTime(BrainyField field) async {
+    final current =
+        DateTime.tryParse(_controllers[field.id]!.text)?.toLocal() ??
+        DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(1900),
+      lastDate: DateTime(2100),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(current),
+    );
+    if (time == null) return;
+    _controllers[field.id]!.text = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    ).toUtc().toIso8601String();
+    setState(() {});
+  }
+
+  Future<void> _pickAttachment(BrainyField field) async {
+    try {
+      final file = await FilePicker.pickFile();
+      if (file == null) return;
+      final length = await file.length();
+      if (length == null || length == 0 || length > 2_097_152) {
+        if (mounted) {
+          setState(
+            () => _error = _t(
+              'Choose a file smaller than 2 MB. An entry can hold at most 8 MB of files.',
+            ),
+          );
+        }
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _controllers[field.id]!.text = file.name;
+        _attachments[field.id] = bytes;
+        _error = null;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = _copy.error(error));
+    }
+  }
+
+  Widget _field(BrainyField field) {
+    final kind = field.kind;
+    if (kind == BrainyFieldKind.objectRef) {
+      List<String> selected;
+      try {
+        selected = (jsonDecode(_controllers[field.id]!.text) as List<dynamic>)
+            .cast<String>();
+      } catch (_) {
+        selected = [];
+      }
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              field.name,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: _dialogInk(context),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => _chooseObjects(field),
+              icon: const Icon(Icons.category_outlined),
+              label: Text(
+                _copy.isFrench ? 'Choisir des objets' : 'Choose objects',
+              ),
+            ),
+            if (selected.isNotEmpty)
+              Text(selected.map((id) => _objectNames[id] ?? id).join(', ')),
+          ],
+        ),
+      );
+    }
+    if (kind == BrainyFieldKind.attachment) {
+      final name = _controllers[field.id]!.text;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              field.name,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: _dialogInk(context),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () => _pickAttachment(field),
+              icon: const Icon(Icons.attach_file),
+              label: Text(_t('Choose a file')),
+            ),
+            if (name.isNotEmpty)
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: _t('Remove file'),
+                    onPressed: () => setState(() {
+                      _controllers[field.id]!.clear();
+                      _attachments.remove(field.id);
+                    }),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      );
+    }
+    if (kind == BrainyFieldKind.boolean || kind == BrainyFieldKind.select) {
+      final value = _controllers[field.id]!.text;
+      final options = kind == BrainyFieldKind.boolean
+          ? <String>['true', 'false']
+          : field.options;
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: DropdownButtonFormField<String>(
+          key: ValueKey('${field.id}-$value'),
+          initialValue: value.isEmpty ? '' : value,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: field.name,
+            border: const OutlineInputBorder(),
+          ),
+          items: [
+            DropdownMenuItem(value: '', child: Text(_t('Choose a value'))),
+            for (final option in options)
+              DropdownMenuItem(
+                value: option,
+                child: Text(
+                  kind == BrainyFieldKind.boolean
+                      ? _t(option == 'true' ? 'Yes' : 'No')
+                      : option,
+                ),
+              ),
+          ],
+          onChanged: (selected) =>
+              setState(() => _controllers[field.id]!.text = selected ?? ''),
+        ),
+      );
+    }
+    if (kind == BrainyFieldKind.multiSelect) {
+      List<String> selected;
+      try {
+        selected = (jsonDecode(_controllers[field.id]!.text) as List<dynamic>)
+            .cast<String>();
+      } catch (_) {
+        selected = [];
+      }
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              field.name,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: _dialogInk(context),
+              ),
+            ),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final option in field.options)
+                  FilterChip(
+                    label: Text(option),
+                    selected: selected.contains(option),
+                    onSelected: (checked) => setState(() {
+                      final next = [...selected];
+                      checked ? next.add(option) : next.remove(option);
+                      _controllers[field.id]!.text = jsonEncode(next);
+                    }),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+    final symbol = numberUnit(field.unit)?.symbol ?? field.unit;
+    final currency = ['EUR', 'USD', 'GBP', 'NGN'].contains(field.unit);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextField(
+        controller: _controllers[field.id],
+        maxLines: kind == BrainyFieldKind.longText
+            ? 8
+            : kind == BrainyFieldKind.text
+            ? 4
+            : 1,
+        maxLength: kind == BrainyFieldKind.character
+            ? 2
+            : (kind == BrainyFieldKind.longText
+                  ? 50000
+                  : kind == BrainyFieldKind.text
+                  ? 10000
+                  : 500),
+        keyboardType: kind == BrainyFieldKind.number
+            ? const TextInputType.numberWithOptions(decimal: true, signed: true)
+            : kind == BrainyFieldKind.link
+            ? TextInputType.url
+            : TextInputType.text,
+        readOnly:
+            kind == BrainyFieldKind.date ||
+            kind == BrainyFieldKind.time ||
+            kind == BrainyFieldKind.datetime,
+        onTap: kind == BrainyFieldKind.date
+            ? () => _pickDate(field)
+            : kind == BrainyFieldKind.time
+            ? () => _pickTime(field)
+            : kind == BrainyFieldKind.datetime
+            ? () => _pickDateTime(field)
+            : null,
+        decoration: InputDecoration(
+          labelText: field.name,
+          helperText: kind == BrainyFieldKind.character
+              ? _t('One character')
+              : kind == BrainyFieldKind.link
+              ? 'https://example.com'
+              : null,
+          hintText: kind == BrainyFieldKind.number
+              ? _t(_copy.isFrench ? 'Number example French' : 'Number example')
+              : null,
+          prefixText:
+              kind == BrainyFieldKind.number && currency && symbol != null
+              ? '$symbol '
+              : null,
+          suffixText: kind == BrainyFieldKind.number && !currency
+              ? symbol
+              : null,
+          suffixIcon: kind == BrainyFieldKind.date
+              ? IconButton(
+                  onPressed: () => _pickDate(field),
+                  icon: const Icon(Icons.calendar_today_outlined),
+                )
+              : kind == BrainyFieldKind.time
+              ? IconButton(
+                  onPressed: () => _pickTime(field),
+                  icon: const Icon(Icons.schedule_outlined),
+                )
+              : kind == BrainyFieldKind.datetime
+              ? IconButton(
+                  onPressed: () => _pickDateTime(field),
+                  icon: const Icon(Icons.event_outlined),
+                )
+              : null,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 580, maxHeight: 700),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _activeFormat.objectModel
+                  ? (AppStrings.of(context).isFrench
+                        ? widget.entry == null
+                              ? 'Créer un objet'
+                              : 'Modifier l’objet'
+                        : widget.entry == null
+                        ? 'Create object'
+                        : 'Edit object')
+                  : widget.entry == null
+                  ? _t('New entry')
+                  : _t('Edit entry'),
+              style: TextStyle(
+                color: _dialogInk(context),
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              widget.collection.name,
+              style: TextStyle(color: _dialogMuted(context)),
+            ),
+            const SizedBox(height: 20),
+            if (widget.entry == null && widget.initialFormatId == null)
+              DropdownButtonFormField<String>(
+                initialValue: _selectedFormatId,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: _t('Data format'),
+                  border: const OutlineInputBorder(),
+                ),
+                items: [
+                  for (final format in widget.collection.formats)
+                    DropdownMenuItem(
+                      value: format.id,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: _formatTint(format),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(
+                                color: const Color(0xFFD9E3EE),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              _displayFormatName(context, format),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _selectedFormatId = value);
+                },
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: _formatTint(_activeFormat),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  _displayFormatName(context, _activeFormat),
+                  style: const TextStyle(color: _ink),
+                ),
+              ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final field in _activeFormat.fields) _field(field),
+                ],
+              ),
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(_error!, style: const TextStyle(color: Colors.red)),
+              ),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                TextButton(
+                  onPressed: _saving ? null : () => Navigator.pop(context),
+                  child: Text(_t('Cancel')),
+                ),
+                FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(
+                    _saving
+                        ? _t('Saving…')
+                        : _activeFormat.objectModel
+                        ? (AppStrings.of(context).isFrench
+                              ? 'Enregistrer l’objet'
+                              : 'Save object')
+                        : _t('Save entry'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
