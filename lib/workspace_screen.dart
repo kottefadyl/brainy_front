@@ -26,6 +26,10 @@ import 'starter_dialog.dart';
 import 'insights_dialog.dart';
 import 'stock_screen.dart';
 import 'entry_links_dialog.dart';
+import 'entry_link_duplicate_check.dart';
+import 'offline_entry_queue.dart';
+import 'offline_sync_panel.dart';
+import 'workspace_backup_panel.dart';
 import 'quick_capture_sheet.dart';
 import 'quick_entry_sheet.dart';
 
@@ -532,12 +536,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       builder: (context) => _EntryEditor(
         api: _api,
         collection: collection,
+        userId: widget.user.id,
         entry: entry,
         initialFormatId: initialFormatId,
       ),
     );
     if (!mounted || saved == null || _selectedId != collection.id) return;
-    await _loadEntries();
+    if (saved.offlinePending) {
+      setState(() { _entries = [saved, ..._entries.where((item) => item.id != saved.id)]; _error = _copy.isFrench ? 'Entrée conservée sur cet appareil, en attente de synchronisation' : 'Entry kept on this device, waiting to sync'; });
+    } else { await _loadEntries(); }
   }
 
   Future<void> _manageObjects() async {
@@ -1403,7 +1410,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       );
     }
     if (_collections.isEmpty) {
-      return _message(
+      return Column(children: [Expanded(child: _message(
         Icons.library_add_outlined,
         _t(
           'Start with a collection. Give it a name and choose the fields you want to keep.',
@@ -1414,7 +1421,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             ? 'Créer manuellement'
             : 'Create manually',
         onSecondaryPressed: _createCollectionManually,
-      );
+      )), OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _load(); }), WorkspaceBackupPanel(api: _api, onRestored: () { _load(); })]);
     }
     final collection = _selected;
     if (collection == null) return const SizedBox.shrink();
@@ -1433,6 +1440,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _overviewBanner(collection),
+                  OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
+                  WorkspaceBackupPanel(api: _api, onRestored: () { _load(); }),
                   const SizedBox(height: 18),
                   _collectionTools(collection),
                   const SizedBox(height: 20),
@@ -3687,10 +3696,12 @@ class _EntryEditor extends StatefulWidget {
   const _EntryEditor({
     required this.api,
     required this.collection,
+    required this.userId,
     this.entry,
     this.initialFormatId,
   });
   final CollectionsApi api;
+  final String userId;
   final BrainyCollection collection;
   final BrainyEntry? entry;
   final String? initialFormatId;
@@ -3982,66 +3993,44 @@ class _EntryEditorState extends State<_EntryEditor> {
         return;
       }
     }
-    for (final field in _activeFormat.fields.where(
-      (item) => item.kind == BrainyFieldKind.link,
-    )) {
-      final url = values[field.id] ?? '';
-      if (url.isEmpty) continue;
-      try {
-        final duplicates = await widget.api.duplicateLinks(
-          widget.collection.id,
-          _selectedFormatId,
-          field.id,
-          url,
-          excludeEntryId: widget.entry?.id,
-        );
-        if (duplicates.isNotEmpty && mounted) {
-          final proceed = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Text(
-                _copy.isFrench ? 'Lien déjà enregistré' : 'Link already saved',
-              ),
-              content: Text(
-                _copy.isFrench
-                    ? 'Ce lien existe déjà dans ${duplicates.length} entrée(s). Voulez-vous quand même enregistrer ?'
-                    : 'This link already exists in ${duplicates.length} entry or entries. Save anyway?',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text(_copy.isFrench ? 'Vérifier' : 'Check'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: Text(
-                    _copy.isFrench ? 'Enregistrer encore' : 'Save anyway',
-                  ),
-                ),
-              ],
-            ),
-          );
-          if (proceed != true) return;
-        }
-      } catch (cause) {
-        if (mounted) setState(() => _error = _copy.error(cause));
-        return;
-      }
+    try {
+      if (!await confirmDuplicateLinks(context: context, api: widget.api, collectionId: widget.collection.id, formatId: _selectedFormatId, entryId: widget.entry?.id, fields: _activeFormat.fields, values: values, isFrench: _copy.isFrench)) return;
+    } catch (cause) {
+      if (mounted) setState(() => _error = _copy.error(cause));
+      return;
     }
     setState(() {
       _saving = true;
       _error = null;
     });
+    final queue = OfflineEntryQueue(widget.userId);
+    final mutationId = OfflineEntryQueue.newId();
     try {
+      if (widget.entry?.offlinePending == true) {
+        if (_attachments.isNotEmpty) throw const FormatException('Attachments need a connection');
+        await queue.revise(widget.entry!.id, values);
+        if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry!.id, values: values, formatId: _selectedFormatId, createdAt: widget.entry!.createdAt, updatedAt: DateTime.now(), offlinePending: true));
+        return;
+      }
       final saved = await widget.api.saveEntry(
         widget.collection.id,
         values,
         entryId: widget.entry?.id,
         formatId: _selectedFormatId,
         attachments: _attachments,
+        clientMutationId: mutationId,
+        expectedUpdatedAt: widget.entry?.updatedAt,
       );
       if (mounted) Navigator.pop(context, saved);
     } catch (error) {
+      final networkFailure = error is AuthApiException && (error.message.contains('Could not reach') || error.message.contains('temporarily unavailable'));
+      if (networkFailure && _attachments.isEmpty && !_activeFormat.fields.any((field) => field.kind == BrainyFieldKind.objectRef && (values[field.id]?.isNotEmpty ?? false))) {
+        try {
+          await queue.enqueue({'id': mutationId, 'collectionId': widget.collection.id, if (widget.entry != null) 'entryId': widget.entry!.id, 'formatId': _selectedFormatId, 'values': values, if (widget.entry != null) 'expectedUpdatedAt': widget.entry!.updatedAt.toUtc().toIso8601String(), 'createdAt': DateTime.now().toUtc().toIso8601String(), 'status': 'pending'});
+          if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry?.id ?? 'offline:$mutationId', values: values, formatId: _selectedFormatId, createdAt: widget.entry?.createdAt ?? DateTime.now(), updatedAt: DateTime.now(), offlinePending: true));
+          return;
+        } catch (queueError) { if (mounted) setState(() { _saving = false; _error = _copy.error(queueError); }); return; }
+      }
       if (mounted) {
         setState(() {
           _saving = false;

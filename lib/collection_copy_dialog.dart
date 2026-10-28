@@ -188,6 +188,7 @@ class _CopyToCollectionDialogState extends State<_CopyToCollectionDialog> {
               Text(
                 '${_preview!['entries']} ${_fr ? 'entrée(s), dont' : 'entries, including'} ${_preview!['objects']} ${_fr ? 'objet(s)' : 'objects'}',
               ),
+              Text('${_preview!['relations']} ${_fr ? 'relation(s)' : 'relations'}'),
               Text(
                 '${_fr ? 'Formats de données' : 'Data formats'}: ${(_preview!['dataFormats'] as List<dynamic>).join(', ')}',
               ),

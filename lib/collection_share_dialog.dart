@@ -29,6 +29,7 @@ class _ShareDialogState extends State<_ShareDialog> {
   String? _targetId;
   late final Set<String> _properties = {widget.format.fields.firstWhere((field) => field.kind == BrainyFieldKind.title).id};
   String _mode = 'CURRENT';
+  int _relationCount = 0;
   String? _error;
   bool _busy = false;
   bool get _fr => AppStrings.of(context).isFrench;
@@ -37,6 +38,7 @@ class _ShareDialogState extends State<_ShareDialog> {
   void initState() {
     super.initState();
     widget.api.collections().then((items) { if (mounted) setState(() => _targets = items.where((item) => item.id != widget.source.id).toList()); }).catchError((Object error) { if (mounted) setState(() => _error = AppStrings.of(context).error(error)); });
+    widget.api.relations(widget.source.id, widget.objectId).then((items) { if (mounted) setState(() => _relationCount = items.length); }).catchError((Object _) {});
   }
 
   Future<void> _share() async {
@@ -73,7 +75,7 @@ class _ShareDialogState extends State<_ShareDialog> {
               onChanged: field.id == titleId ? null : (value) => setState(() { if (value == true) { _properties.add(field.id); } else { _properties.remove(field.id); } }),
             ),
         DropdownButtonFormField<String>(initialValue: _mode, decoration: InputDecoration(labelText: _fr ? 'Valeurs accessibles' : 'Accessible values'), items: [DropdownMenuItem(value: 'CURRENT', child: Text(_fr ? 'Actuelles jusqu’à révocation' : 'Current until revoked')), DropdownMenuItem(value: 'SNAPSHOT', child: Text(_fr ? 'Figées au partage' : 'Snapshot when shared'))], onChanged: (value) => setState(() => _mode = value ?? 'CURRENT')),
-        Text(_fr ? 'Le stock et ses mouvements restent dans la collection source.' : 'Stock and its movements remain in the source collection.'),
+        Text(_fr ? '$_relationCount relation(s) et les mouvements de stock restent dans la collection source.' : '$_relationCount relations and stock movements remain in the source collection.'),
         if (conflict) Text(_fr ? 'Cet objet est déjà lié à cette collection.' : 'This object is already linked to this collection.', style: const TextStyle(color: Colors.red)),
         if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
       ]))),

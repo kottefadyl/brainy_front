@@ -133,6 +133,7 @@ class AuthApi {
   Future<Map<String, dynamic>> authenticatedRequest(
     String query,
     Map<String, dynamic> variables,
+    {Duration timeout = const Duration(seconds: 12)}
   ) async {
     final token = await _storage.read(key: _tokenKey);
     if (token == null) {
@@ -141,7 +142,7 @@ class AuthApi {
         isUnauthorized: true,
       );
     }
-    return _request(query, variables, token: token);
+    return _request(query, variables, token: token, timeout: timeout);
   }
 
   Future<AppUser> _saveSession(Map<String, dynamic> payload) async {
@@ -153,6 +154,7 @@ class AuthApi {
     String query,
     Map<String, dynamic> variables, {
     String? token,
+    Duration timeout = const Duration(seconds: 12),
   }) async {
     http.Response response;
     try {
@@ -165,7 +167,7 @@ class AuthApi {
             },
             body: jsonEncode({'query': query, 'variables': variables}),
           )
-          .timeout(const Duration(seconds: 12));
+          .timeout(timeout);
     } catch (_) {
       throw const AuthApiException(
         'Could not reach Brainy. Check your connection and try again.',

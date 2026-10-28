@@ -14,6 +14,9 @@ class BrainyTransfer {
   List<Map<String, dynamic>> get links =>
       (data['links'] as List<dynamic>? ?? const [])
           .cast<Map<String, dynamic>>();
+  List<Map<String, dynamic>> get relations =>
+      (data['relations'] as List<dynamic>? ?? const [])
+          .cast<Map<String, dynamic>>();
   List<BrainyUnit> get units => (source['units'] as List<dynamic>? ?? const [])
       .map((item) => BrainyUnit.fromJson(item as Map<String, dynamic>))
       .toList();
@@ -29,6 +32,9 @@ class BrainyTransfer {
     final result = BrainyTransfer(raw);
     if (raw['links'] != null && raw['links'] is! List) {
       throw const FormatException('Invalid entry links');
+    }
+    if (raw['relations'] != null && raw['relations'] is! List) {
+      throw const FormatException('Invalid relations');
     }
     result.source['units'] ??= <Map<String, dynamic>>[];
     result.source['exchangeRates'] ??= <Map<String, dynamic>>[];
@@ -116,6 +122,16 @@ class BrainyTransfer {
         throw const FormatException('Invalid entry link');
       }
     }
+    for (final relation in result.relations) {
+      if (relation['fromSourceId'] is! String || relation['toSourceId'] is! String ||
+          !ids.contains(relation['fromSourceId']) || !ids.contains(relation['toSourceId']) ||
+          relation['fromSourceId'] == relation['toSourceId'] ||
+          !['ASSOCIATION', 'PARENT', 'COMPONENT'].contains(relation['kind']) ||
+          relation['label'] is! String ||
+          (relation['kind'] == 'COMPONENT' && (relation['quantity'] is! String || relation['unit'] is! String))) {
+        throw const FormatException('Invalid relation');
+      }
+    }
     return result;
   }
 
@@ -125,6 +141,8 @@ class BrainyTransfer {
   ) async {
     final entryLinks = <Map<String, dynamic>>[];
     final seenLinks = <String>{};
+    final entryRelations = <Map<String, dynamic>>[];
+    final seenRelations = <String>{};
     final entries = <Map<String, dynamic>>[];
     String? cursor;
     do {
@@ -166,6 +184,20 @@ class BrainyTransfer {
             'fromSourceId': link['fromEntryId'],
             'toSourceId': link['toEntryId'],
             'label': link['label'],
+          });
+        }
+        for (final relation in await api.relations(collection.id, entry.id)) {
+          if (!seenRelations.add(relation['id'] as String)) continue;
+          entryRelations.add({
+            'fromSourceId': relation['fromEntryId'],
+            'toSourceId': relation['toEntryId'],
+            'kind': relation['kind'],
+            'label': relation['label'],
+            if (relation['quantity'] != null) 'quantity': relation['quantity'],
+            if (relation['unit'] != null) 'unit': relation['unit'],
+            if (relation['snapshotValue'] != null) 'snapshotValue': relation['snapshotValue'],
+            if (relation['snapshotUnit'] != null) 'snapshotUnit': relation['snapshotUnit'],
+            if (relation['snapshotFieldId'] != null) 'snapshotFieldId': relation['snapshotFieldId'],
           });
         }
       }
@@ -213,6 +245,7 @@ class BrainyTransfer {
       },
       'entries': entries,
       'links': entryLinks,
+      'relations': entryRelations,
     });
   }
 
@@ -383,6 +416,20 @@ class BrainyTransfer {
           key.length <= 100 ? key : key.substring(0, 100),
           this.links.skip(start).take(50).toList(),
         );
+      }
+      final mappedUnits = unitMapping(target);
+      for (var start = 0; start < relations.length; start += 50) {
+        await api.importRelations(target.id, key.length <= 100 ? key : key.substring(0, 100), [
+          for (final relation in relations.skip(start).take(50)) {
+            ...relation,
+            if ((relation['unit'] as String?)?.startsWith('local:') == true)
+              'unit': 'local:${mappedUnits[(relation['unit'] as String).substring(6)] ?? 'missing'}',
+            if ((relation['snapshotUnit'] as String?)?.startsWith('local:') == true)
+              'snapshotUnit': 'local:${mappedUnits[(relation['snapshotUnit'] as String).substring(6)] ?? 'missing'}',
+            if (relation['snapshotFieldId'] != null)
+              'snapshotFieldId': mapped[entries.firstWhere((entry) => entry['id'] == relation['toSourceId'])['formatId']]?.fields[relation['snapshotFieldId']],
+          },
+        ]);
       }
     }
     return (valid: valid, created: created, skipped: skipped, errors: errors);

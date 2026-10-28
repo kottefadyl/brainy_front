@@ -388,6 +388,7 @@ class BrainyEntry {
     this.sourceObjectId,
     this.objectSnapshots = const {},
     this.recurrence,
+    this.offlinePending = false,
   });
   final String id;
   final Map<String, String> values;
@@ -398,6 +399,7 @@ class BrainyEntry {
   final String? sourceObjectId;
   final Map<String, List<Map<String, dynamic>>> objectSnapshots;
   final Map<String, dynamic>? recurrence;
+  final bool offlinePending;
 
   factory BrainyEntry.fromJson(Map<String, dynamic> json) => BrainyEntry(
     id: json['id'] as String,
@@ -449,6 +451,15 @@ class BrainyEntryPage {
 }
 
 class CollectionsApi {
+  Future<String> workspaceBackup() async {
+    final data = await auth.authenticatedRequest('query { workspaceBackup }', {}, timeout: const Duration(minutes: 2));
+    return data['workspaceBackup'] as String;
+  }
+
+  Future<Map<String, dynamic>> restoreWorkspaceBackup(String archive, {required bool dryRun}) async {
+    final data = await auth.authenticatedRequest('mutation(\$archive:String!,\$dryRun:Boolean!){restoreWorkspaceBackup(archive:\$archive,dryRun:\$dryRun){version collections entries relations stockMovements conflicts allowed restored}}', {'archive': archive, 'dryRun': dryRun}, timeout: const Duration(minutes: 2));
+    return data['restoreWorkspaceBackup'] as Map<String, dynamic>;
+  }
   const CollectionsApi(this.auth);
   final AuthApi auth;
 
@@ -604,6 +615,43 @@ class CollectionsApi {
     );
     return (data['collectionEntryLinks'] as List<dynamic>)
         .cast<Map<String, dynamic>>();
+  }
+
+  Future<List<Map<String, dynamic>>> relations(String collectionId, String entryId) async {
+    final data = await auth.authenticatedRequest(
+      'query(\$collectionId:String!,\$entryId:String!){collectionRelations(collectionId:\$collectionId,entryId:\$entryId){id fromEntryId toEntryId kind label quantity unit snapshotValue snapshotUnit snapshotFieldId createdAt}}',
+      {'collectionId': collectionId, 'entryId': entryId},
+    );
+    return (data['collectionRelations'] as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<void> createRelation(String collectionId, String fromEntryId, String toEntryId, String kind, String label, {String? quantity, String? unit, String? snapshotFieldId}) async {
+    await auth.authenticatedRequest(
+      'mutation(\$collectionId:String!,\$fromEntryId:String!,\$toEntryId:String!,\$kind:RelationKind!,\$label:String,\$quantity:String,\$unit:String,\$snapshotFieldId:String){createCollectionRelation(collectionId:\$collectionId,fromEntryId:\$fromEntryId,toEntryId:\$toEntryId,kind:\$kind,label:\$label,quantity:\$quantity,unit:\$unit,snapshotFieldId:\$snapshotFieldId){id}}',
+      {'collectionId': collectionId, 'fromEntryId': fromEntryId, 'toEntryId': toEntryId, 'kind': kind, 'label': label, 'quantity': ?quantity, 'unit': ?unit, 'snapshotFieldId': ?snapshotFieldId},
+    );
+  }
+
+  Future<void> removeRelation(String collectionId, String relationId) async {
+    await auth.authenticatedRequest('mutation(\$collectionId:String!,\$relationId:String!){removeCollectionRelation(collectionId:\$collectionId,relationId:\$relationId)}', {'collectionId': collectionId, 'relationId': relationId});
+  }
+
+  Future<Map<String, dynamic>> relationTotal(String collectionId, String rootId, String kind, String fieldName) async {
+    final data = await auth.authenticatedRequest('query(\$collectionId:String!,\$rootId:String!,\$kind:RelationKind!,\$fieldName:String!){collectionRelationTotal(collectionId:\$collectionId,rootId:\$rootId,kind:\$kind,fieldName:\$fieldName){value unit nodes}}', {'collectionId': collectionId, 'rootId': rootId, 'kind': kind, 'fieldName': fieldName});
+    return data['collectionRelationTotal'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> relationImpact(String collectionId, String entryId, {String? replacementId}) async {
+    final data = await auth.authenticatedRequest('query(\$collectionId:String!,\$entryId:String!,\$replacementId:String){collectionRelationImpact(collectionId:\$collectionId,entryId:\$entryId,replacementId:\$replacementId){replacementAllowed relations{id fromEntryId toEntryId kind label quantity unit}}}', {'collectionId': collectionId, 'entryId': entryId, 'replacementId': ?replacementId});
+    return data['collectionRelationImpact'] as Map<String, dynamic>;
+  }
+
+  Future<void> detachRelations(String collectionId, String entryId, {String? replacementId}) async {
+    await auth.authenticatedRequest('mutation(\$collectionId:String!,\$entryId:String!,\$replacementId:String){detachCollectionRelations(collectionId:\$collectionId,entryId:\$entryId,replacementId:\$replacementId)}', {'collectionId': collectionId, 'entryId': entryId, 'replacementId': ?replacementId});
+  }
+
+  Future<void> importRelations(String collectionId, String importKey, List<Map<String, dynamic>> rows) async {
+    await auth.authenticatedRequest('mutation(\$collectionId:String!,\$importKey:String!,\$rows:[ImportedRelationInput!]!){importCollectionRelations(collectionId:\$collectionId,importKey:\$importKey,rows:\$rows)}', {'collectionId': collectionId, 'importKey': importKey, 'rows': rows});
   }
 
   Future<void> createEntryLink(
@@ -845,7 +893,7 @@ class CollectionsApi {
     String targetCollectionId,
   ) async {
     final data = await auth.authenticatedRequest(
-      'query CopyPreview(\$objectId: String!, \$targetCollectionId: String!) { objectCopyPreview(objectId: \$objectId, targetCollectionId: \$targetCollectionId) { sourceName targetName dataFormats units formulas objects entries conflicts allowed stockMovementCount } }',
+      'query CopyPreview(\$objectId: String!, \$targetCollectionId: String!) { objectCopyPreview(objectId: \$objectId, targetCollectionId: \$targetCollectionId) { sourceName targetName dataFormats units formulas objects entries relations conflicts allowed stockMovementCount } }',
       {'objectId': objectId, 'targetCollectionId': targetCollectionId},
     );
     return data['objectCopyPreview'] as Map<String, dynamic>;
@@ -865,7 +913,7 @@ class CollectionsApi {
     String targetCollectionId,
   ) async {
     final data = await auth.authenticatedRequest(
-      'query MovePreview(\$objectId: String!, \$targetCollectionId: String!) { objectMovePreview(objectId: \$objectId, targetCollectionId: \$targetCollectionId) { sourceName targetName dataFormats units formulas objects entries conflicts allowed stockMovementCount inboundReferences activeShares } }',
+      'query MovePreview(\$objectId: String!, \$targetCollectionId: String!) { objectMovePreview(objectId: \$objectId, targetCollectionId: \$targetCollectionId) { sourceName targetName dataFormats units formulas objects entries relations conflicts allowed stockMovementCount inboundReferences activeShares } }',
       {'objectId': objectId, 'targetCollectionId': targetCollectionId},
     );
     return data['objectMovePreview'] as Map<String, dynamic>;
@@ -916,7 +964,7 @@ class CollectionsApi {
     bool withEntries,
   ) async {
     final data = await auth.authenticatedRequest(
-      'query FormatCopyPreview(\$formatId: String!, \$targetCollectionId: String!, \$withEntries: Boolean!) { dataFormatCopyPreview(formatId: \$formatId, targetCollectionId: \$targetCollectionId, withEntries: \$withEntries) { sourceName targetName dataFormats units formulas objects entries conflicts allowed stockMovementCount } }',
+      'query FormatCopyPreview(\$formatId: String!, \$targetCollectionId: String!, \$withEntries: Boolean!) { dataFormatCopyPreview(formatId: \$formatId, targetCollectionId: \$targetCollectionId, withEntries: \$withEntries) { sourceName targetName dataFormats units formulas objects entries relations conflicts allowed stockMovementCount } }',
       {
         'formatId': formatId,
         'targetCollectionId': targetCollectionId,
@@ -1466,6 +1514,8 @@ class CollectionsApi {
     String? entryId,
     String? formatId,
     Map<String, Uint8List> attachments = const {},
+    String? clientMutationId,
+    DateTime? expectedUpdatedAt,
   }) async {
     final data = await auth.authenticatedRequest(
       entryId == null
@@ -1475,6 +1525,8 @@ class CollectionsApi {
         'id': entryId ?? collectionId,
         'input': {
           'formatId': formatId,
+          'clientMutationId': clientMutationId,
+          'expectedUpdatedAt': expectedUpdatedAt?.toUtc().toIso8601String(),
           'values': [
             for (final item in values.entries)
               if (item.value.trim().isNotEmpty &&
