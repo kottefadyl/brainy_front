@@ -27,6 +27,8 @@ import 'insights_dialog.dart';
 import 'stock_screen.dart';
 import 'entry_links_dialog.dart';
 import 'entry_link_duplicate_check.dart';
+import 'entry_editor_pickers.dart';
+import 'entry_object_ref_field.dart';
 import 'offline_entry_queue.dart';
 import 'offline_sync_panel.dart';
 import 'workspace_backup_panel.dart';
@@ -4040,82 +4042,26 @@ class _EntryEditorState extends State<_EntryEditor> {
     }
   }
 
-  Future<void> _pickDate(BrainyField field) async {
-    final current = DateTime.tryParse(_controllers[field.id]!.text);
-    final value = await showDatePicker(
-      context: context,
-      initialDate: current ?? DateTime.now(),
-      firstDate: DateTime(1900),
-      lastDate: DateTime(2100),
-    );
-    if (value != null) {
-      _controllers[field.id]!.text =
-          '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
-    }
-  }
+  Future<void> _pickDate(BrainyField field) => pickEntryDate(context, _controllers[field.id]!);
 
-  Future<void> _pickTime(BrainyField field) async {
-    final parts = _controllers[field.id]!.text.split(':');
-    final hour = parts.length == 2 ? int.tryParse(parts[0]) : null;
-    final minute = parts.length == 2 ? int.tryParse(parts[1]) : null;
-    final value = await showTimePicker(
-      context: context,
-      initialTime: hour != null && minute != null && hour < 24 && minute < 60
-          ? TimeOfDay(hour: hour, minute: minute)
-          : TimeOfDay.now(),
-    );
-    if (value != null) {
-      _controllers[field.id]!.text =
-          '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-    }
-  }
+  Future<void> _pickTime(BrainyField field) => pickEntryTime(context, _controllers[field.id]!);
 
   Future<void> _pickDateTime(BrainyField field) async {
-    final current =
-        DateTime.tryParse(_controllers[field.id]!.text)?.toLocal() ??
-        DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: current,
-      firstDate: DateTime(1900),
-      lastDate: DateTime(2100),
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(current),
-    );
-    if (time == null) return;
-    _controllers[field.id]!.text = DateTime(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      time.minute,
-    ).toUtc().toIso8601String();
-    setState(() {});
+    await pickEntryDateTime(context, _controllers[field.id]!);
+    if (mounted) setState(() {});
   }
 
   Future<void> _pickAttachment(BrainyField field) async {
     try {
-      final file = await FilePicker.pickFile();
-      if (file == null) return;
-      final length = await file.length();
-      if (length == null || length == 0 || length > 2_097_152) {
-        if (mounted) {
-          setState(
-            () => _error = _t(
-              'Choose a file smaller than 2 MB. An entry can hold at most 8 MB of files.',
-            ),
-          );
-        }
+      final picked = await pickEntryAttachment();
+      if (picked == null || !mounted) return;
+      if (picked.bytes == null) {
+        setState(() => _error = _t('Choose a file smaller than 2 MB. An entry can hold at most 8 MB of files.'));
         return;
       }
-      final bytes = await file.readAsBytes();
-      if (!mounted) return;
       setState(() {
-        _controllers[field.id]!.text = file.name;
-        _attachments[field.id] = bytes;
+        _controllers[field.id]!.text = picked.name;
+        _attachments[field.id] = picked.bytes!;
         _error = null;
       });
     } catch (error) {
@@ -4126,38 +4072,7 @@ class _EntryEditorState extends State<_EntryEditor> {
   Widget _field(BrainyField field) {
     final kind = field.kind;
     if (kind == BrainyFieldKind.objectRef) {
-      List<String> selected;
-      try {
-        selected = (jsonDecode(_controllers[field.id]!.text) as List<dynamic>)
-            .cast<String>();
-      } catch (_) {
-        selected = [];
-      }
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              field.name,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: _dialogInk(context),
-              ),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => _chooseObjects(field),
-              icon: const Icon(Icons.category_outlined),
-              label: Text(
-                _copy.isFrench ? 'Choisir des objets' : 'Choose objects',
-              ),
-            ),
-            if (selected.isNotEmpty)
-              Text(selected.map((id) => _objectNames[id] ?? id).join(', ')),
-          ],
-        ),
-      );
+      return entryObjectRefField(context: context, field: field, controller: _controllers[field.id]!, objectNames: _objectNames, isFrench: _copy.isFrench, onChoose: () => _chooseObjects(field), ink: _dialogInk(context));
     }
     if (kind == BrainyFieldKind.attachment) {
       final name = _controllers[field.id]!.text;
