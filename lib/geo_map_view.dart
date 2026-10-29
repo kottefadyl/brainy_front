@@ -52,7 +52,7 @@ class _GeoMapViewState extends State<GeoMapView> {
   Future<void> load() async {
     if (positions.isEmpty) return;
     final target = positions[chosen];
-    setState(() { busy = true; error = null; });
+    setState(() { busy = true; error = null; zoneCounts = []; });
     try { final result = await widget.api.geoPage(widget.collection.id, target.format.id, target.field.id, after: after, search: search.text.isEmpty ? null : search.text, filterFieldId: widget.filterFieldId, filterOperator: widget.filterOperator, filterValue: widget.filterValue, viewId: widget.viewId); if (mounted) setState(() { page = result; busy = false; }); }
     catch (cause) { if (mounted) setState(() { error = '$cause'; busy = false; }); }
   }
@@ -90,7 +90,7 @@ class _GeoMapViewState extends State<GeoMapView> {
   Future<void> groupZones() async {
     if (zoneChosen == null) return;
     final point = positions[chosen], zone = zones[zoneChosen!];
-    try { final result = await widget.api.geoZoneSummary(widget.collection.id, point.format.id, point.field.id, zone.format.id, zone.field.id); if (mounted) setState(() => zoneCounts = result); }
+    try { final result = await widget.api.geoZoneSummary(widget.collection.id, point.format.id, point.field.id, zone.format.id, zone.field.id, search: search.text, filterFieldId: widget.filterFieldId, filterOperator: widget.filterOperator, filterValue: widget.filterValue, viewId: widget.viewId); if (mounted) setState(() => zoneCounts = result); }
     catch (cause) { if (mounted) setState(() => error = '$cause'); }
   }
 

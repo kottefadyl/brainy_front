@@ -74,7 +74,7 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
       title: Text(t('Copier la liste', 'Copy code list')),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(decoration: InputDecoration(labelText: t('Collection cible', 'Target collection')), items: [for (final item in widget.targets) if (item.id != collection.id) DropdownMenuItem(value: item.id, child: Text(item.name))], onChanged: (value) => update(() { targetId = value; preview = null; })),
-        if (preview != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text('${preview!['sourceName']} → ${preview!['targetName']} · ${preview!['codeCount']} codes\n${(preview!['conflicts'] as List<dynamic>).join('; ')}'))),
+        if (preview != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text('${preview!['sourceName']} → ${preview!['targetName']} · ${preview!['codeCount']} codes\n${(preview!['conflicts'] as List<dynamic>).join('; ')}')),
       ]),
       actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(t('Annuler', 'Cancel'))), TextButton(onPressed: targetId == null ? null : () async { try { final value = await widget.api.classificationCopyPreview(collection.id, list['id'] as String, targetId!); update(() => preview = value); } catch (cause) { update(() => error = '$cause'); } }, child: Text(t('Aperçu', 'Preview'))), FilledButton(onPressed: preview?['allowed'] == true ? () async { try { await widget.api.copyClassification(collection.id, list['id'] as String, targetId!); if (dialogContext.mounted) Navigator.pop(dialogContext, true); } catch (cause) { update(() => error = '$cause'); } } : null, child: Text(t('Confirmer', 'Confirm')))],
     )));

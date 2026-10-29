@@ -52,7 +52,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
   final rateBaseCtrl = TextEditingController(text: '1000');
   final denominatorValueCtrl = TextEditingController();
   final windowSizeCtrl = TextEditingController(text: '3');
-  String? left, right, measure, dateFieldId, groupFieldId;
+  String? left, right, measure, dateFieldId, groupFieldId, zoneFormatId, zoneFieldId;
   int groupDepth = 2;
   String? secondaryGroupFieldId, denominatorFieldId, weightFieldId, counterResetFieldId;
   String secondaryGroupBy = 'MONTH';
@@ -293,7 +293,8 @@ class _InsightsDialogState extends State<_InsightsDialog> {
         else if (measure != null)
           'fieldId': measure,
         if (dateFieldId != null) 'dateFieldId': dateFieldId,
-        if (groupFieldId != null) 'groupFieldId': groupFieldId,
+        if (groupFieldId != null || groupBy == 'ZONE') 'groupFieldId': groupFieldId ?? format.fields.where((field) => field.kind == BrainyFieldKind.position).firstOrNull?.id,
+        if (groupBy == 'ZONE') ...{'zoneFormatId': zoneFormatId, 'zoneFieldId': zoneFieldId},
         if (operation == 'CROSSTAB') ...{
           'secondaryGroupBy': secondaryGroupBy,
           if (secondaryGroupFieldId != null)
@@ -536,6 +537,8 @@ class _InsightsDialogState extends State<_InsightsDialog> {
         .where(
           (item) => groupBy == 'OBJECT'
               ? item.kind == BrainyFieldKind.objectRef
+              : groupBy == 'ZONE'
+              ? item.kind == BrainyFieldKind.position
               : item.kind == BrainyFieldKind.select ||
                     item.kind == BrainyFieldKind.text || item.kind == BrainyFieldKind.code,
         )
@@ -543,6 +546,10 @@ class _InsightsDialogState extends State<_InsightsDialog> {
     final selectedFilter = format.fields
         .where((item) => item.id == filterFieldId)
         .firstOrNull;
+    final zoneFormats = collection.formats.where((item) => item.fields.any((field) => field.kind == BrainyFieldKind.zone)).toList();
+    zoneFormatId ??= zoneFormats.firstOrNull?.id;
+    final zoneFields = zoneFormats.where((item) => item.id == zoneFormatId).firstOrNull?.fields.where((field) => field.kind == BrainyFieldKind.zone).toList() ?? <BrainyField>[];
+    zoneFieldId ??= zoneFields.firstOrNull?.id;
     final rows =
         (result?['rows'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
     final maximum = rows.fold<double>(
@@ -928,6 +935,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                     options(
                       [
                         'COUNT',
+                        if (groupBy != 'ZONE') ...[
                         'SUM',
                         'AVERAGE',
                         'MIN',
@@ -944,6 +952,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                         'SUCCESSIVE_DIFF',
                         'SUCCESSIVE_VARIATION',
                         'LINEAR_TREND',
+                        ],
                       ],
                       labels: {
                         'COUNT': fr ? 'Nombre' : 'Count',
@@ -980,7 +989,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                     fr ? 'Nature des valeurs' : 'Value meaning',
                     measureKind,
                     options(
-                      ['EVENT', 'SNAPSHOT', 'RATE'],
+                      groupBy == 'ZONE' ? ['EVENT'] : ['EVENT', 'SNAPSHOT', 'RATE'],
                       labels: {
                         'EVENT': fr ? 'Événements' : 'Events',
                         'SNAPSHOT': fr
@@ -996,18 +1005,20 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                     fr ? 'Regrouper par' : 'Group by',
                     groupBy,
                     options(
-                      ['NONE', 'DAY', 'MONTH', 'CATEGORY', 'OBJECT'],
+                      ['NONE', 'DAY', 'MONTH', 'CATEGORY', 'OBJECT', if (zoneFormats.isNotEmpty && format.fields.any((field) => field.kind == BrainyFieldKind.position)) 'ZONE'],
                       labels: {
                         'NONE': fr ? 'Aucun' : 'None',
                         'DAY': fr ? 'Jour' : 'Day',
                         'MONTH': fr ? 'Mois' : 'Month',
                         'CATEGORY': fr ? 'Catégorie' : 'Category',
                         'OBJECT': fr ? 'Objet' : 'Object',
+                        'ZONE': fr ? 'Zone' : 'Zone',
                       },
                     ),
                     (value) => setState(() {
                       groupBy = value!;
                       groupFieldId = null;
+                      if (groupBy == 'ZONE') { operation = 'COUNT'; measureKind = 'EVENT'; }
                     }),
                   ),
                   if (dates.isNotEmpty) ...[
@@ -1020,10 +1031,10 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                         ),
                     ], (value) => setState(() => dateFieldId = value)),
                   ],
-                  if (groupBy == 'CATEGORY' || groupBy == 'OBJECT') ...[
+                  if (groupBy == 'CATEGORY' || groupBy == 'OBJECT' || groupBy == 'ZONE') ...[
                     const SizedBox(height: 8),
                     select(
-                      fr ? 'Champ du groupe' : 'Group field',
+                      groupBy == 'ZONE' ? (fr ? 'Champ position' : 'Position field') : (fr ? 'Champ du groupe' : 'Group field'),
                       groupFieldId,
                       [
                         for (final field in groups)
@@ -1035,6 +1046,12 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                       (value) => setState(() => groupFieldId = value),
                     ),
                     if (groupBy == 'CATEGORY' && format.fields.any((field) => field.id == (groupFieldId ?? groups.firstOrNull?.id) && field.kind == BrainyFieldKind.code)) DropdownButtonFormField<int>(initialValue: groupDepth, decoration: InputDecoration(labelText: fr ? 'Niveau de regroupement' : 'Grouping level'), items: [DropdownMenuItem(value: 0, child: Text(fr ? 'Racine' : 'Root')), DropdownMenuItem(value: 1, child: Text(fr ? 'Intermédiaire' : 'Middle')), DropdownMenuItem(value: 2, child: Text(fr ? 'Code précis' : 'Exact code'))], onChanged: (value) => setState(() => groupDepth = value ?? 2)),
+                  ],
+                  if (groupBy == 'ZONE') ...[
+                    const SizedBox(height: 8),
+                    select(fr ? 'Format de données des zones' : 'Zone data format', zoneFormatId, [for (final item in zoneFormats) DropdownMenuItem(value: item.id, child: Text(item.name))], (value) => setState(() { zoneFormatId = value; zoneFieldId = collection.formats.where((item) => item.id == value).firstOrNull?.fields.where((field) => field.kind == BrainyFieldKind.zone).firstOrNull?.id; })),
+                    const SizedBox(height: 8),
+                    select(fr ? 'Champ zone' : 'Zone field', zoneFieldId, [for (final field in zoneFields) DropdownMenuItem(value: field.id, child: Text(field.name))], (value) => setState(() => zoneFieldId = value)),
                   ],
                   if (operation == 'CROSSTAB') ...[
                     const SizedBox(height: 8),

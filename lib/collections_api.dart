@@ -521,8 +521,8 @@ class CollectionsApi {
     return data['collectionGeoDistance'] as Map<String, dynamic>;
   }
 
-  Future<List<Map<String, dynamic>>> geoZoneSummary(String collectionId, String positionFormatId, String positionFieldId, String zoneFormatId, String zoneFieldId) async {
-    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$positionFormatId:String!,$positionFieldId:String!,$zoneFormatId:String!,$zoneFieldId:String!){collectionGeoZoneSummary(collectionId:$collectionId,positionFormatId:$positionFormatId,positionFieldId:$positionFieldId,zoneFormatId:$zoneFormatId,zoneFieldId:$zoneFieldId){zoneEntryId label count}}', {'collectionId': collectionId, 'positionFormatId': positionFormatId, 'positionFieldId': positionFieldId, 'zoneFormatId': zoneFormatId, 'zoneFieldId': zoneFieldId});
+  Future<List<Map<String, dynamic>>> geoZoneSummary(String collectionId, String positionFormatId, String positionFieldId, String zoneFormatId, String zoneFieldId, {String? search, String? filterFieldId, String? filterOperator, String? filterValue, String? viewId}) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$positionFormatId:String!,$positionFieldId:String!,$zoneFormatId:String!,$zoneFieldId:String!,$search:String,$filters:[EntryFieldFilterInput!],$viewId:String){collectionGeoZoneSummary(collectionId:$collectionId,positionFormatId:$positionFormatId,positionFieldId:$positionFieldId,zoneFormatId:$zoneFormatId,zoneFieldId:$zoneFieldId,search:$search,filters:$filters,viewId:$viewId){zoneEntryId label count}}', {'collectionId': collectionId, 'positionFormatId': positionFormatId, 'positionFieldId': positionFieldId, 'zoneFormatId': zoneFormatId, 'zoneFieldId': zoneFieldId, if (search?.isNotEmpty == true) 'search': search, if (filterFieldId != null && filterValue?.isNotEmpty == true) 'filters': [{'fieldId': filterFieldId, 'operator': filterOperator ?? 'EQ', 'value': filterValue}], if (viewId != null) 'viewId': viewId});
     return (data['collectionGeoZoneSummary'] as List<dynamic>).cast<Map<String, dynamic>>();
   }
 
