@@ -77,6 +77,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
   int forecastHorizon = 3;
   Map<String, dynamic>? lastAnalysisInput;
   String? error;
+  String? backgroundNotice;
   bool busy = false;
 
   BrainyFormat get format =>
@@ -275,13 +276,8 @@ class _InsightsDialogState extends State<_InsightsDialog> {
     }
   }
 
-  Future<void> analyse() async {
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      final input = <String, dynamic>{
+  Map<String, dynamic> analysisInput() {
+    return <String, dynamic>{
         'formatId': formatId,
         'operation': operation,
         'groupBy': groupBy,
@@ -342,7 +338,13 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                 'value': filterValue.text.trim(),
               },
           ],
-      };
+    };
+  }
+
+  Future<void> analyse() async {
+    setState(() { busy = true; error = null; });
+    try {
+      final input = analysisInput();
       final data = await widget.api.analyse(collection.id, input);
       if (mounted) {
         setState(() {
@@ -369,6 +371,25 @@ class _InsightsDialogState extends State<_InsightsDialog> {
     try {
       final data = await widget.api.forecast(collection.id, {'formatId': formatId, 'fieldId': measure, 'dateFieldId': dateFieldId, 'frequency': forecastFrequency, 'method': forecastMethod, 'measureKind': measureKind, if (from != null) 'from': from, if (to != null) 'to': to, 'horizon': forecastHorizon, 'holdout': 2});
       if (mounted) setState(() => forecastResult = data);
+    } catch (cause) { if (mounted) setState(() => error = '$cause'); }
+    finally { if (mounted) setState(() => busy = false); }
+  }
+
+  Future<void> queueAnalysis(String kind) async {
+    setState(() { busy = true; error = null; });
+    try {
+      await widget.api.startBackgroundJob(collection.id, kind, analysisInput(), '${DateTime.now().microsecondsSinceEpoch}');
+      if (mounted) setState(() => backgroundNotice = AppStrings.of(context).isFrench ? 'Traitement lancé. Suivez-le dans « Traitements en arrière-plan » de la collection.' : 'Task started. Track it in the collection’s Background tasks panel.');
+    } catch (cause) { if (mounted) setState(() => error = '$cause'); }
+    finally { if (mounted) setState(() => busy = false); }
+  }
+
+  Future<void> queueForecast() async {
+    if (measure == null || measure!.startsWith('formula:') || dateFieldId == null) return;
+    setState(() { busy = true; error = null; });
+    try {
+      await widget.api.startBackgroundJob(collection.id, 'FORECAST', {'formatId': formatId, 'fieldId': measure, 'dateFieldId': dateFieldId, 'frequency': forecastFrequency, 'method': forecastMethod, 'measureKind': measureKind, if (from != null) 'from': from, if (to != null) 'to': to, 'horizon': forecastHorizon, 'holdout': 2}, '${DateTime.now().microsecondsSinceEpoch}');
+      if (mounted) setState(() => backgroundNotice = AppStrings.of(context).isFrench ? 'Prévision lancée. Suivez-la dans « Traitements en arrière-plan » de la collection.' : 'Forecast started. Track it in the collection’s Background tasks panel.');
     } catch (cause) { if (mounted) setState(() => error = '$cause'); }
     finally { if (mounted) setState(() => busy = false); }
   }
@@ -1370,6 +1391,10 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                     onPressed: busy ? null : analyse,
                     child: Text(fr ? 'Calculer' : 'Calculate'),
                   ),
+                  Wrap(spacing: 8, children: [
+                    OutlinedButton(onPressed: busy ? null : () => queueAnalysis('RECALCULATE'), child: Text(fr ? 'Recalculer en arrière-plan' : 'Recalculate in background')),
+                    OutlinedButton(onPressed: busy ? null : () => queueAnalysis('CHART'), child: Text(fr ? 'Préparer un graphique' : 'Prepare chart')),
+                  ]),
                   const Divider(height: 36),
                   Text(fr ? 'Prévision limitée' : 'Limited forecast', style: Theme.of(context).textTheme.titleMedium),
                   Text(fr ? 'Une tendance issue des périodes choisies, distincte des faits. Aucun conseil médical.' : 'A trend from the chosen periods, separate from facts. No medical advice.'),
@@ -1377,6 +1402,8 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                   select(fr ? 'Période' : 'Frequency', forecastFrequency, options(['DAY', 'MONTH'], labels: {'DAY': fr ? 'Jour' : 'Day', 'MONTH': fr ? 'Mois' : 'Month'}), (value) => setState(() => forecastFrequency = value!)),
                   DropdownButtonFormField<int>(initialValue: forecastHorizon, decoration: InputDecoration(labelText: fr ? 'Horizon' : 'Horizon'), items: [1, 2, 3, 6, 12].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(), onChanged: (value) => setState(() => forecastHorizon = value!)),
                   FilledButton.tonal(onPressed: busy || measure == null || measure!.startsWith('formula:') || dateFieldId == null ? null : runForecast, child: Text(fr ? 'Estimer' : 'Estimate')),
+                  OutlinedButton(onPressed: busy || measure == null || measure!.startsWith('formula:') || dateFieldId == null ? null : queueForecast, child: Text(fr ? 'Estimer en arrière-plan' : 'Estimate in background')),
+                  if (backgroundNotice != null) Text(backgroundNotice!),
                   if (forecastResult != null) Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${fr ? 'Sources' : 'Sources'}: ${forecastResult!['sourceFrom']} → ${forecastResult!['sourceTo']}'),
                     Text('${forecastResult!['trainingCount']} ${fr ? 'périodes d’apprentissage' : 'training periods'} · ${forecastResult!['holdoutCount']} ${fr ? 'périodes vérifiées' : 'held-out periods'}'),

@@ -594,6 +594,31 @@ class CollectionsApi {
     return data['forecastCollection'] as Map<String, dynamic>;
   }
 
+  Future<List<Map<String, dynamic>>> backgroundJobs(String collectionId) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!){backgroundJobs(collectionId:$collectionId){id collectionId requestKey kind state total processed createdCount skippedCount errorCount logs{row message} failure createdAt updatedAt}}', {'collectionId': collectionId});
+    return (data['backgroundJobs'] as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> backgroundJob(String jobId) async {
+    final data = await auth.authenticatedRequest(r'query($jobId:String!){backgroundJob(jobId:$jobId){id collectionId requestKey kind state total processed createdCount skippedCount errorCount logs{row message} result failure createdAt updatedAt}}', {'jobId': jobId});
+    return data['backgroundJob'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> startBackgroundJob(String collectionId, String kind, Map<String, dynamic> payload, String requestKey) async {
+    final data = await auth.authenticatedRequest(r'mutation($collectionId:String!,$input:StartBackgroundJobInput!){startBackgroundJob(collectionId:$collectionId,input:$input){id collectionId requestKey kind state total processed createdCount skippedCount errorCount logs{row message} failure createdAt updatedAt}}', {'collectionId': collectionId, 'input': {'kind': kind, 'requestKey': requestKey, 'payload': jsonEncode(payload)}});
+    return data['startBackgroundJob'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> cancelBackgroundJob(String jobId) async {
+    final data = await auth.authenticatedRequest(r'mutation($jobId:String!){cancelBackgroundJob(jobId:$jobId){id collectionId requestKey kind state total processed createdCount skippedCount errorCount logs{row message} failure createdAt updatedAt}}', {'jobId': jobId});
+    return data['cancelBackgroundJob'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> resumeBackgroundJob(String jobId) async {
+    final data = await auth.authenticatedRequest(r'mutation($jobId:String!){resumeBackgroundJob(jobId:$jobId){id collectionId requestKey kind state total processed createdCount skippedCount errorCount logs{row message} failure createdAt updatedAt}}', {'jobId': jobId});
+    return data['resumeBackgroundJob'] as Map<String, dynamic>;
+  }
+
   Future<List<Map<String, dynamic>>> starterTemplates(String language) async {
     final data = await auth.authenticatedRequest(
       'query(\$language:String) { starterTemplates(language:\$language) { id name description } }',

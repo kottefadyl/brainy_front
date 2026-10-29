@@ -32,6 +32,7 @@ import 'entry_object_ref_field.dart';
 import 'offline_entry_queue.dart';
 import 'offline_sync_panel.dart';
 import 'workspace_backup_panel.dart';
+import 'background_jobs_panel.dart';
 import 'quick_capture_sheet.dart';
 import 'quick_entry_sheet.dart';
 import 'classification_screen.dart';
@@ -1443,7 +1444,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             ? 'Créer manuellement'
             : 'Create manually',
         onSecondaryPressed: _createCollectionManually,
-      )), OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _load(); }), WorkspaceBackupPanel(api: _api, onRestored: () { _load(); })]);
+      )), OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _load(); }), WorkspaceBackupPanel(api: _api, onRestored: () { _load(); }), BackgroundJobsPanel(api: _api, collections: _collections)]);
     }
     final collection = _selected;
     if (collection == null) return const SizedBox.shrink();
@@ -1464,6 +1465,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   _overviewBanner(collection),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
                   WorkspaceBackupPanel(api: _api, onRestored: () { _load(); }),
+                  BackgroundJobsPanel(api: _api, collections: _collections),
                   const SizedBox(height: 18),
                   _collectionTools(collection),
                   const SizedBox(height: 20),
