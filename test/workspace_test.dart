@@ -13,8 +13,9 @@ class _FakeAuthApi extends AuthApi {
   @override
   Future<Map<String, dynamic>> authenticatedRequest(
     String query,
-    Map<String, dynamic> variables,
-  ) async {
+    Map<String, dynamic> variables, {
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
     if (query.contains('collectionsList')) {
       return {'collectionsList': collections};
     }
@@ -209,6 +210,46 @@ Future<void> chooseFormatColor(
 }
 
 void main() {
+  testWidgets('entry pages replace the displayed entries', (tester) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final api = _FakeAuthApi();
+    api.collections.add({
+      'id': 'journal',
+      'name': 'Journal',
+      'fields': [
+        {'id': 'title', 'name': 'Title', 'kind': 'TITLE', 'unit': null},
+      ],
+    });
+    api.entries.addAll(List.generate(31, (index) => {
+      'id': 'entry-$index',
+      'values': [{'fieldId': 'title', 'value': 'Entry $index'}],
+      'createdAt': '2026-10-20T12:23:00.000Z',
+      'updatedAt': '2026-10-20T12:23:00.000Z',
+    }));
+    await tester.pumpWidget(MaterialApp(home: WorkspaceScreen(
+      user: const AppUser(id: 'user-1', name: 'Ada', email: 'ada@example.test'),
+      api: api,
+      onSignOut: () async {},
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Entry 0'), findsOneWidget);
+    expect(find.text('Entry 30'), findsNothing);
+    tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Next page')).onPressed!();
+    await tester.pumpAndSettle();
+    expect(find.text('Entry 0'), findsNothing);
+    expect(find.text('Entry 30'), findsOneWidget);
+    tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Previous page')).onPressed!();
+    await tester.pumpAndSettle();
+    expect(find.text('Entry 0'), findsOneWidget);
+    expect(find.text('Entry 30'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('entry shows its creation date and copies every field', (
     tester,
   ) async {

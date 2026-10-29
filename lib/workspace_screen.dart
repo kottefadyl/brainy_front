@@ -39,6 +39,8 @@ import 'classification_screen.dart';
 import 'geo_map_view.dart';
 import 'geo_field_input.dart';
 
+part 'workspace_entry_pagination.dart';
+
 const _ink = Color(0xFF20242C);
 const _muted = Color(0xFF545E6D);
 const _blue = Color(0xFF2463CE);
@@ -92,6 +94,7 @@ class WorkspaceScreen extends StatefulWidget {
 }
 
 class _WorkspaceScreenState extends State<WorkspaceScreen> {
+  void _mutate(VoidCallback change) => setState(change);
   bool get _dark => Theme.of(context).brightness == Brightness.dark;
   Color get _panel => _dark ? const Color(0xFF24272E) : Colors.white;
   Color get _panelBorder =>
@@ -114,6 +117,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   List<BrainyCollection> _collections = [];
   List<BrainyEntry> _entries = [];
   String? _pageCursor;
+  String? _pageAfter;
+  final List<String?> _previousPages = [];
   bool _loadingMore = false;
   final _searchController = TextEditingController();
   final _filterController = TextEditingController();
@@ -202,84 +207,6 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           _error = error.toString();
         });
       }
-    }
-  }
-
-  Future<void> _loadEntries() async {
-    final id = _selectedId;
-    final request = ++_entryRequest;
-    if (id == null) {
-      if (mounted) {
-        setState(() {
-          _entries = [];
-          _pageCursor = null;
-        });
-      }
-      return;
-    }
-    setState(() {
-      _loadingEntries = true;
-      _pageCursor = null;
-      _error = null;
-    });
-    try {
-      final page = await _api.entriesPage(
-        id,
-        search: _search,
-        formatId: _filterFormatId,
-        fieldId: _filterFieldId,
-        operatorName: _filterOperator,
-        filterValue: _filterValue,
-        viewId: _selectedViewId,
-      );
-      if (mounted && _selectedId == id && request == _entryRequest) {
-        setState(() {
-          _entries = page.entries;
-          _pageCursor = page.nextCursor;
-          _loadingEntries = false;
-        });
-      }
-    } catch (error) {
-      if (mounted && _selectedId == id && request == _entryRequest) {
-        setState(() {
-          _loadingEntries = false;
-          _error = error.toString();
-        });
-      }
-    }
-  }
-
-  Future<void> _loadMoreEntries() async {
-    final id = _selectedId;
-    final cursor = _pageCursor;
-    if (id == null || cursor == null || _loadingMore) return;
-    final request = _entryRequest;
-    setState(() => _loadingMore = true);
-    try {
-      final page = await _api.entriesPage(
-        id,
-        after: cursor,
-        search: _search,
-        formatId: _filterFormatId,
-        fieldId: _filterFieldId,
-        operatorName: _filterOperator,
-        filterValue: _filterValue,
-        viewId: _selectedViewId,
-      );
-      if (mounted && id == _selectedId && request == _entryRequest) {
-        setState(() {
-          final seen = _entries.map((entry) => entry.id).toSet();
-          _entries = [
-            ..._entries,
-            ...page.entries.where((entry) => !seen.contains(entry.id)),
-          ];
-          _pageCursor = page.nextCursor;
-        });
-      }
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -1229,13 +1156,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             ),
         ],
         LanguageMenu(onChanged: widget.onLanguageChanged),
-        IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: _actionAccent)),
+        if (MediaQuery.sizeOf(context).width >= 430)
+          IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: _actionAccent)),
         if (widget.themeButton != null) widget.themeButton!,
-        IconButton(
-          tooltip: _t('Import and export'),
-          onPressed: _openTransfer,
-          icon: Icon(Icons.import_export_rounded, color: _actionAccent),
-        ),
+        if (MediaQuery.sizeOf(context).width >= 430)
+          IconButton(
+            tooltip: _t('Import and export'),
+            onPressed: _openTransfer,
+            icon: Icon(Icons.import_export_rounded, color: _actionAccent),
+          ),
         PopupMenuButton<String>(
           tooltip: _t('Account'),
           icon: CircleAvatar(
@@ -1247,9 +1176,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           onSelected: (value) {
             if (value == 'signout') widget.onSignOut();
             if (value == 'profile') widget.onEditProfile?.call();
+            if (value == 'quickcapture') _showQuickCapture();
+            if (value == 'transfer') _openTransfer();
           },
           itemBuilder: (context) => [
             PopupMenuItem(enabled: false, child: Text(widget.user.email)),
+            if (MediaQuery.sizeOf(context).width < 430 && _collections.isNotEmpty)
+              PopupMenuItem(value: 'quickcapture', child: Text(_copy.isFrench ? 'Capture rapide' : 'Quick capture')),
+            if (MediaQuery.sizeOf(context).width < 430)
+              PopupMenuItem(value: 'transfer', child: Text(_t('Import and export'))),
             if (widget.onEditProfile != null)
               PopupMenuItem(value: 'profile', child: Text(_t('Edit profile'))),
             PopupMenuItem(value: 'signout', child: Text(_t('Sign out'))),
@@ -1487,7 +1422,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        '${_entries.length}',
+                        '${_entries.length}${_pageCursor != null ? '+' : ''}',
                         style: TextStyle(color: _panelMuted, fontSize: 13),
                       ),
                     ],
@@ -1566,17 +1501,27 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     )
                   else
                     _entryPresentation(collection),
-                  if (!_loadingEntries && _pageCursor != null)
+                  if (!_loadingEntries &&
+                      (_pageCursor != null || _previousPages.isNotEmpty))
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: OutlinedButton(
-                          onPressed: _loadingMore ? null : _loadMoreEntries,
-                          child: Text(
-                            _t(
-                              _loadingMore ? 'Loading...' : 'Load more entries',
-                            ),
-                          ),
+                        child: Wrap(
+                          spacing: 8,
+                          children: [
+                            if (_previousPages.isNotEmpty)
+                              OutlinedButton(
+                                onPressed: _loadingMore ? null : _loadPreviousEntries,
+                                child: Text(_copy.isFrench ? 'Page précédente' : 'Previous page'),
+                              ),
+                            if (_pageCursor != null)
+                              OutlinedButton(
+                                onPressed: _loadingMore ? null : _loadMoreEntries,
+                                child: Text(_loadingMore
+                                    ? _t('Loading...')
+                                    : _copy.isFrench ? 'Page suivante' : 'Next page'),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -2177,7 +2122,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 ),
                 _statBadge(
                   Icons.notes_rounded,
-                  '${_entries.length} ${_t(_entries.length == 1 ? 'entry' : 'entries')}',
+                  '${_entries.length} ${_t(_entries.length == 1 ? 'entry' : 'entries')} ${_copy.isFrench ? 'sur cette page' : 'on this page'}',
                 ),
               ],
             ),
@@ -2319,12 +2264,16 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       children: [
         Icon(icon, color: _dark ? const Color(0xFFBEC9E6) : _blue, size: 15),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            color: _dark ? const Color(0xFFD3DAF0) : const Color(0xFF465783),
-            fontWeight: FontWeight.w700,
-            fontSize: 12,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: _dark ? const Color(0xFFD3DAF0) : const Color(0xFF465783),
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
           ),
         ),
       ],
