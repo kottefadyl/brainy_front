@@ -26,6 +26,7 @@ import 'starter_dialog.dart';
 import 'insights_dialog.dart';
 import 'stock_screen.dart';
 import 'workflow_screen.dart';
+import 'contribution_screen.dart';
 import 'entry_links_dialog.dart';
 import 'entry_link_duplicate_check.dart';
 import 'entry_editor_pickers.dart';
@@ -2178,6 +2179,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           ),
           _toolCard(cardWidth, Icons.account_tree_outlined, _copy.isFrench ? 'Classifications' : 'Classifications', _copy.isFrench ? 'Listes de codes locales' : 'Local code lists', _manageClassifications),
           _toolCard(cardWidth, Icons.fact_check_outlined, _copy.isFrench ? 'États et validations' : 'States and approvals', _copy.isFrench ? 'Assignations et échéances' : 'Assignments and due dates', () async { if (await showWorkflowScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) await _load(); }),
+          if (collection.ownerId == widget.user.id) _toolCard(cardWidth, Icons.publish_outlined, _copy.isFrench ? 'Contributions publiques' : 'Public contributions', _copy.isFrench ? 'Liens et réponses à valider' : 'Links and submissions to review', () async { await showContributionScreen(context, _api, collection, french: _copy.isFrench); if (mounted) await _load(); }),
           _toolCard(cardWidth, Icons.map_outlined, _copy.isFrench ? 'Carte' : 'Map', _copy.isFrench ? 'Positions et zones' : 'Positions and zones', _showGeoMap),
         ],
       );
@@ -2602,6 +2604,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         if (edited)
                           Text(
                             '${_t('Edited')} ${_formatTimestamp(entry.updatedAt)}',
+                            style: TextStyle(color: _panelMuted, fontSize: 11),
+                          ),
+                        if (entry.contributionLinkId != null && entry.contributionReceivedAt != null)
+                          Text(
+                            '${_copy.isFrench ? 'Contribution externe reçue le' : 'External contribution received'} ${_formatTimestamp(entry.contributionReceivedAt!)}',
                             style: TextStyle(color: _panelMuted, fontSize: 11),
                           ),
                       ],
