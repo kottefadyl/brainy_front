@@ -25,6 +25,7 @@ import 'unit_dialog.dart';
 import 'starter_dialog.dart';
 import 'insights_dialog.dart';
 import 'stock_screen.dart';
+import 'workflow_screen.dart';
 import 'entry_links_dialog.dart';
 import 'entry_link_duplicate_check.dart';
 import 'entry_editor_pickers.dart';
@@ -2176,6 +2177,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             _manageObjects,
           ),
           _toolCard(cardWidth, Icons.account_tree_outlined, _copy.isFrench ? 'Classifications' : 'Classifications', _copy.isFrench ? 'Listes de codes locales' : 'Local code lists', _manageClassifications),
+          _toolCard(cardWidth, Icons.fact_check_outlined, _copy.isFrench ? 'États et validations' : 'States and approvals', _copy.isFrench ? 'Assignations et échéances' : 'Assignments and due dates', () async { if (await showWorkflowScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) await _load(); }),
           _toolCard(cardWidth, Icons.map_outlined, _copy.isFrench ? 'Carte' : 'Map', _copy.isFrench ? 'Positions et zones' : 'Positions and zones', _showGeoMap),
         ],
       );

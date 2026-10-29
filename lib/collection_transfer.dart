@@ -40,7 +40,8 @@ class BrainyTransfer {
     result.source['exchangeRates'] ??= <Map<String, dynamic>>[];
     result.source['codeLists'] ??= <Map<String, dynamic>>[];
     if (result.source['units'] is! List ||
-        result.source['exchangeRates'] is! List || result.source['codeLists'] is! List) {
+        result.source['exchangeRates'] is! List ||
+        result.source['codeLists'] is! List) {
       throw const FormatException('Invalid unit catalog');
     }
     if (result.source['id'] is! String ||
@@ -50,8 +51,13 @@ class BrainyTransfer {
     }
     final formatIds = <String>{};
     final codeIds = <String>{};
-    for (final list in (result.source['codeLists'] as List).cast<Map<String, dynamic>>()) {
-      if (list['id'] is! String || list['name'] is! String || list['codes'] is! List || !codeIds.add(list['id'] as String)) throw const FormatException('Invalid code list');
+    for (final list
+        in (result.source['codeLists'] as List).cast<Map<String, dynamic>>()) {
+      if (list['id'] is! String ||
+          list['name'] is! String ||
+          list['codes'] is! List ||
+          !codeIds.add(list['id'] as String))
+        throw const FormatException('Invalid code list');
     }
     for (final format in result.formats) {
       if (format['id'] is! String ||
@@ -71,7 +77,8 @@ class BrainyTransfer {
             !fieldIds.add(field['id'] as String)) {
           throw const FormatException('Invalid field');
         }
-        if (field['kind'] == 'CODE' && !codeIds.contains(field['codeListId'])) throw const FormatException('Missing code list');
+        if (field['kind'] == 'CODE' && !codeIds.contains(field['codeListId']))
+          throw const FormatException('Missing code list');
       }
     }
     final ids = <String>{};
@@ -129,12 +136,16 @@ class BrainyTransfer {
       }
     }
     for (final relation in result.relations) {
-      if (relation['fromSourceId'] is! String || relation['toSourceId'] is! String ||
-          !ids.contains(relation['fromSourceId']) || !ids.contains(relation['toSourceId']) ||
+      if (relation['fromSourceId'] is! String ||
+          relation['toSourceId'] is! String ||
+          !ids.contains(relation['fromSourceId']) ||
+          !ids.contains(relation['toSourceId']) ||
           relation['fromSourceId'] == relation['toSourceId'] ||
           !['ASSOCIATION', 'PARENT', 'COMPONENT'].contains(relation['kind']) ||
           relation['label'] is! String ||
-          (relation['kind'] == 'COMPONENT' && (relation['quantity'] is! String || relation['unit'] is! String))) {
+          (relation['kind'] == 'COMPONENT' &&
+              (relation['quantity'] is! String ||
+                  relation['unit'] is! String))) {
         throw const FormatException('Invalid relation');
       }
     }
@@ -183,6 +194,9 @@ class BrainyTransfer {
           'createdAt': entry.createdAt.toUtc().toIso8601String(),
           'updatedAt': entry.updatedAt.toUtc().toIso8601String(),
           'values': values,
+          if ((entry.workflow?['history'] as List<dynamic>?)?.isNotEmpty ==
+              true)
+            'workflowHistory': entry.workflow!['history'],
         });
         for (final link in await api.entryLinks(collection.id, entry.id)) {
           if (!seenLinks.add(link['id'] as String)) continue;
@@ -201,9 +215,12 @@ class BrainyTransfer {
             'label': relation['label'],
             if (relation['quantity'] != null) 'quantity': relation['quantity'],
             if (relation['unit'] != null) 'unit': relation['unit'],
-            if (relation['snapshotValue'] != null) 'snapshotValue': relation['snapshotValue'],
-            if (relation['snapshotUnit'] != null) 'snapshotUnit': relation['snapshotUnit'],
-            if (relation['snapshotFieldId'] != null) 'snapshotFieldId': relation['snapshotFieldId'],
+            if (relation['snapshotValue'] != null)
+              'snapshotValue': relation['snapshotValue'],
+            if (relation['snapshotUnit'] != null)
+              'snapshotUnit': relation['snapshotUnit'],
+            if (relation['snapshotFieldId'] != null)
+              'snapshotFieldId': relation['snapshotFieldId'],
           });
         }
       }
@@ -229,6 +246,7 @@ class BrainyTransfer {
               'name': format.name,
               'color': format.color,
               'objectModel': format.objectModel,
+              if (format.workflow != null) 'workflow': format.workflow,
               'fields': [
                 for (final field in format.fields)
                   {
@@ -237,7 +255,8 @@ class BrainyTransfer {
                     'kind': field.kind.wireName,
                     if (field.unit != null) 'unit': field.unit,
                     if (field.options.isNotEmpty) 'options': field.options,
-                    if (field.codeListId != null) 'codeListId': field.codeListId,
+                    if (field.codeListId != null)
+                      'codeListId': field.codeListId,
                     if (field.targetObjectFormatId != null)
                       'targetObjectFormatId': field.targetObjectFormatId,
                     if (field.kind == BrainyFieldKind.objectRef) ...{
@@ -263,9 +282,23 @@ class BrainyTransfer {
     final mapping = <String, ({String formatId, Map<String, String> fields})>{};
     final unitIds = unitMapping(target);
     final codeIds = <String, String>{};
-    for (final sourceList in (source['codeLists'] as List).cast<Map<String, dynamic>>()) {
-      final match = target.codeLists.where((item) => (item['name'] as String).toLowerCase() == (sourceList['name'] as String).toLowerCase() && (sourceList['codes'] as List).every((code) => (item['codes'] as List).any((candidate) => (candidate as Map)['code'] == (code as Map)['code']))).firstOrNull;
-      if (match != null) codeIds[sourceList['id'] as String] = match['id'] as String;
+    for (final sourceList
+        in (source['codeLists'] as List).cast<Map<String, dynamic>>()) {
+      final match = target.codeLists
+          .where(
+            (item) =>
+                (item['name'] as String).toLowerCase() ==
+                    (sourceList['name'] as String).toLowerCase() &&
+                (sourceList['codes'] as List).every(
+                  (code) => (item['codes'] as List).any(
+                    (candidate) =>
+                        (candidate as Map)['code'] == (code as Map)['code'],
+                  ),
+                ),
+          )
+          .firstOrNull;
+      if (match != null)
+        codeIds[sourceList['id'] as String] = match['id'] as String;
     }
     for (final sourceFormat in formats) {
       final targetFormat = target.formats
@@ -297,7 +330,8 @@ class BrainyTransfer {
                       (sourceField['name'] as String).toLowerCase() &&
                   item.kind.wireName == sourceField['kind'] &&
                   (item.unit ?? '') == (expectedUnit ?? '') &&
-                  (sourceField['kind'] != 'CODE' || item.codeListId == codeIds[sourceField['codeListId']]),
+                  (sourceField['kind'] != 'CODE' ||
+                      item.codeListId == codeIds[sourceField['codeListId']]),
             )
             .firstOrNull;
         if (targetField == null) {
@@ -306,6 +340,18 @@ class BrainyTransfer {
           );
         }
         fields[sourceField['id'] as String] = targetField.id;
+      }
+      final sourceWorkflow = sourceFormat['workflow'] as Map<String, dynamic>?;
+      if (sourceWorkflow != null) {
+        final targetWorkflow = targetFormat.workflow;
+        if (targetWorkflow == null ||
+            fields[sourceWorkflow['stateFieldId']] !=
+                targetWorkflow['stateFieldId'] ||
+            sourceWorkflow['initialState'] != targetWorkflow['initialState']) {
+          throw FormatException(
+            'Incompatible workflow: ${sourceFormat['name']}',
+          );
+        }
       }
       mapping[sourceFormat['id'] as String] = (
         formatId: targetFormat.id,
@@ -365,6 +411,8 @@ class BrainyTransfer {
             'updatedAt': DateTime.parse(entry['updatedAt'] as String)
                 .toUtc()
                 .toIso8601String(),
+            if (entry['workflowHistory'] != null)
+              'workflowHistory': entry['workflowHistory'],
             'values': [
               for (final value
                   in (entry['values'] as List).cast<Map<String, dynamic>>())
@@ -433,17 +481,31 @@ class BrainyTransfer {
       }
       final mappedUnits = unitMapping(target);
       for (var start = 0; start < relations.length; start += 50) {
-        await api.importRelations(target.id, key.length <= 100 ? key : key.substring(0, 100), [
-          for (final relation in relations.skip(start).take(50)) {
-            ...relation,
-            if ((relation['unit'] as String?)?.startsWith('local:') == true)
-              'unit': 'local:${mappedUnits[(relation['unit'] as String).substring(6)] ?? 'missing'}',
-            if ((relation['snapshotUnit'] as String?)?.startsWith('local:') == true)
-              'snapshotUnit': 'local:${mappedUnits[(relation['snapshotUnit'] as String).substring(6)] ?? 'missing'}',
-            if (relation['snapshotFieldId'] != null)
-              'snapshotFieldId': mapped[entries.firstWhere((entry) => entry['id'] == relation['toSourceId'])['formatId']]?.fields[relation['snapshotFieldId']],
-          },
-        ]);
+        await api.importRelations(
+          target.id,
+          key.length <= 100 ? key : key.substring(0, 100),
+          [
+            for (final relation in relations.skip(start).take(50))
+              {
+                ...relation,
+                if ((relation['unit'] as String?)?.startsWith('local:') == true)
+                  'unit':
+                      'local:${mappedUnits[(relation['unit'] as String).substring(6)] ?? 'missing'}',
+                if ((relation['snapshotUnit'] as String?)?.startsWith(
+                      'local:',
+                    ) ==
+                    true)
+                  'snapshotUnit':
+                      'local:${mappedUnits[(relation['snapshotUnit'] as String).substring(6)] ?? 'missing'}',
+                if (relation['snapshotFieldId'] != null)
+                  'snapshotFieldId':
+                      mapped[entries.firstWhere(
+                            (entry) => entry['id'] == relation['toSourceId'],
+                          )['formatId']]
+                          ?.fields[relation['snapshotFieldId']],
+              },
+          ],
+        );
       }
     }
     return (valid: valid, created: created, skipped: skipped, errors: errors);

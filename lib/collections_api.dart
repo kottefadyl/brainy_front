@@ -210,6 +210,7 @@ class BrainyFormat {
     this.objectModel = false,
     this.copiedFromFormatId,
     this.linkedSource,
+    this.workflow,
   });
   final String id;
   final String name;
@@ -219,6 +220,7 @@ class BrainyFormat {
   final bool objectModel;
   final String? copiedFromFormatId;
   final Map<String, dynamic>? linkedSource;
+  final Map<String, dynamic>? workflow;
 
   factory BrainyFormat.fromJson(Map<String, dynamic> json) => BrainyFormat(
     id: json['id'] as String,
@@ -231,6 +233,7 @@ class BrainyFormat {
     objectModel: json['objectModel'] as bool? ?? false,
     copiedFromFormatId: json['copiedFromFormatId'] as String?,
     linkedSource: json['linkedSource'] as Map<String, dynamic>?,
+    workflow: json['workflow'] as Map<String, dynamic>?,
   );
 }
 
@@ -306,6 +309,7 @@ class BrainyCollection {
     required this.name,
     required this.fields,
     required this.formats,
+    this.ownerId,
     this.codeLists = const [],
     this.units = const [],
     this.exchangeRates = const [],
@@ -320,6 +324,7 @@ class BrainyCollection {
   final String name;
   final List<BrainyField> fields;
   final List<BrainyFormat> formats;
+  final String? ownerId;
   final List<Map<String, dynamic>> codeLists;
   final List<BrainyUnit> units;
   final List<Map<String, dynamic>> exchangeRates;
@@ -345,6 +350,7 @@ class BrainyCollection {
     return BrainyCollection(
       id: json['id'] as String,
       name: json['name'] as String,
+      ownerId: json['ownerId'] as String?,
       fields: fields,
       formats: formats?.isNotEmpty == true
           ? formats!
@@ -401,6 +407,7 @@ class BrainyEntry {
     this.sourceObjectId,
     this.objectSnapshots = const {},
     this.recurrence,
+    this.workflow,
     this.offlinePending = false,
   });
   final String id;
@@ -412,6 +419,7 @@ class BrainyEntry {
   final String? sourceObjectId;
   final Map<String, List<Map<String, dynamic>>> objectSnapshots;
   final Map<String, dynamic>? recurrence;
+  final Map<String, dynamic>? workflow;
   final bool offlinePending;
 
   factory BrainyEntry.fromJson(Map<String, dynamic> json) => BrainyEntry(
@@ -426,6 +434,7 @@ class BrainyEntry {
     formatId: json['formatId'] as String?,
     sourceObjectId: json['sourceObjectId'] as String?,
     recurrence: json['recurrence'] as Map<String, dynamic>?,
+    workflow: json['workflow'] as Map<String, dynamic>?,
     unitSnapshots: {
       for (final item in json['values'] as List<dynamic>)
         if ((item as Map<String, dynamic>)['unitSnapshot']
@@ -477,9 +486,12 @@ class CollectionsApi {
   final AuthApi auth;
 
   static const _collectionFields =
-      'id name fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } formats { id name color version objectModel copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds }';
+      'id ownerId name fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } formats { id name color version objectModel copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds }';
   static const _entryFields =
-      'id formatId sourceObjectId recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } values { fieldId value objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
+      'id formatId sourceObjectId recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
+
+  static String get workflowCollectionFields => _collectionFields;
+  static String get workflowEntryFields => _entryFields;
 
   Future<BrainyCollection> saveClassification(String collectionId, String name, List<Map<String, dynamic>> codes, {String? listId, int? expectedVersion}) async {
     final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$name:String!,\$codes:[ClassificationCodeInput!]!,\$listId:String,\$expectedVersion:Int){saveClassification(collectionId:\$collectionId,name:\$name,codes:\$codes,listId:\$listId,expectedVersion:\$expectedVersion){$_collectionFields}}', {'collectionId': collectionId, 'name': name, 'codes': codes.map((item) => {'code': item['code'], 'labelEn': item['labelEn'], 'labelFr': item['labelFr'], 'parentCode': item['parentCode'], 'active': item['active'], if (item['mergedInto'] != null) 'mergedInto': item['mergedInto']}).toList(), 'listId': listId, 'expectedVersion': expectedVersion});
