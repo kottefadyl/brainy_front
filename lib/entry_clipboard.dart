@@ -41,6 +41,7 @@ String entryClipboardText(
       value,
       copy,
       snapshot: entry.unitSnapshots[field.id],
+      collection: collection,
     );
     lines.add('${field.name}: $displayValue');
   }
@@ -52,7 +53,19 @@ String displayEntryValue(
   String value,
   AppStrings copy, {
   BrainyUnitSnapshot? snapshot,
+  BrainyCollection? collection,
 }) {
+  if (field.kind == BrainyFieldKind.code) {
+    final list = collection?.codeLists.where((item) => item['id'] == field.codeListId).firstOrNull;
+    final code = (list?['codes'] as List<dynamic>? ?? []).where((item) => item['code'] == value).firstOrNull;
+    if (code is Map<String, dynamic>) return '${code[copy.isFrench ? 'labelFr' : 'labelEn']} ($value)${code['active'] == true ? '' : copy.isFrench ? ' · obsolète' : ' · obsolete'}';
+  }
+  if (field.kind == BrainyFieldKind.position) {
+    try { final point = jsonDecode(value) as Map<String, dynamic>; return '${point['latitude']}, ${point['longitude']}${point['accuracy'] == null ? '' : ' ±${point['accuracy']} m'}'; } catch (_) { return value; }
+  }
+  if (field.kind == BrainyFieldKind.zone) {
+    try { final zone = jsonDecode(value) as Map<String, dynamic>; return zone['type'] == 'Circle' ? copy.isFrench ? 'Cercle' : 'Circle' : copy.isFrench ? 'Polygone' : 'Polygon'; } catch (_) { return value; }
+  }
   if (field.kind == BrainyFieldKind.number) {
     if (snapshot != null) {
       final number = copy.isFrench ? value.replaceAll('.', ',') : value;

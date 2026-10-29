@@ -38,8 +38,9 @@ class BrainyTransfer {
     }
     result.source['units'] ??= <Map<String, dynamic>>[];
     result.source['exchangeRates'] ??= <Map<String, dynamic>>[];
+    result.source['codeLists'] ??= <Map<String, dynamic>>[];
     if (result.source['units'] is! List ||
-        result.source['exchangeRates'] is! List) {
+        result.source['exchangeRates'] is! List || result.source['codeLists'] is! List) {
       throw const FormatException('Invalid unit catalog');
     }
     if (result.source['id'] is! String ||
@@ -48,6 +49,10 @@ class BrainyTransfer {
       throw const FormatException('Invalid collection');
     }
     final formatIds = <String>{};
+    final codeIds = <String>{};
+    for (final list in (result.source['codeLists'] as List).cast<Map<String, dynamic>>()) {
+      if (list['id'] is! String || list['name'] is! String || list['codes'] is! List || !codeIds.add(list['id'] as String)) throw const FormatException('Invalid code list');
+    }
     for (final format in result.formats) {
       if (format['id'] is! String ||
           format['name'] is! String ||
@@ -66,6 +71,7 @@ class BrainyTransfer {
             !fieldIds.add(field['id'] as String)) {
           throw const FormatException('Invalid field');
         }
+        if (field['kind'] == 'CODE' && !codeIds.contains(field['codeListId'])) throw const FormatException('Missing code list');
       }
     }
     final ids = <String>{};
@@ -214,6 +220,7 @@ class BrainyTransfer {
             unit.toInput()..['version'] = unit.version,
         ],
         'exchangeRates': collection.exchangeRates,
+        'codeLists': collection.codeLists,
         'sharedObjects': collection.sharedObjects,
         'formats': [
           for (final format in collection.formats)
@@ -230,6 +237,7 @@ class BrainyTransfer {
                     'kind': field.kind.wireName,
                     if (field.unit != null) 'unit': field.unit,
                     if (field.options.isNotEmpty) 'options': field.options,
+                    if (field.codeListId != null) 'codeListId': field.codeListId,
                     if (field.targetObjectFormatId != null)
                       'targetObjectFormatId': field.targetObjectFormatId,
                     if (field.kind == BrainyFieldKind.objectRef) ...{
@@ -254,6 +262,11 @@ class BrainyTransfer {
   ) {
     final mapping = <String, ({String formatId, Map<String, String> fields})>{};
     final unitIds = unitMapping(target);
+    final codeIds = <String, String>{};
+    for (final sourceList in (source['codeLists'] as List).cast<Map<String, dynamic>>()) {
+      final match = target.codeLists.where((item) => (item['name'] as String).toLowerCase() == (sourceList['name'] as String).toLowerCase() && (sourceList['codes'] as List).every((code) => (item['codes'] as List).any((candidate) => (candidate as Map)['code'] == (code as Map)['code']))).firstOrNull;
+      if (match != null) codeIds[sourceList['id'] as String] = match['id'] as String;
+    }
     for (final sourceFormat in formats) {
       final targetFormat = target.formats
           .where(
@@ -283,7 +296,8 @@ class BrainyTransfer {
                   item.name.toLowerCase() ==
                       (sourceField['name'] as String).toLowerCase() &&
                   item.kind.wireName == sourceField['kind'] &&
-                  (item.unit ?? '') == (expectedUnit ?? ''),
+                  (item.unit ?? '') == (expectedUnit ?? '') &&
+                  (sourceField['kind'] != 'CODE' || item.codeListId == codeIds[sourceField['codeListId']]),
             )
             .firstOrNull;
         if (targetField == null) {

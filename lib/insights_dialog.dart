@@ -53,6 +53,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
   final denominatorValueCtrl = TextEditingController();
   final windowSizeCtrl = TextEditingController(text: '3');
   String? left, right, measure, dateFieldId, groupFieldId;
+  int groupDepth = 2;
   String? secondaryGroupFieldId, denominatorFieldId, weightFieldId, counterResetFieldId;
   String secondaryGroupBy = 'MONTH';
   String? formulaFromFieldId, formulaToFieldId;
@@ -284,6 +285,8 @@ class _InsightsDialogState extends State<_InsightsDialog> {
         'formatId': formatId,
         'operation': operation,
         'groupBy': groupBy,
+        'language': AppStrings.of(context).isFrench ? 'fr' : 'en',
+        if (groupBy == 'CATEGORY' && format.fields.any((field) => field.id == groupFieldId && field.kind == BrainyFieldKind.code)) 'groupDepth': groupDepth,
         'measureKind': measureKind,
         if (measure?.startsWith('formula:') == true)
           'formulaId': measure!.substring(8)
@@ -534,7 +537,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
           (item) => groupBy == 'OBJECT'
               ? item.kind == BrainyFieldKind.objectRef
               : item.kind == BrainyFieldKind.select ||
-                    item.kind == BrainyFieldKind.text,
+                    item.kind == BrainyFieldKind.text || item.kind == BrainyFieldKind.code,
         )
         .toList();
     final selectedFilter = format.fields
@@ -1031,6 +1034,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                       ],
                       (value) => setState(() => groupFieldId = value),
                     ),
+                    if (groupBy == 'CATEGORY' && format.fields.any((field) => field.id == (groupFieldId ?? groups.firstOrNull?.id) && field.kind == BrainyFieldKind.code)) DropdownButtonFormField<int>(initialValue: groupDepth, decoration: InputDecoration(labelText: fr ? 'Niveau de regroupement' : 'Grouping level'), items: [DropdownMenuItem(value: 0, child: Text(fr ? 'Racine' : 'Root')), DropdownMenuItem(value: 1, child: Text(fr ? 'Intermédiaire' : 'Middle')), DropdownMenuItem(value: 2, child: Text(fr ? 'Code précis' : 'Exact code'))], onChanged: (value) => setState(() => groupDepth = value ?? 2)),
                   ],
                   if (operation == 'CROSSTAB') ...[
                     const SizedBox(height: 8),
@@ -1064,7 +1068,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                             (item) => secondaryGroupBy == 'OBJECT'
                                 ? item.kind == BrainyFieldKind.objectRef
                                 : item.kind == BrainyFieldKind.select ||
-                                      item.kind == BrainyFieldKind.text,
+                                      item.kind == BrainyFieldKind.text || item.kind == BrainyFieldKind.code,
                           ))
                             DropdownMenuItem(
                               value: field.id,

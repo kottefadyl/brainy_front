@@ -47,6 +47,9 @@ enum BrainyFieldKind {
   attachment,
   objectRef,
   measure,
+  code,
+  position,
+  zone,
 }
 
 extension BrainyFieldKindLabel on BrainyFieldKind {
@@ -70,6 +73,9 @@ extension BrainyFieldKindLabel on BrainyFieldKind {
     BrainyFieldKind.attachment => 'Attachment',
     BrainyFieldKind.objectRef => 'Object reference',
     BrainyFieldKind.measure => 'Measure',
+    BrainyFieldKind.code => 'Code from a list',
+    BrainyFieldKind.position => 'Position',
+    BrainyFieldKind.zone => 'Zone',
   };
 }
 
@@ -85,6 +91,7 @@ class BrainyField {
     this.variableName,
     this.referenceMode = 'SNAPSHOT',
     this.sourceFieldId,
+    this.codeListId,
   });
   final String id;
   final String name;
@@ -96,6 +103,7 @@ class BrainyField {
   final String? variableName;
   final String referenceMode;
   final String? sourceFieldId;
+  final String? codeListId;
 
   factory BrainyField.fromJson(Map<String, dynamic> json) => BrainyField(
     id: json['id'] as String,
@@ -110,6 +118,7 @@ class BrainyField {
     variableName: json['variableName'] as String?,
     referenceMode: json['referenceMode'] as String? ?? 'SNAPSHOT',
     sourceFieldId: json['sourceFieldId'] as String?,
+    codeListId: json['codeListId'] as String?,
   );
 }
 
@@ -297,6 +306,7 @@ class BrainyCollection {
     required this.name,
     required this.fields,
     required this.formats,
+    this.codeLists = const [],
     this.units = const [],
     this.exchangeRates = const [],
     this.sharedObjects = const [],
@@ -310,6 +320,7 @@ class BrainyCollection {
   final String name;
   final List<BrainyField> fields;
   final List<BrainyFormat> formats;
+  final List<Map<String, dynamic>> codeLists;
   final List<BrainyUnit> units;
   final List<Map<String, dynamic>> exchangeRates;
   final List<Map<String, dynamic>> sharedObjects;
@@ -345,6 +356,8 @@ class BrainyCollection {
                 fields: fields,
               ),
             ],
+      codeLists: (json['codeLists'] as List<dynamic>?)
+              ?.cast<Map<String, dynamic>>() ?? const [],
       units:
           (json['units'] as List<dynamic>?)
               ?.map((item) => BrainyUnit.fromJson(item as Map<String, dynamic>))
@@ -464,9 +477,69 @@ class CollectionsApi {
   final AuthApi auth;
 
   static const _collectionFields =
-      'id name fields { id name kind unit options targetObjectFormatId multiple variableName referenceMode sourceFieldId } formats { id name color version objectModel copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } fields { id name kind unit options targetObjectFormatId multiple variableName referenceMode sourceFieldId } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds }';
+      'id name fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } formats { id name color version objectModel copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds }';
   static const _entryFields =
       'id formatId sourceObjectId recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } values { fieldId value objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
+
+  Future<BrainyCollection> saveClassification(String collectionId, String name, List<Map<String, dynamic>> codes, {String? listId, int? expectedVersion}) async {
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$name:String!,\$codes:[ClassificationCodeInput!]!,\$listId:String,\$expectedVersion:Int){saveClassification(collectionId:\$collectionId,name:\$name,codes:\$codes,listId:\$listId,expectedVersion:\$expectedVersion){$_collectionFields}}', {'collectionId': collectionId, 'name': name, 'codes': codes.map((item) => {'code': item['code'], 'labelEn': item['labelEn'], 'labelFr': item['labelFr'], 'parentCode': item['parentCode'], 'active': item['active'], if (item['mergedInto'] != null) 'mergedInto': item['mergedInto']}).toList(), 'listId': listId, 'expectedVersion': expectedVersion});
+    return BrainyCollection.fromJson(data['saveClassification'] as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> previewClassificationCsv(String csv) async {
+    final data = await auth.authenticatedRequest(r'query($csv:String!){previewClassificationCsv(csv:$csv){codes{code labelEn labelFr parentCode active} errors{row message}}}', {'csv': csv});
+    return data['previewClassificationCsv'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> classificationCopyPreview(String collectionId, String listId, String targetCollectionId) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$listId:String!,$targetCollectionId:String!){classificationCopyPreview(collectionId:$collectionId,listId:$listId,targetCollectionId:$targetCollectionId){allowed sourceName targetName codeCount conflicts}}', {'collectionId': collectionId, 'listId': listId, 'targetCollectionId': targetCollectionId});
+    return data['classificationCopyPreview'] as Map<String, dynamic>;
+  }
+
+  Future<BrainyCollection> copyClassification(String collectionId, String listId, String targetCollectionId) async {
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$listId:String!,\$targetCollectionId:String!){copyClassification(collectionId:\$collectionId,listId:\$listId,targetCollectionId:\$targetCollectionId){$_collectionFields}}', {'collectionId': collectionId, 'listId': listId, 'targetCollectionId': targetCollectionId});
+    return BrainyCollection.fromJson(data['copyClassification'] as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> classificationMergePreview(String collectionId, String listId, String fromCode, String toCode) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$listId:String!,$fromCode:String!,$toCode:String!){classificationMergePreview(collectionId:$collectionId,listId:$listId,fromCode:$fromCode,toCode:$toCode){affectedEntries allowed}}', {'collectionId': collectionId, 'listId': listId, 'fromCode': fromCode, 'toCode': toCode});
+    return data['classificationMergePreview'] as Map<String, dynamic>;
+  }
+
+  Future<BrainyCollection> mergeClassificationCodes(String collectionId, String listId, String fromCode, String toCode, int expectedVersion) async {
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$listId:String!,\$fromCode:String!,\$toCode:String!,\$expectedVersion:Int!){mergeClassificationCodes(collectionId:\$collectionId,listId:\$listId,fromCode:\$fromCode,toCode:\$toCode,expectedVersion:\$expectedVersion){$_collectionFields}}', {'collectionId': collectionId, 'listId': listId, 'fromCode': fromCode, 'toCode': toCode, 'expectedVersion': expectedVersion});
+    return BrainyCollection.fromJson(data['mergeClassificationCodes'] as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> geoPage(String collectionId, String formatId, String fieldId, {String? after, String? search, String? filterFieldId, String? filterOperator, String? filterValue, String? viewId}) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$formatId:String!,$fieldId:String!,$first:Int!,$after:String,$search:String,$filters:[EntryFieldFilterInput!],$viewId:String){collectionGeoPage(collectionId:$collectionId,formatId:$formatId,fieldId:$fieldId,first:$first,after:$after,search:$search,filters:$filters,viewId:$viewId){points{entryId name latitude longitude accuracy} nextCursor hasMore}}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'first': 100, 'after': after, 'search': search, if (filterFieldId != null && filterValue?.isNotEmpty == true) 'filters': [{'fieldId': filterFieldId, 'operator': filterOperator ?? 'EQ', 'value': filterValue}], if (viewId != null) 'viewId': viewId});
+    return data['collectionGeoPage'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> geoDistance(String collectionId, String formatId, String fieldId, String firstEntryId, String secondEntryId) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$formatId:String!,$fieldId:String!,$firstEntryId:String!,$secondEntryId:String!,$unit:String!){collectionGeoDistance(collectionId:$collectionId,formatId:$formatId,fieldId:$fieldId,firstEntryId:$firstEntryId,secondEntryId:$secondEntryId,unit:$unit){value unit}}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'firstEntryId': firstEntryId, 'secondEntryId': secondEntryId, 'unit': 'km'});
+    return data['collectionGeoDistance'] as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> geoZoneSummary(String collectionId, String positionFormatId, String positionFieldId, String zoneFormatId, String zoneFieldId) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$positionFormatId:String!,$positionFieldId:String!,$zoneFormatId:String!,$zoneFieldId:String!){collectionGeoZoneSummary(collectionId:$collectionId,positionFormatId:$positionFormatId,positionFieldId:$positionFieldId,zoneFormatId:$zoneFormatId,zoneFieldId:$zoneFieldId){zoneEntryId label count}}', {'collectionId': collectionId, 'positionFormatId': positionFormatId, 'positionFieldId': positionFieldId, 'zoneFormatId': zoneFormatId, 'zoneFieldId': zoneFieldId});
+    return (data['collectionGeoZoneSummary'] as List<dynamic>).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> previewGeoImport(String collectionId, String formatId, String fieldId, String text, String kind) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$formatId:String!,$fieldId:String!,$text:String!,$kind:String!){previewGeoImport(collectionId:$collectionId,formatId:$formatId,fieldId:$fieldId,text:$text,kind:$kind){count errors{row message}}}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'text': text, 'kind': kind});
+    return data['previewGeoImport'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> importGeoPoints(String collectionId, String formatId, String fieldId, String text, String kind, String importKey) async {
+    final data = await auth.authenticatedRequest(r'mutation($collectionId:String!,$formatId:String!,$fieldId:String!,$text:String!,$kind:String!,$importKey:String!){importGeoPoints(collectionId:$collectionId,formatId:$formatId,fieldId:$fieldId,text:$text,kind:$kind,importKey:$importKey){count errors{row message}}}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'text': text, 'kind': kind, 'importKey': importKey});
+    return data['importGeoPoints'] as Map<String, dynamic>;
+  }
+
+  Future<String> exportGeoPoints(String collectionId, String formatId, String fieldId, String kind) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$formatId:String!,$fieldId:String!,$kind:String!){exportGeoPoints(collectionId:$collectionId,formatId:$formatId,fieldId:$fieldId,kind:$kind)}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'kind': kind});
+    return data['exportGeoPoints'] as String;
+  }
 
   Future<List<Map<String, dynamic>>> stockPositions(String collectionId) async {
     final data = await auth.authenticatedRequest(r'query($collectionId:String!) { stockPositions(collectionId:$collectionId) { productId productName location lot quantity } }', {'collectionId': collectionId});
@@ -761,6 +834,7 @@ class CollectionsApi {
     List<Map<String, dynamic>> formats, {
     List<BrainyUnit> units = const [],
     List<Map<String, dynamic>> exchangeRates = const [],
+    List<Map<String, dynamic>> codeLists = const [],
   }) async {
     final data = await auth.authenticatedRequest(
       'mutation Create(\$input: CreateCollectionInput!) { createCollection(input: \$input) { $_collectionFields } }',
@@ -768,6 +842,7 @@ class CollectionsApi {
         'input': {
           'name': name,
           'formats': formats,
+          'codeLists': [for (final list in codeLists) {'id': list['id'], 'name': list['name'], 'codes': [for (final code in (list['codes'] as List).cast<Map<String, dynamic>>()) {'code': code['code'], 'labelEn': code['labelEn'], 'labelFr': code['labelFr'], if (code['parentCode'] != null) 'parentCode': code['parentCode'], 'active': code['active'] != false, if (code['mergedInto'] != null) 'mergedInto': code['mergedInto']}]}],
           'units': [for (final unit in units) unit.toInput()],
           'exchangeRates': [
             for (final rate in exchangeRates)
@@ -1227,6 +1302,11 @@ class CollectionsApi {
     return BrainyCollection.fromJson(
       data['addCollectionFormat'] as Map<String, dynamic>,
     );
+  }
+
+  Future<BrainyCollection> addFormatWithCode(String collectionId, String name, String color, List<Map<String, dynamic>> fields, {bool objectModel = false}) async {
+    final data = await auth.authenticatedRequest('mutation(\$id:String!,\$input:CollectionFormatInput!){addCollectionFormat(collectionId:\$id,input:\$input){$_collectionFields}}', {'id': collectionId, 'input': {'name': name, 'color': color, 'fields': fields, 'objectModel': objectModel}});
+    return BrainyCollection.fromJson(data['addCollectionFormat'] as Map<String, dynamic>);
   }
 
   Future<({int entryCount, List<String> populatedFieldIds})> formatImpact(

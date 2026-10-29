@@ -34,6 +34,9 @@ import 'offline_sync_panel.dart';
 import 'workspace_backup_panel.dart';
 import 'quick_capture_sheet.dart';
 import 'quick_entry_sheet.dart';
+import 'classification_screen.dart';
+import 'geo_map_view.dart';
+import 'geo_field_input.dart';
 
 const _ink = Color(0xFF20242C);
 const _muted = Color(0xFF545E6D);
@@ -1026,11 +1029,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                           'unit': field['unit'],
                                         if (field['options'] != null)
                                           'options': field['options'],
+                                        if (field['codeListId'] != null)
+                                          'codeListId': field['codeListId'],
                                       },
                                   ],
                                 },
                             ],
                             units: transfer!.units,
+                            codeLists: (transfer!.source['codeLists'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>(),
                             exchangeRates:
                                 (transfer!.source['exchangeRates']
                                         as List<dynamic>)
@@ -1104,6 +1110,20 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       ],
     );
     await _loadEntries();
+  }
+
+  Future<void> _manageClassifications() async {
+    final selected = _selected;
+    if (selected == null) return;
+    final changed = await showClassificationScreen(context, _api, selected, _collections, french: _copy.isFrench);
+    if (changed && mounted) await _load();
+  }
+
+  Future<void> _showGeoMap() async {
+    final selected = _selected;
+    if (selected == null) return;
+    final changed = await showGeoMapView(context, _api, selected, french: _copy.isFrench, initialSearch: _search, filterFieldId: _filterFieldId, filterOperator: _filterOperator, filterValue: _filterValue, viewId: _selectedViewId, onOpenEntry: (id) async { await _editEntry(await _api.entry(selected.id, id)); });
+    if (changed && mounted) await _loadEntries();
   }
 
   String _formatTimestamp(DateTime timestamp) {
@@ -2208,6 +2228,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             _copy.isFrench ? 'Modèles et références' : 'Models and references',
             _manageObjects,
           ),
+          _toolCard(cardWidth, Icons.account_tree_outlined, _copy.isFrench ? 'Classifications' : 'Classifications', _copy.isFrench ? 'Listes de codes locales' : 'Local code lists', _manageClassifications),
+          _toolCard(cardWidth, Icons.map_outlined, _copy.isFrench ? 'Carte' : 'Map', _copy.isFrench ? 'Positions et zones' : 'Positions and zones', _showGeoMap),
         ],
       );
     },
@@ -2875,6 +2897,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         value,
                         _copy,
                         snapshot: entry.unitSnapshots[field.id],
+                        collection: _selected,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -2917,6 +2940,7 @@ class _DraftField {
   String? targetObjectFormatId;
   bool multiple = false;
   String referenceMode = 'SNAPSHOT';
+  String? codeListId;
   String unitChoice = '';
   String? get unit => unitChoice == 'custom'
       ? customUnit.text.trim()
@@ -2988,6 +3012,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
           draft.multiple = field.multiple;
           draft.variableController.text = field.variableName ?? '';
           draft.referenceMode = field.referenceMode;
+          draft.codeListId = field.codeListId;
           _fields.add(draft);
         }
         widget.api
@@ -3105,6 +3130,10 @@ class _CollectionEditorState extends State<_CollectionEditor> {
       );
       return;
     }
+    if (_fields.any((field) => field.kind == BrainyFieldKind.code && field.codeListId == null)) {
+      setState(() => _error = _copyText('Choisissez une liste de codes de cette collection.', 'Choose a code list in this collection.'));
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -3124,6 +3153,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                     if (fields[index].unit != null) 'unit': fields[index].unit,
                     if (fields[index].options != null)
                       'options': fields[index].options,
+                    if (_fields[index].kind == BrainyFieldKind.code)
+                      'codeListId': _fields[index].codeListId,
                     if (_fields[index].kind == BrainyFieldKind.objectRef) ...{
                       'targetObjectFormatId':
                           _fields[index].targetObjectFormatId,
@@ -3143,13 +3174,9 @@ class _CollectionEditorState extends State<_CollectionEditor> {
               color: _selectedColor!,
               objectModel: _objectModel,
             )
-          : await widget.api.addFormat(
-              widget.collection!.id,
-              formatName,
-              _selectedColor!,
-              fields,
-              objectModel: _objectModel,
-            );
+          : _fields.any((field) => field.kind == BrainyFieldKind.code)
+          ? await widget.api.addFormatWithCode(widget.collection!.id, formatName, _selectedColor!, [for (var index = 0; index < fields.length; index++) {'name': fields[index].name, 'kind': fields[index].kind.wireName, if (fields[index].unit != null) 'unit': fields[index].unit, if (fields[index].options != null) 'options': fields[index].options, if (_fields[index].kind == BrainyFieldKind.code) 'codeListId': _fields[index].codeListId}], objectModel: _objectModel)
+          : await widget.api.addFormat(widget.collection!.id, formatName, _selectedColor!, fields, objectModel: _objectModel);
       if (mounted) Navigator.pop(context, collection);
     } catch (error) {
       if (mounted) {
@@ -3351,7 +3378,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                             ),
                             items: [
                               for (final type in BrainyFieldKind.values)
-                                if (type != BrainyFieldKind.objectRef ||
+                                if ((type != BrainyFieldKind.code || (widget.collection?.codeLists.isNotEmpty ?? false)) &&
+                                    (type != BrainyFieldKind.objectRef ||
                                     (widget.editingFormat != null &&
                                         (widget.collection!.formats.any(
                                               (format) => format.objectModel,
@@ -3361,7 +3389,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                                   (grant) =>
                                                       grant['revokedAt'] ==
                                                       null,
-                                                ))))
+                                                )))))
                                   DropdownMenuItem(
                                     value: type,
                                     child: Text(_t(type.label)),
@@ -3371,9 +3399,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                 ? null
                                 : (type) {
                                     if (type != null) {
-                                      setState(
-                                        () => _fields[index].kind = type,
-                                      );
+                                      setState(() { _fields[index].kind = type; _fields[index].codeListId = null; });
                                     }
                                   },
                           );
@@ -3458,6 +3484,13 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                     labelText: _t('Choices (one per line)'),
                                     border: const OutlineInputBorder(),
                                   ),
+                                ),
+                              if (field.kind == BrainyFieldKind.code && widget.collection != null)
+                                DropdownButtonFormField<String>(
+                                  initialValue: field.codeListId,
+                                  decoration: InputDecoration(labelText: _copyText('Liste de codes locale', 'Local code list'), border: const OutlineInputBorder()),
+                                  items: [for (final list in widget.collection!.codeLists) DropdownMenuItem(value: list['id'] as String, child: Text(list['name'] as String))],
+                                  onChanged: protected ? null : (value) => setState(() => field.codeListId = value),
                                 ),
                               if (field.kind == BrainyFieldKind.objectRef) ...[
                                 const SizedBox(height: 10),
@@ -4071,6 +4104,15 @@ class _EntryEditorState extends State<_EntryEditor> {
 
   Widget _field(BrainyField field) {
     final kind = field.kind;
+    if (kind == BrainyFieldKind.position || kind == BrainyFieldKind.zone) {
+      return GeoFieldInput(key: ValueKey(field.id), field: field, controller: _controllers[field.id]!, french: _copy.isFrench);
+    }
+    if (kind == BrainyFieldKind.code) {
+      final list = widget.collection.codeLists.where((item) => item['id'] == field.codeListId).firstOrNull;
+      final value = _controllers[field.id]!.text;
+      final codes = (list?['codes'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>().where((item) => item['active'] == true || item['code'] == value).toList();
+      return Padding(padding: const EdgeInsets.only(bottom: 16), child: DropdownButtonFormField<String>(initialValue: value.isEmpty ? '' : value, decoration: InputDecoration(labelText: field.name, border: const OutlineInputBorder()), items: [DropdownMenuItem(value: '', child: Text(_t('Choose a value'))), for (final item in codes) DropdownMenuItem(value: item['code'] as String, child: Text('${item[_copy.isFrench ? 'labelFr' : 'labelEn']} (${item['code']})${item['active'] == true ? '' : _copy.isFrench ? ' · obsolète' : ' · obsolete'}'))], onChanged: (next) => setState(() => _controllers[field.id]!.text = next ?? '')));
+    }
     if (kind == BrainyFieldKind.objectRef) {
       return entryObjectRefField(context: context, field: field, controller: _controllers[field.id]!, objectNames: _objectNames, isFrench: _copy.isFrench, onChoose: () => _chooseObjects(field), ink: _dialogInk(context));
     }
