@@ -154,20 +154,46 @@ class BrainyTransfer {
 
   static Future<BrainyTransfer> export(
     BrainyCollection collection,
-    CollectionsApi api,
+    CollectionsApi api, {bool includeSensitive = false, bool french = false}
   ) async {
+    final visibleFields = <String, Set<String>>{};
+    final visibleFormats = <BrainyFormat>[];
+    for (final format in collection.formats) {
+      final fields = format.fields
+          .where((field) => includeSensitive ||
+              effectiveFieldSensitivity(format, field) == 'ORDINARY')
+          .toList();
+      if (fields.isEmpty ||
+          (format.objectModel &&
+              !fields.any((field) => field.kind == BrainyFieldKind.title))) {
+        continue;
+      }
+      visibleFormats.add(format);
+      visibleFields[format.id] = fields.map((field) => field.id).toSet();
+    }
+    if (visibleFormats.isEmpty) {
+      throw FormatException(french
+          ? 'Tous les champs sont protégés. Choisissez explicitement leur inclusion pour exporter cette collection.'
+          : 'All fields are protected. Choose explicitly to include them before exporting this collection.');
+    }
+    final hasProtected = collection.formats.any((format) => format.fields.any(
+        (field) => effectiveFieldSensitivity(format, field) != 'ORDINARY'));
     final entryLinks = <Map<String, dynamic>>[];
     final seenLinks = <String>{};
     final entryRelations = <Map<String, dynamic>>[];
     final seenRelations = <String>{};
     final entries = <Map<String, dynamic>>[];
+    final includedEntryIds = <String>{};
     String? cursor;
     do {
       final page = await api.entriesPage(collection.id, after: cursor);
       for (final entry in page.entries) {
         final format = collection.formatFor(entry);
+        final allowed = visibleFields[format.id];
+        if (allowed == null) continue;
         final values = <Map<String, dynamic>>[];
         for (final item in entry.values.entries) {
+          if (!allowed.contains(item.key)) continue;
           final field = format.fields
               .where((field) => field.id == item.key)
               .firstOrNull;
@@ -176,7 +202,7 @@ class BrainyTransfer {
             'value': item.value,
             if (entry.unitSnapshots[item.key] != null)
               'unitSnapshot': entry.unitSnapshots[item.key]!.toInput(),
-            if (entry.objectSnapshots[item.key] != null)
+            if (includeSensitive && entry.objectSnapshots[item.key] != null)
               'objectSnapshots': entry.objectSnapshots[item.key],
           };
           if (field?.kind == BrainyFieldKind.attachment) {
@@ -186,6 +212,7 @@ class BrainyTransfer {
           }
           values.add(value);
         }
+        if (values.isEmpty) continue;
         entries.add({
           'id': entry.id,
           'formatId': format.id,
@@ -194,10 +221,12 @@ class BrainyTransfer {
           'createdAt': entry.createdAt.toUtc().toIso8601String(),
           'updatedAt': entry.updatedAt.toUtc().toIso8601String(),
           'values': values,
-          if ((entry.workflow?['history'] as List<dynamic>?)?.isNotEmpty ==
-              true)
+          if ((includeSensitive || !hasProtected) &&
+              (entry.workflow?['history'] as List<dynamic>?)?.isNotEmpty ==
+                  true)
             'workflowHistory': entry.workflow!['history'],
         });
+        includedEntryIds.add(entry.id);
         for (final link in await api.entryLinks(collection.id, entry.id)) {
           if (!seenLinks.add(link['id'] as String)) continue;
           entryLinks.add({
@@ -238,21 +267,27 @@ class BrainyTransfer {
         ],
         'exchangeRates': collection.exchangeRates,
         'codeLists': collection.codeLists,
-        'sharedObjects': collection.sharedObjects,
+        'sharedObjects':
+            includeSensitive ? collection.sharedObjects : const [],
         'formats': [
-          for (final format in collection.formats)
+          for (final format in visibleFormats)
             {
               'id': format.id,
               'name': format.name,
               'color': format.color,
+              'sensitivity': format.sensitivity,
               'objectModel': format.objectModel,
-              if (format.workflow != null) 'workflow': format.workflow,
+              if ((includeSensitive || !hasProtected) && format.workflow != null)
+                'workflow': format.workflow,
               'fields': [
-                for (final field in format.fields)
+                for (final field
+                    in format.fields.where((field) =>
+                        visibleFields[format.id]!.contains(field.id)))
                   {
                     'id': field.id,
                     'name': field.name,
                     'kind': field.kind.wireName,
+                    'sensitivity': field.sensitivity,
                     if (field.unit != null) 'unit': field.unit,
                     if (field.options.isNotEmpty) 'options': field.options,
                     if (field.codeListId != null)
@@ -271,8 +306,24 @@ class BrainyTransfer {
         ],
       },
       'entries': entries,
-      'links': entryLinks,
-      'relations': entryRelations,
+      'links': [
+        for (final link in entryLinks)
+          if (includedEntryIds.contains(link['fromSourceId']) &&
+              includedEntryIds.contains(link['toSourceId']))
+            link,
+      ],
+      'relations': [
+        for (final relation in entryRelations)
+          if (includedEntryIds.contains(relation['fromSourceId']) &&
+              includedEntryIds.contains(relation['toSourceId']))
+            if (includeSensitive || !hasProtected)
+              relation
+            else
+              Map<String, dynamic>.from(relation)
+                ..remove('snapshotValue')
+                ..remove('snapshotUnit')
+                ..remove('snapshotFieldId'),
+      ],
     });
   }
 

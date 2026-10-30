@@ -28,6 +28,7 @@ import 'stock_screen.dart';
 import 'workflow_screen.dart';
 import 'contribution_screen.dart';
 import 'ledger_screen.dart';
+import 'sensitivity_screen.dart';
 import 'entry_links_dialog.dart';
 import 'entry_link_duplicate_check.dart';
 import 'entry_editor_pickers.dart';
@@ -665,6 +666,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Future<void> _openTransfer() async {
     BrainyTransfer? transfer;
+    var includeSensitive = false;
     var targetNew = true;
     var busy = false;
     String? error;
@@ -689,6 +691,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (_selected != null) ...[
+                    CheckboxListTile(value: includeSensitive, contentPadding: EdgeInsets.zero,
+                      title: Text(_copy.isFrench ? 'Inclure explicitement les données personnelles et sensibles' : 'Explicitly include personal and sensitive data'),
+                      onChanged: busy ? null : (value) => update(() => includeSensitive = value ?? false)),
                     Text(
                       _t('Export collection'),
                       style: const TextStyle(fontWeight: FontWeight.w700),
@@ -706,7 +711,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                   try {
                                     final backup = await BrainyTransfer.export(
                                       _selected!,
-                                      _api,
+                                      _api, includeSensitive: includeSensitive, french: _copy.isFrench,
                                     );
                                     final saved = await FilePicker.saveFile(
                                       fileName:
@@ -741,7 +746,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                   try {
                                     final backup = await BrainyTransfer.export(
                                       _selected!,
-                                      _api,
+                                      _api, includeSensitive: includeSensitive, french: _copy.isFrench,
                                     );
                                     final saved = await FilePicker.saveFile(
                                       fileName: 'brainy-${_selected!.name}.csv',
@@ -791,7 +796,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                       final backup =
                                           await BrainyTransfer.export(
                                             _selected!,
-                                            _api,
+                                            _api, includeSensitive: includeSensitive, french: _copy.isFrench,
                                           );
                                       final saved = await FilePicker.saveFile(
                                         fileName:
@@ -957,6 +962,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                 {
                                   'name': format['name'],
                                   'color': format['color'],
+                                  if (format['sensitivity'] != null) 'sensitivity': format['sensitivity'],
                                   'objectModel': format['objectModel'] == true,
                                   'fields': [
                                     for (final field
@@ -965,6 +971,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                       {
                                         'name': field['name'],
                                         'kind': field['kind'],
+                                        if (field['sensitivity'] != null) 'sensitivity': field['sensitivity'],
                                         if (field['unit'] != null)
                                           'unit': field['unit'],
                                         if (field['options'] != null)
@@ -2189,6 +2196,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             _manageObjects,
           ),
           _toolCard(cardWidth, Icons.account_tree_outlined, _copy.isFrench ? 'Classifications' : 'Classifications', _copy.isFrench ? 'Listes de codes locales' : 'Local code lists', _manageClassifications),
+          if (collection.ownerId == widget.user.id) _toolCard(cardWidth, Icons.shield_outlined, _copy.isFrench ? 'Confidentialité' : 'Privacy', _copy.isFrench ? 'Champs protégés et seuil d’agrégat' : 'Protected fields and aggregate threshold', () async { if (await showSensitivityScreen(context, _api, collection, french: _copy.isFrench) && mounted) await _load(); }),
           _toolCard(cardWidth, Icons.fact_check_outlined, _copy.isFrench ? 'États et validations' : 'States and approvals', _copy.isFrench ? 'Assignations et échéances' : 'Assignments and due dates', () async { if (await showWorkflowScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) await _load(); }),
           if (collection.ownerId == widget.user.id) _toolCard(cardWidth, Icons.publish_outlined, _copy.isFrench ? 'Contributions publiques' : 'Public contributions', _copy.isFrench ? 'Liens et réponses à valider' : 'Links and submissions to review', () async { await showContributionScreen(context, _api, collection, french: _copy.isFrench); if (mounted) await _load(); }),
           _toolCard(cardWidth, Icons.map_outlined, _copy.isFrench ? 'Carte' : 'Map', _copy.isFrench ? 'Positions et zones' : 'Positions and zones', _showGeoMap),

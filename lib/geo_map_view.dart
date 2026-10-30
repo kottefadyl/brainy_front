@@ -44,6 +44,7 @@ class _GeoMapViewState extends State<GeoMapView> {
   Map<String, dynamic>? preview;
   bool busy = false;
   bool changed = false;
+  bool includeSensitive = false;
   String t(String fr, String en) => widget.french ? fr : en;
 
   @override void initState() { super.initState(); search.text = widget.initialSearch ?? ''; if (positions.isNotEmpty) load(); }
@@ -82,7 +83,7 @@ class _GeoMapViewState extends State<GeoMapView> {
     final target = positions[chosen];
     setState(() { busy = true; error = null; });
     try {
-      final content = await widget.api.exportGeoPoints(widget.collection.id, target.format.id, target.field.id, exportKind);
+      final content = await widget.api.exportGeoPoints(widget.collection.id, target.format.id, target.field.id, exportKind, includeSensitive: includeSensitive);
       await FilePicker.saveFile(fileName: '${widget.collection.name}.${exportKind == 'CSV' ? 'csv' : 'geojson'}', bytes: Uint8List.fromList(utf8.encode(content)));
     } catch (cause) { if (mounted) setState(() => error = '$cause'); } finally { if (mounted) setState(() => busy = false); }
   }
@@ -110,6 +111,7 @@ class _GeoMapViewState extends State<GeoMapView> {
         if (page != null && points.isEmpty) Text(t('Aucun point pour ces filtres.', 'No points for these filters.')),
         Wrap(spacing: 8, children: [OutlinedButton(onPressed: history.isEmpty ? null : () { setState(() => after = history.removeLast()); load(); }, child: Text(t('Précédent', 'Previous'))), OutlinedButton(onPressed: page?['hasMore'] == true ? () { history.add(after); setState(() => after = page?['nextCursor'] as String?); load(); } : null, child: Text(t('Page suivante', 'Next page')))]),
         if (zones.isNotEmpty) ExpansionTile(title: Text(t('Regrouper par zone', 'Group by zone')), children: [DropdownButtonFormField<int>(decoration: InputDecoration(labelText: t('Champ zone', 'Zone field')), initialValue: zoneChosen, items: [for (var i = 0; i < zones.length; i++) DropdownMenuItem(value: i, child: Text('${zones[i].format.name} · ${zones[i].field.name}'))], onChanged: (value) => setState(() => zoneChosen = value)), OutlinedButton(onPressed: zoneChosen == null ? null : groupZones, child: Text(t('Calculer', 'Calculate'))), for (final row in zoneCounts) ListTile(title: Text(row['label'] as String), trailing: Text('${row['count']}'))]),
+        CheckboxListTile(value: includeSensitive, title: Text(t('Inclure explicitement les positions sensibles', 'Explicitly include sensitive positions')), onChanged: busy ? null : (value) => setState(() => includeSensitive = value ?? false)),
         ExpansionTile(title: Text(t('Importer ou exporter des points', 'Import or export points')), children: [Wrap(spacing: 8, children: [OutlinedButton(onPressed: busy ? null : () => exportPoints('GEOJSON'), child: const Text('GeoJSON')), OutlinedButton(onPressed: busy ? null : () => exportPoints('CSV'), child: const Text('CSV'))]), OutlinedButton(onPressed: busy ? null : () async { final file = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['geojson', 'json', 'csv']); if (file == null) return; final bytes = await file.readAsBytes(); if (bytes.length > 2000000) { setState(() => error = t('Fichier trop grand', 'File is too large')); return; } setState(() { importText = utf8.decode(bytes); kind = file.name.toLowerCase().endsWith('.csv') ? 'CSV' : 'GEOJSON'; preview = null; }); }, child: Text(t('Choisir un fichier', 'Choose file'))), if (importText != null) Text('$kind · ${t('500 points maximum', '500 points maximum')}'), OutlinedButton(onPressed: importText == null || busy ? null : () => importPoints(false), child: Text(t('Aperçu', 'Preview'))), if (preview != null) Text('${preview!['count']} ${t('points valides', 'valid points')}'), for (final row in (preview?['errors'] as List<dynamic>? ?? [])) Text('${t('Ligne', 'Row')} ${row['row']}: ${row['message']}', style: TextStyle(color: Theme.of(context).colorScheme.error)), FilledButton(onPressed: preview != null && (preview!['errors'] as List<dynamic>).isEmpty && preview!['count'] != 0 && !busy ? () => importPoints(true) : null, child: Text(t('Confirmer l’import', 'Confirm import')))]),
       ],
       if (notice != null) Text(notice!, style: TextStyle(color: Theme.of(context).colorScheme.primary)),

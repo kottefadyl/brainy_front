@@ -28,6 +28,7 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
   final limit = TextEditingController(text: '5000');
   Timer? timer;
   bool busy = false;
+  bool includeSensitive = false;
 
   BrainyCollection? get collection {
     if (widget.collections.isEmpty) return null;
@@ -294,6 +295,9 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
                     : 'Maximum entries (1 to 5,000)',
               ),
             ),
+            CheckboxListTile(value: includeSensitive, contentPadding: EdgeInsets.zero,
+              title: Text(fr ? 'Inclure explicitement les données personnelles et sensibles' : 'Explicitly include personal and sensitive data'),
+              onChanged: busy ? null : (value) => setState(() => includeSensitive = value ?? false)),
             OutlinedButton(
               onPressed: busy || chosenFormatId == null
                   ? null
@@ -302,6 +306,7 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
                           widget.api.startBackgroundJob(selected.id, 'EXPORT', {
                             'formatId': chosenFormatId,
                             'limit': int.tryParse(limit.text) ?? 0,
+                            'includeSensitive': includeSensitive,
                           }, requestKey()),
                     ),
               child: Text(fr ? 'Préparer l’export' : 'Prepare export'),

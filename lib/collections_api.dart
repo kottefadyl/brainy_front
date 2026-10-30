@@ -92,6 +92,7 @@ class BrainyField {
     this.referenceMode = 'SNAPSHOT',
     this.sourceFieldId,
     this.codeListId,
+    this.sensitivity,
   });
   final String id;
   final String name;
@@ -104,6 +105,7 @@ class BrainyField {
   final String referenceMode;
   final String? sourceFieldId;
   final String? codeListId;
+  final String? sensitivity;
 
   factory BrainyField.fromJson(Map<String, dynamic> json) => BrainyField(
     id: json['id'] as String,
@@ -119,6 +121,7 @@ class BrainyField {
     referenceMode: json['referenceMode'] as String? ?? 'SNAPSHOT',
     sourceFieldId: json['sourceFieldId'] as String?,
     codeListId: json['codeListId'] as String?,
+    sensitivity: json['sensitivity'] as String?,
   );
 }
 
@@ -212,6 +215,7 @@ class BrainyFormat {
     this.copiedFromFormatId,
     this.linkedSource,
     this.workflow,
+    this.sensitivity = 'ORDINARY',
   });
   final String id;
   final String name;
@@ -223,6 +227,7 @@ class BrainyFormat {
   final String? copiedFromFormatId;
   final Map<String, dynamic>? linkedSource;
   final Map<String, dynamic>? workflow;
+  final String sensitivity;
 
   factory BrainyFormat.fromJson(Map<String, dynamic> json) => BrainyFormat(
     id: json['id'] as String,
@@ -237,7 +242,22 @@ class BrainyFormat {
     copiedFromFormatId: json['copiedFromFormatId'] as String?,
     linkedSource: json['linkedSource'] as Map<String, dynamic>?,
     workflow: json['workflow'] as Map<String, dynamic>?,
+    sensitivity: json['sensitivity'] as String? ?? 'ORDINARY',
   );
+}
+
+String defaultFieldSensitivity(BrainyField field) =>
+    field.sensitivity ??
+    (field.kind == BrainyFieldKind.position || field.kind == BrainyFieldKind.zone
+        ? 'SENSITIVE'
+        : 'ORDINARY');
+
+String effectiveFieldSensitivity(BrainyFormat format, BrainyField field) {
+  const rank = {'ORDINARY': 0, 'PERSONAL': 1, 'SENSITIVE': 2};
+  final fieldLevel = defaultFieldSensitivity(field);
+  return rank[format.sensitivity]! >= rank[fieldLevel]!
+      ? format.sensitivity
+      : fieldLevel;
 }
 
 enum BrainyCollectionRole { owner, editor, reader }
@@ -250,6 +270,7 @@ class BrainyCollectionMember {
     required this.role,
     required this.addedAt,
     this.sharedFieldIds = const [],
+    this.sensitiveFieldIds = const [],
   });
 
   final String userId;
@@ -258,6 +279,7 @@ class BrainyCollectionMember {
   final BrainyCollectionRole role;
   final DateTime addedAt;
   final List<String> sharedFieldIds;
+  final List<String> sensitiveFieldIds;
 
   factory BrainyCollectionMember.fromJson(Map<String, dynamic> json) {
     final roleStr = (json['role'] as String? ?? 'READER').toUpperCase();
@@ -273,6 +295,7 @@ class BrainyCollectionMember {
       role: role,
       addedAt: DateTime.tryParse(json['addedAt'] as String? ?? '') ?? DateTime.now(),
       sharedFieldIds: (json['sharedFieldIds'] as List<dynamic>?)?.cast<String>() ?? const [],
+      sensitiveFieldIds: (json['sensitiveFieldIds'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 }
@@ -322,6 +345,7 @@ class BrainyCollection {
     this.stockRules = const [],
     this.allowNegativeStock = false,
     this.members = const [],
+    this.minAggregateSize = 5,
   });
   final String id;
   final String name;
@@ -337,6 +361,7 @@ class BrainyCollection {
   final List<Map<String, dynamic>> stockRules;
   final bool allowNegativeStock;
   final List<BrainyCollectionMember> members;
+  final int minAggregateSize;
 
   BrainyFormat formatFor(BrainyEntry entry) => formats.firstWhere(
     (format) => format.id == entry.formatId,
@@ -354,6 +379,7 @@ class BrainyCollection {
       id: json['id'] as String,
       name: json['name'] as String,
       ownerId: json['ownerId'] as String?,
+      minAggregateSize: (json['minAggregateSize'] as num?)?.toInt() ?? 5,
       fields: fields,
       formats: formats?.isNotEmpty == true
           ? formats!
@@ -491,8 +517,8 @@ class BrainyEntryPage {
 }
 
 class CollectionsApi {
-  Future<String> workspaceBackup() async {
-    final data = await auth.authenticatedRequest('query { workspaceBackup }', {}, timeout: const Duration(minutes: 2));
+  Future<String> workspaceBackup({bool includeSensitive = false}) async {
+    final data = await auth.authenticatedRequest('query(\$includeSensitive:Boolean){workspaceBackup(includeSensitive:\$includeSensitive)}', {'includeSensitive': includeSensitive}, timeout: const Duration(minutes: 2));
     return data['workspaceBackup'] as String;
   }
 
@@ -503,8 +529,23 @@ class CollectionsApi {
   const CollectionsApi(this.auth);
   final AuthApi auth;
 
+  Future<BrainyCollection> setFormatSensitivity(String collectionId, String formatId, String level, int expectedVersion) async {
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$level:SensitivityLevel!,\$expectedVersion:Int!){setFormatSensitivity(collectionId:\$collectionId,formatId:\$formatId,level:\$level,expectedVersion:\$expectedVersion){\$_collectionFields}}', {'collectionId': collectionId, 'formatId': formatId, 'level': level, 'expectedVersion': expectedVersion});
+    return BrainyCollection.fromJson(data['setFormatSensitivity'] as Map<String, dynamic>);
+  }
+
+  Future<BrainyCollection> setFieldSensitivity(String collectionId, String formatId, String fieldId, String level, int expectedVersion) async {
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$fieldId:String!,\$level:SensitivityLevel!,\$expectedVersion:Int!){setFieldSensitivity(collectionId:\$collectionId,formatId:\$formatId,fieldId:\$fieldId,level:\$level,expectedVersion:\$expectedVersion){\$_collectionFields}}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'level': level, 'expectedVersion': expectedVersion});
+    return BrainyCollection.fromJson(data['setFieldSensitivity'] as Map<String, dynamic>);
+  }
+
+  Future<BrainyCollection> setMinimumAggregateSize(String collectionId, int minimum) async {
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$minimum:Int!){setMinimumAggregateSize(collectionId:\$collectionId,minimum:\$minimum){\$_collectionFields}}', {'collectionId': collectionId, 'minimum': minimum});
+    return BrainyCollection.fromJson(data['setMinimumAggregateSize'] as Map<String, dynamic>);
+  }
+
   static const _collectionFields =
-      'id ownerId name fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } formats { id name color version objectModel appendOnly copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds }';
+      'id ownerId name minAggregateSize fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds }';
   static const _entryFields =
       'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
 
@@ -566,8 +607,8 @@ class CollectionsApi {
     return data['importGeoPoints'] as Map<String, dynamic>;
   }
 
-  Future<String> exportGeoPoints(String collectionId, String formatId, String fieldId, String kind) async {
-    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$formatId:String!,$fieldId:String!,$kind:String!){exportGeoPoints(collectionId:$collectionId,formatId:$formatId,fieldId:$fieldId,kind:$kind)}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'kind': kind});
+  Future<String> exportGeoPoints(String collectionId, String formatId, String fieldId, String kind, {bool includeSensitive = false}) async {
+    final data = await auth.authenticatedRequest(r'query($collectionId:String!,$formatId:String!,$fieldId:String!,$kind:String!,$includeSensitive:Boolean){exportGeoPoints(collectionId:$collectionId,formatId:$formatId,fieldId:$fieldId,kind:$kind,includeSensitive:$includeSensitive)}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'kind': kind, 'includeSensitive': includeSensitive});
     return data['exportGeoPoints'] as String;
   }
 
@@ -1064,15 +1105,17 @@ class CollectionsApi {
     String objectId,
     String targetCollectionId,
     List<String> propertyFieldIds,
-    String mode,
-  ) async {
+    String mode, {
+    bool includeSensitive = false,
+  }) async {
     final data = await auth.authenticatedRequest(
-      'mutation ShareObject(\$objectId: String!, \$targetCollectionId: String!, \$propertyFieldIds: [String!]!, \$mode: String!) { shareCollectionObject(objectId: \$objectId, targetCollectionId: \$targetCollectionId, propertyFieldIds: \$propertyFieldIds, mode: \$mode) { id sourceCollectionId sourceFormatId objectId sourceName objectName propertyFieldIds mode createdAt revokedAt } }',
+      'mutation ShareObject(\$objectId: String!, \$targetCollectionId: String!, \$propertyFieldIds: [String!]!, \$mode: String!, \$includeSensitive: Boolean) { shareCollectionObject(objectId: \$objectId, targetCollectionId: \$targetCollectionId, propertyFieldIds: \$propertyFieldIds, mode: \$mode, includeSensitive: \$includeSensitive) { id sourceCollectionId sourceFormatId objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode createdAt revokedAt } }',
       {
         'objectId': objectId,
         'targetCollectionId': targetCollectionId,
         'propertyFieldIds': propertyFieldIds,
         'mode': mode,
+        'includeSensitive': includeSensitive,
       },
     );
     return data['shareCollectionObject'] as Map<String, dynamic>;
@@ -1706,6 +1749,7 @@ class CollectionsApi {
     String email,
     BrainyCollectionRole role, {
     List<String>? sharedFieldIds,
+    List<String>? sensitiveFieldIds,
   }) async {
     final roleName = role == BrainyCollectionRole.owner
         ? 'OWNER'
@@ -1713,12 +1757,13 @@ class CollectionsApi {
             ? 'EDITOR'
             : 'READER';
     final data = await auth.authenticatedRequest(
-      'mutation AddMember(\$collectionId: String!, \$email: String!, \$role: CollectionRole!, \$sharedFieldIds: [String!]) { addCollectionMember(collectionId: \$collectionId, email: \$email, role: \$role, sharedFieldIds: \$sharedFieldIds) { $_collectionFields } }',
+      'mutation AddMember(\$collectionId: String!, \$email: String!, \$role: CollectionRole!, \$sharedFieldIds: [String!], \$sensitiveFieldIds: [String!]) { addCollectionMember(collectionId: \$collectionId, email: \$email, role: \$role, sharedFieldIds: \$sharedFieldIds, sensitiveFieldIds: \$sensitiveFieldIds) { $_collectionFields } }',
       {
         'collectionId': collectionId,
         'email': email,
         'role': roleName,
         'sharedFieldIds': sharedFieldIds,
+        'sensitiveFieldIds': sensitiveFieldIds,
       },
     );
     return BrainyCollection.fromJson(data['addCollectionMember'] as Map<String, dynamic>);

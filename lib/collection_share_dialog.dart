@@ -32,6 +32,11 @@ class _ShareDialogState extends State<_ShareDialog> {
   int _relationCount = 0;
   String? _error;
   bool _busy = false;
+  bool _includeSensitive = false;
+  bool get _hasProtected => _properties.any((id) {
+    final field = widget.format.fields.where((item) => item.id == id).firstOrNull;
+    return field != null && effectiveFieldSensitivity(widget.format, field) != 'ORDINARY';
+  });
   bool get _fr => AppStrings.of(context).isFrench;
 
   @override
@@ -45,7 +50,7 @@ class _ShareDialogState extends State<_ShareDialog> {
     if (_targetId == null) return;
     setState(() { _busy = true; _error = null; });
     try {
-      await widget.api.shareObject(widget.objectId, _targetId!, _properties.toList(), _mode);
+      await widget.api.shareObject(widget.objectId, _targetId!, _properties.toList(), _mode, includeSensitive: _includeSensitive);
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) setState(() { _busy = false; _error = AppStrings.of(context).error(error); });
@@ -74,12 +79,13 @@ class _ShareDialogState extends State<_ShareDialog> {
               contentPadding: EdgeInsets.zero,
               onChanged: field.id == titleId ? null : (value) => setState(() { if (value == true) { _properties.add(field.id); } else { _properties.remove(field.id); } }),
             ),
+        CheckboxListTile(value: _includeSensitive, title: Text(_fr ? 'Inclure explicitement les caractéristiques protégées' : 'Explicitly include protected properties'), onChanged: _busy ? null : (value) => setState(() => _includeSensitive = value ?? false)),
         DropdownButtonFormField<String>(initialValue: _mode, decoration: InputDecoration(labelText: _fr ? 'Valeurs accessibles' : 'Accessible values'), items: [DropdownMenuItem(value: 'CURRENT', child: Text(_fr ? 'Actuelles jusqu’à révocation' : 'Current until revoked')), DropdownMenuItem(value: 'SNAPSHOT', child: Text(_fr ? 'Figées au partage' : 'Snapshot when shared'))], onChanged: (value) => setState(() => _mode = value ?? 'CURRENT')),
         Text(_fr ? '$_relationCount relation(s) et les mouvements de stock restent dans la collection source.' : '$_relationCount relations and stock movements remain in the source collection.'),
         if (conflict) Text(_fr ? 'Cet objet est déjà lié à cette collection.' : 'This object is already linked to this collection.', style: const TextStyle(color: Colors.red)),
         if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
       ]))),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_fr ? 'Annuler' : 'Cancel')), FilledButton(onPressed: _busy || _targetId == null || conflict ? null : _share, child: Text(_fr ? 'Partager par lien' : 'Share by link'))],
+      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: Text(_fr ? 'Annuler' : 'Cancel')), FilledButton(onPressed: _busy || _targetId == null || conflict || (_hasProtected && !_includeSensitive) ? null : _share, child: Text(_fr ? 'Partager par lien' : 'Share by link'))],
     );
   }
 }
