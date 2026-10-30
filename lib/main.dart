@@ -149,6 +149,10 @@ class _BrainyAppState extends State<BrainyApp> {
         scaffoldBackgroundColor: const Color(0xFFF5F6F8),
         dialogTheme: DialogThemeData(
           backgroundColor: const Color(0xFFFFFFFF),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 18,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -176,6 +180,8 @@ class _BrainyAppState extends State<BrainyApp> {
           filled: true,
           fillColor: Color(0xFFFFFFFF),
           contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          labelStyle: TextStyle(color: Color(0xFF545E6D)),
+          floatingLabelStyle: TextStyle(color: Color(0xFF2463CE)),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(10)),
           ),
@@ -210,6 +216,10 @@ class _BrainyAppState extends State<BrainyApp> {
         scaffoldBackgroundColor: const Color(0xFF1B1D22),
         dialogTheme: DialogThemeData(
           backgroundColor: const Color(0xFF2D313A),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 18,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -237,6 +247,8 @@ class _BrainyAppState extends State<BrainyApp> {
           filled: true,
           fillColor: Color(0xFF24272E),
           contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          labelStyle: TextStyle(color: Color(0xFFB5BECC)),
+          floatingLabelStyle: TextStyle(color: Color(0xFF96BDFF)),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(10)),
           ),
