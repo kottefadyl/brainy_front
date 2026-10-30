@@ -208,6 +208,7 @@ class BrainyFormat {
     required this.fields,
     this.version = 1,
     this.objectModel = false,
+    this.appendOnly = false,
     this.copiedFromFormatId,
     this.linkedSource,
     this.workflow,
@@ -218,6 +219,7 @@ class BrainyFormat {
   final List<BrainyField> fields;
   final int version;
   final bool objectModel;
+  final bool appendOnly;
   final String? copiedFromFormatId;
   final Map<String, dynamic>? linkedSource;
   final Map<String, dynamic>? workflow;
@@ -231,6 +233,7 @@ class BrainyFormat {
         .toList(),
     version: (json['version'] as num?)?.toInt() ?? 1,
     objectModel: json['objectModel'] as bool? ?? false,
+    appendOnly: json['appendOnly'] as bool? ?? false,
     copiedFromFormatId: json['copiedFromFormatId'] as String?,
     linkedSource: json['linkedSource'] as Map<String, dynamic>?,
     workflow: json['workflow'] as Map<String, dynamic>?,
@@ -403,6 +406,9 @@ class BrainyEntry {
     required this.createdAt,
     required this.updatedAt,
     this.formatId,
+    this.correctionOf,
+    this.ledgerHash,
+    this.ledgerSequence,
     this.unitSnapshots = const {},
     this.sourceObjectId,
     this.contributionLinkId,
@@ -417,6 +423,9 @@ class BrainyEntry {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? formatId;
+  final String? correctionOf;
+  final String? ledgerHash;
+  final int? ledgerSequence;
   final Map<String, BrainyUnitSnapshot> unitSnapshots;
   final String? sourceObjectId;
   final String? contributionLinkId;
@@ -436,6 +445,9 @@ class BrainyEntry {
     createdAt: DateTime.parse(json['createdAt'] as String),
     updatedAt: DateTime.parse(json['updatedAt'] as String),
     formatId: json['formatId'] as String?,
+    correctionOf: json['correctionOf'] as String?,
+    ledgerHash: json['ledgerHash'] as String?,
+    ledgerSequence: (json['ledgerSequence'] as num?)?.toInt(),
     sourceObjectId: json['sourceObjectId'] as String?,
     contributionLinkId: json['contributionLinkId'] as String?,
     contributionReceivedAt: DateTime.tryParse(json['contributionReceivedAt'] as String? ?? ''),
@@ -492,9 +504,9 @@ class CollectionsApi {
   final AuthApi auth;
 
   static const _collectionFields =
-      'id ownerId name fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } formats { id name color version objectModel copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds }';
+      'id ownerId name fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } formats { id name color version objectModel appendOnly copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds }';
   static const _entryFields =
-      'id formatId sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
+      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
 
   static String get workflowCollectionFields => _collectionFields;
   static String get workflowEntryFields => _entryFields;

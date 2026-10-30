@@ -27,6 +27,7 @@ import 'insights_dialog.dart';
 import 'stock_screen.dart';
 import 'workflow_screen.dart';
 import 'contribution_screen.dart';
+import 'ledger_screen.dart';
 import 'entry_links_dialog.dart';
 import 'entry_link_duplicate_check.dart';
 import 'entry_editor_pickers.dart';
@@ -466,6 +467,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Future<void> _editEntry([BrainyEntry? entry, String? initialFormatId]) async {
     final collection = _selected;
     if (collection == null) return;
+    if (entry != null && collection.formatFor(entry).appendOnly) {
+      await showLedgerScreen(context, _api, collection, french: _copy.isFrench, userId: widget.user.id);
+      if (mounted) await _load();
+      return;
+    }
     final saved = await showDialog<BrainyEntry>(
       context: context,
       builder: (context) => _EntryEditor(
@@ -531,6 +537,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   }
 
   Future<void> _deleteEntry(BrainyEntry entry) async {
+    if (_selected?.formatFor(entry).appendOnly == true) {
+      await _editEntry(entry);
+      return;
+    }
     if (!await _confirm(
       _t('Delete entry?'),
       _t('This entry will be removed permanently.'),
@@ -1697,8 +1707,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     ),
                     IconButton(
                       onPressed: () => _editEntry(entry),
-                      tooltip: _t('Edit'),
-                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: collection.formatFor(entry).appendOnly ? (_copy.isFrench ? 'Ouvrir le registre' : 'Open register') : _t('Edit'),
+                      icon: Icon(collection.formatFor(entry).appendOnly ? Icons.receipt_long_outlined : Icons.edit_outlined),
                     ),
                   ],
                 ),
@@ -1743,7 +1753,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   DataCell(
                     TextButton(
                       onPressed: () => _editEntry(entry),
-                      child: Text(_t('Edit')),
+                      child: Text(collection.formatFor(entry).appendOnly ? (_copy.isFrench ? 'Ouvrir le registre' : 'Open register') : _t('Edit')),
                     ),
                   ),
                 ],
@@ -2149,8 +2159,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             Icons.inventory_2_outlined,
             'Stock',
             _copy.isFrench ? 'Positions et mouvements validés' : 'Positions and confirmed movements',
-            () => showStockScreen(context, _api, collection),
+            () => showStockScreen(context, _api, collection, widget.user.id),
           ),
+          _toolCard(cardWidth, Icons.receipt_long_outlined, _copy.isFrench ? 'Registre' : 'Register', _copy.isFrench ? 'Écritures, intégrité et corrections' : 'Writings, integrity and corrections', () async { await showLedgerScreen(context, _api, collection, french: _copy.isFrench, userId: widget.user.id); if (mounted) await _load(); }),
           _toolCard(
             cardWidth,
             Icons.auto_graph_rounded,
@@ -2639,7 +2650,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     tooltip: _t('Entry actions'),
                     icon: const Icon(Icons.more_horiz_rounded, color: _muted),
                     onSelected: (value) {
-                      if (value == 'edit') {
+                      if (value == 'ledger') {
+                        _editEntry(entry);
+                      } else if (value == 'edit') {
                         _editEntry(entry);
                       } else if (value == 'reminder') {
                         showEntryReminderDialog(
@@ -2664,7 +2677,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       }
                     },
                     itemBuilder: (context) => [
-                      PopupMenuItem(value: 'edit', child: Text(_t('Edit'))),
+                      if (collection.formatFor(entry).appendOnly)
+                        PopupMenuItem(value: 'ledger', child: Text(_copy.isFrench ? 'Ouvrir le registre' : 'Open register'))
+                      else PopupMenuItem(value: 'edit', child: Text(_t('Edit'))),
                       PopupMenuItem(
                         value: 'reminder',
                         child: Text(_copy.isFrench ? 'Rappels' : 'Reminders'),
@@ -2677,7 +2692,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                               : 'Entry links',
                         ),
                       ),
-                      PopupMenuItem(
+                      if (!collection.formatFor(entry).appendOnly) PopupMenuItem(
                         value: 'delete',
                         child: Text(
                           _t('Delete'),

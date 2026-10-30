@@ -1,26 +1,35 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'collections_api.dart';
+import 'ledger_api.dart';
 
 Future<void> showStockScreen(
   BuildContext context,
   CollectionsApi api,
   BrainyCollection collection,
+  String userId,
 ) => Navigator.of(context).push(
   MaterialPageRoute(
-    builder: (_) => _StockScreen(api: api, collection: collection),
+    builder: (_) => _StockScreen(api: api, collection: collection, userId: userId),
   ),
 );
 
 class _StockScreen extends StatefulWidget {
-  const _StockScreen({required this.api, required this.collection});
+  const _StockScreen({required this.api, required this.collection, required this.userId});
   final CollectionsApi api;
   final BrainyCollection collection;
+  final String userId;
   @override
   State<_StockScreen> createState() => _StockScreenState();
 }
 
 class _StockScreenState extends State<_StockScreen> {
+  late final LedgerApi ledger = LedgerApi(widget.api);
+  Map<String, dynamic>? stockIntegrity;
   late BrainyCollection collection = widget.collection;
   List<BrainyEntry> entries = [];
   List<Map<String, dynamic>> positions = [], movements = [];
@@ -52,6 +61,26 @@ class _StockScreenState extends State<_StockScreen> {
   String? sourceRuleId, error;
   bool busy = false;
   bool get fr => Localizations.localeOf(context).languageCode == 'fr';
+
+  Future<void> checkStock({bool seal = false}) async {
+    if (productId == null) return;
+    setState(() { busy = true; error = null; });
+    try {
+      final status = seal ? await ledger.sealStock(collection.id, productId!) : await ledger.verifyStock(collection.id, productId!);
+      if (mounted) setState(() => stockIntegrity = status);
+    } catch (cause) { if (mounted) setState(() => error = '$cause'); }
+    finally { if (mounted) setState(() => busy = false); }
+  }
+
+  Future<void> exportStockProof() async {
+    if (productId == null) return;
+    setState(() { busy = true; error = null; });
+    try {
+      final proof = await ledger.stockProof(collection.id, productId!);
+      await FilePicker.saveFile(fileName: 'brainy-stock-$productId.json', bytes: Uint8List.fromList(utf8.encode(proof)));
+    } catch (cause) { if (mounted) setState(() => error = '$cause'); }
+    finally { if (mounted) setState(() => busy = false); }
+  }
 
   @override
   void initState() {
@@ -417,6 +446,7 @@ class _StockScreenState extends State<_StockScreen> {
             onChanged: (value) => setState(() {
               productId = value;
               preview = null;
+              stockIntegrity = null;
             }),
           ),
           DropdownButtonFormField<String>(
@@ -536,6 +566,15 @@ class _StockScreenState extends State<_StockScreen> {
                 '${movement['occurredAt'].toString().substring(0, 10)} · ${movement['fromLocation']} → ${movement['toLocation']}',
               ),
             ),
+          const SizedBox(height: 16),
+          Text(fr ? 'Intégrité du stock' : 'Stock integrity', style: Theme.of(context).textTheme.titleLarge),
+          Text(fr ? 'Choisissez un produit ci-dessus pour vérifier ses mouvements. Les anciens mouvements peuvent être scellés une fois.' : 'Choose a product above to verify its movements. Older movements can be sealed once.'),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            OutlinedButton(onPressed: busy || productId == null ? null : () => checkStock(), child: Text(fr ? 'Vérifier l’intégrité' : 'Verify integrity')),
+            if (collection.ownerId == widget.userId) OutlinedButton(onPressed: busy || productId == null ? null : () => checkStock(seal: true), child: Text(fr ? 'Sceller l’historique' : 'Seal history')),
+            OutlinedButton(onPressed: busy || productId == null ? null : exportStockProof, child: Text(fr ? 'Exporter la preuve' : 'Export proof')),
+          ]),
+          if (stockIntegrity != null) Text(stockIntegrity!['valid'] == true ? (fr ? '${stockIntegrity!['checked']} mouvements vérifiés' : '${stockIntegrity!['checked']} movements verified') : '${stockIntegrity!['problem']}'),
         ],
       ),
     );
