@@ -35,8 +35,8 @@ import 'entry_editor_pickers.dart';
 import 'entry_object_ref_field.dart';
 import 'offline_entry_queue.dart';
 import 'offline_sync_panel.dart';
-import 'workspace_backup_panel.dart';
-import 'background_jobs_panel.dart';
+import 'collection_tools_hub.dart';
+import 'workspace_tools_dialog.dart';
 import 'quick_capture_sheet.dart';
 import 'quick_entry_sheet.dart';
 import 'classification_screen.dart';
@@ -112,7 +112,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           const Color(0xFF24272E),
         )
       : _formatTint(format);
-  Color _toolAccent(IconData _) => _actionAccent;
+
 
   String _t(String value) => AppStrings.of(context).text(value);
   AppStrings get _copy => AppStrings.of(context);
@@ -1197,6 +1197,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             if (value == 'profile') widget.onEditProfile?.call();
             if (value == 'quickcapture') _showQuickCapture();
             if (value == 'transfer') _openTransfer();
+            if (value == 'workspaceTools') {
+              showWorkspaceToolsDialog(
+                context,
+                api: _api,
+                collections: _collections,
+                onRestored: () => _load(),
+              );
+            }
           },
           itemBuilder: (context) => [
             PopupMenuItem(enabled: false, child: Text(widget.user.email)),
@@ -1398,7 +1406,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             ? 'Créer manuellement'
             : 'Create manually',
         onSecondaryPressed: _createCollectionManually,
-      )), OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _load(); }), WorkspaceBackupPanel(api: _api, onRestored: () { _load(); }), BackgroundJobsPanel(api: _api, collections: _collections)]);
+      )), OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _load(); })]);
     }
     final collection = _selected;
     if (collection == null) return const SizedBox.shrink();
@@ -1418,10 +1426,37 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 children: [
                   _overviewBanner(collection),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
-                  WorkspaceBackupPanel(api: _api, onRestored: () { _load(); }),
-                  BackgroundJobsPanel(api: _api, collections: _collections),
                   const SizedBox(height: 18),
-                  _collectionTools(collection),
+                  CollectionToolsHub(
+                    collection: collection,
+                    userId: widget.user.id,
+                    isFrench: _copy.isFrench,
+                    isDark: _dark,
+                    onStock: () => showStockScreen(context, _api, collection, widget.user.id),
+                    onLedger: () async {
+                      await showLedgerScreen(context, _api, collection, french: _copy.isFrench, userId: widget.user.id);
+                      if (mounted) await _load();
+                    },
+                    onInsights: () => _showInsights(collection),
+                    onUnits: _manageUnits,
+                    onObjects: _manageObjects,
+                    onClassifications: _manageClassifications,
+                    onSensitivity: () async {
+                      if (await showSensitivityScreen(context, _api, collection, french: _copy.isFrench) && mounted) {
+                        await _load();
+                      }
+                    },
+                    onWorkflow: () async {
+                      if (await showWorkflowScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) {
+                        await _load();
+                      }
+                    },
+                    onContributions: () async {
+                      await showContributionScreen(context, _api, collection, french: _copy.isFrench);
+                      if (mounted) await _load();
+                    },
+                    onMap: _showGeoMap,
+                  ),
                   const SizedBox(height: 20),
                   _collectionFormat(collection),
                   const SizedBox(height: 28),
@@ -2121,7 +2156,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     ],
                   ),
                 ),
-                if (!compact) ...[const SizedBox(width: 18), quickAction, const SizedBox(width: 8), action],
+                if (!compact) ...[const SizedBox(width: 14), OutlinedButton.icon(onPressed: () => _showInsights(collection), icon: const Icon(Icons.auto_graph_rounded, size: 18), label: Text(_copy.isFrench ? 'Calculs' : 'Insights')), const SizedBox(width: 8), quickAction, const SizedBox(width: 8), action],
               ],
             ),
             if (compact) ...[
@@ -2148,131 +2183,6 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           ],
         );
       },
-    ),
-  );
-
-  Widget _collectionTools(BrainyCollection collection) => LayoutBuilder(
-    builder: (context, constraints) {
-      final compact = constraints.maxWidth < 620;
-      final cardWidth = compact
-          ? constraints.maxWidth
-          : (constraints.maxWidth - 20) / 3;
-      return Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: [
-          _toolCard(
-            cardWidth,
-            Icons.inventory_2_outlined,
-            'Stock',
-            _copy.isFrench ? 'Positions et mouvements validés' : 'Positions and confirmed movements',
-            () => showStockScreen(context, _api, collection, widget.user.id),
-          ),
-          _toolCard(cardWidth, Icons.receipt_long_outlined, _copy.isFrench ? 'Registre' : 'Register', _copy.isFrench ? 'Écritures, intégrité et corrections' : 'Writings, integrity and corrections', () async { await showLedgerScreen(context, _api, collection, french: _copy.isFrench, userId: widget.user.id); if (mounted) await _load(); }),
-          _toolCard(
-            cardWidth,
-            Icons.auto_graph_rounded,
-            _copy.isFrench
-                ? 'Calculs et graphiques'
-                : 'Calculations and charts',
-            _copy.isFrench ? 'Explorer les données' : 'Explore your data',
-            () => _showInsights(collection),
-            featured: true,
-          ),
-          _toolCard(
-            cardWidth,
-            Icons.straighten_rounded,
-            _t('Units and conversions'),
-            _copy.isFrench
-                ? 'Mesures et conversions'
-                : 'Measures and conversions',
-            _manageUnits,
-          ),
-          _toolCard(
-            cardWidth,
-            Icons.category_outlined,
-            _copy.isFrench ? 'Objets' : 'Objects',
-            _copy.isFrench ? 'Modèles et références' : 'Models and references',
-            _manageObjects,
-          ),
-          _toolCard(cardWidth, Icons.account_tree_outlined, _copy.isFrench ? 'Classifications' : 'Classifications', _copy.isFrench ? 'Listes de codes locales' : 'Local code lists', _manageClassifications),
-          if (collection.ownerId == widget.user.id) _toolCard(cardWidth, Icons.shield_outlined, _copy.isFrench ? 'Confidentialité' : 'Privacy', _copy.isFrench ? 'Champs protégés et seuil d’agrégat' : 'Protected fields and aggregate threshold', () async { if (await showSensitivityScreen(context, _api, collection, french: _copy.isFrench) && mounted) await _load(); }),
-          _toolCard(cardWidth, Icons.fact_check_outlined, _copy.isFrench ? 'États et validations' : 'States and approvals', _copy.isFrench ? 'Assignations et échéances' : 'Assignments and due dates', () async { if (await showWorkflowScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) await _load(); }),
-          if (collection.ownerId == widget.user.id) _toolCard(cardWidth, Icons.publish_outlined, _copy.isFrench ? 'Contributions publiques' : 'Public contributions', _copy.isFrench ? 'Liens et réponses à valider' : 'Links and submissions to review', () async { await showContributionScreen(context, _api, collection, french: _copy.isFrench); if (mounted) await _load(); }),
-          _toolCard(cardWidth, Icons.map_outlined, _copy.isFrench ? 'Carte' : 'Map', _copy.isFrench ? 'Positions et zones' : 'Positions and zones', _showGeoMap),
-        ],
-      );
-    },
-  );
-
-  Widget _toolCard(
-    double width,
-    IconData icon,
-    String title,
-    String subtitle,
-    VoidCallback action, {
-    bool featured = false,
-  }) => SizedBox(
-    width: width,
-    child: Material(
-      color: _dark
-          ? (featured ? const Color(0xFF242830) : _panel)
-          : (featured ? const Color(0xFFF0F2F8) : Colors.white),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(17),
-        side: BorderSide(color: _panelBorder),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(17),
-        onTap: action,
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            children: [
-              Container(
-                width: 43,
-                height: 43,
-                decoration: BoxDecoration(
-                  color: _toolAccent(icon)
-                      .withValues(alpha: _dark ? 0.16 : 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: _toolAccent(icon)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: _panelInk,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: _panelMuted),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 5),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color: _toolAccent(icon),
-              ),
-            ],
-          ),
-        ),
-      ),
     ),
   );
 
