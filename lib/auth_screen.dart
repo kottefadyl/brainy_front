@@ -7,10 +7,6 @@ import 'app_strings.dart';
 import 'google_auth.dart';
 import 'brand_assets.dart';
 
-const ink = Color(0xFF202A43);
-const mutedInk = Color(0xFF788198);
-const fedoraBlue = Color(0xFF3989DD);
-
 class BrandScaffold extends StatelessWidget {
   const BrandScaffold({
     super.key,
@@ -103,6 +99,11 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   String _t(String value) => AppStrings.of(context).text(value);
+  bool get _dark => Theme.of(context).brightness == Brightness.dark;
+  Color get _ink => _dark ? const Color(0xFFF1F3F7) : const Color(0xFF20242C);
+  Color get _muted => _dark ? const Color(0xFFB5BECC) : const Color(0xFF545E6D);
+  Color get _accent => Theme.of(context).colorScheme.primary;
+  Color get _line => _dark ? const Color(0xFF7B8799) : const Color(0xFF778293);
   final GoogleAuthService _fallbackGoogleAuth = GoogleAuthService();
   GoogleAuthService get _googleAuth => widget.googleAuth ?? _fallbackGoogleAuth;
   final _form = GlobalKey<FormState>();
@@ -233,13 +234,18 @@ class _AuthScreenState extends State<AuthScreen> {
                 child: Container(
                   width: wide ? 980 : 450,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFCFCFE),
-                    borderRadius: BorderRadius.circular(26),
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: _dark
+                          ? const Color(0xFF3E4653)
+                          : const Color(0xFFDDE2EA),
+                    ),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x66091A35),
-                        blurRadius: 42,
-                        offset: Offset(0, 22),
+                        color: Color(0x33091A35),
+                        blurRadius: 24,
+                        offset: Offset(0, 12),
                       ),
                     ],
                   ),
@@ -287,12 +293,12 @@ class _AuthScreenState extends State<AuthScreen> {
               children: [
                 const BrainyMark(),
                 const SizedBox(width: 10),
-                const Text(
+                Text(
                   'brainy',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
-                    color: ink,
+                    color: _ink,
                     letterSpacing: -0.7,
                   ),
                 ),
@@ -300,9 +306,9 @@ class _AuthScreenState extends State<AuthScreen> {
                 if (wide)
                   Text(
                     _t('YOUR CREATIVE SPACE'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 9,
-                      color: mutedInk,
+                      color: _muted,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.6,
                     ),
@@ -312,12 +318,12 @@ class _AuthScreenState extends State<AuthScreen> {
             SizedBox(height: wide ? 43 : 30),
             Text(
               _registering ? _t('Make room for ideas.') : _t('Welcome back.'),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 31,
                 height: 1.15,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -1.2,
-                color: ink,
+                color: _ink,
               ),
             ),
             const SizedBox(height: 9),
@@ -325,11 +331,7 @@ class _AuthScreenState extends State<AuthScreen> {
               _registering
                   ? _t('Create your account and start collecting every spark.')
                   : _t('Your notes, sketches, and big ideas are waiting.'),
-              style: const TextStyle(
-                fontSize: 13.5,
-                height: 1.5,
-                color: mutedInk,
-              ),
+              style: TextStyle(fontSize: 13.5, height: 1.5, color: _muted),
             ),
             const SizedBox(height: 29),
             if (_registering) ...[
@@ -385,7 +387,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       ? Icons.visibility_off_outlined
                       : Icons.visibility_outlined,
                   size: 19,
-                  color: mutedInk,
+                  color: _muted,
                 ),
               ),
               validator: (value) => _registering && (value?.length ?? 0) < 8
@@ -415,13 +417,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF0EE),
+                  color: _dark
+                      ? const Color(0xFF43282D)
+                      : const Color(0xFFFFF0EE),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   AppStrings.of(context).error(_error!),
-                  style: const TextStyle(
-                    color: Color(0xFFB4433E),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
                     fontSize: 12.5,
                   ),
                 ),
@@ -434,17 +438,16 @@ class _AuthScreenState extends State<AuthScreen> {
               child: FilledButton(
                 onPressed: _busy ? null : _submit,
                 style: FilledButton.styleFrom(
-                  backgroundColor: fedoraBlue,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: _busy
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          color: Colors.white,
+                          color: _dark ? const Color(0xFF142443) : Colors.white,
                           strokeWidth: 2,
                         ),
                       )
@@ -473,20 +476,20 @@ class _AuthScreenState extends State<AuthScreen> {
             const SizedBox(height: 18),
             Row(
               children: [
-                const Expanded(child: Divider(color: Color(0xFFE9EBF1))),
+                Expanded(child: Divider(color: _line)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 13),
                   child: Text(
                     _t('OR'),
-                    style: const TextStyle(
-                      color: mutedInk,
+                    style: TextStyle(
+                      color: _muted,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1,
                     ),
                   ),
                 ),
-                const Expanded(child: Divider(color: Color(0xFFE9EBF1))),
+                Expanded(child: Divider(color: _line)),
               ],
             ),
             const SizedBox(height: 15),
@@ -498,7 +501,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     ? null
                     : _signInWithGoogle,
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFE2E7EF)),
+                  side: BorderSide(color: _line),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -530,10 +533,10 @@ class _AuthScreenState extends State<AuthScreen> {
                         _t('Continue with Google'),
                         maxLines: 2,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: ink,
+                          color: _ink,
                         ),
                       ),
                     ),
@@ -547,7 +550,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 _googleAuth.setupError == null
                     ? _t('Preparing Google sign-in…')
                     : _t('Google sign-in is unavailable. Try reloading.'),
-                style: const TextStyle(color: mutedInk, fontSize: 10.5),
+                style: TextStyle(color: _muted, fontSize: 12),
               ),
             ],
             const SizedBox(height: 20),
@@ -559,7 +562,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     _registering
                         ? _t('Already have an account? ')
                         : _t('New to Brainy? '),
-                    style: const TextStyle(color: mutedInk, fontSize: 12.5),
+                    style: TextStyle(color: _muted, fontSize: 12.5),
                   ),
                   TextButton(
                     onPressed: _busy ? null : _switchMode,
@@ -569,10 +572,10 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     child: Text(
                       _registering ? _t('Sign in') : _t('Create an account'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: fedoraBlue,
+                        color: _accent,
                       ),
                     ),
                   ),
@@ -580,22 +583,18 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
             const SizedBox(height: 21),
-            const Divider(height: 1, color: Color(0xFFE9EBF1)),
+            Divider(height: 1, color: _line),
             const SizedBox(height: 17),
             Row(
               children: [
-                const Icon(
-                  Icons.lock_outline_rounded,
-                  size: 14,
-                  color: mutedInk,
-                ),
+                Icon(Icons.lock_outline_rounded, size: 14, color: _muted),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(
                     _t(
                       'Your ideas stay with your account, wherever you sign in.',
                     ),
-                    style: const TextStyle(color: mutedInk, fontSize: 11.5),
+                    style: TextStyle(color: _muted, fontSize: 12),
                   ),
                 ),
               ],
@@ -608,11 +607,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _label(String text) => Text(
     text,
-    style: const TextStyle(
-      fontSize: 12,
-      fontWeight: FontWeight.w700,
-      color: ink,
-    ),
+    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
   );
 
   Widget _field(
@@ -631,30 +626,35 @@ class _AuthScreenState extends State<AuthScreen> {
       autofillHints: autofillHints,
       obscureText: obscure,
       validator: validator,
-      onFieldSubmitted: (_) => _submit(),
-      style: const TextStyle(fontSize: 13, color: ink),
+      textInputAction: controller == (_registering ? _confirm : _password)
+          ? TextInputAction.done
+          : TextInputAction.next,
+      onFieldSubmitted: (_) {
+        if (controller == (_registering ? _confirm : _password)) _submit();
+      },
+      style: TextStyle(fontSize: 14, color: _ink),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFFA3A9B8), fontSize: 12.5),
-        prefixIcon: Icon(icon, size: 19, color: const Color(0xFF9AA5B9)),
+        hintStyle: TextStyle(color: _muted, fontSize: 13),
+        prefixIcon: Icon(icon, size: 19, color: _muted),
         suffixIcon: suffix,
         filled: true,
-        fillColor: const Color(0xFFF7F8FB),
+        fillColor: _dark ? const Color(0xFF24272E) : const Color(0xFFFFFFFF),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 15,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE6EAF1)),
+          borderSide: BorderSide(color: _line),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE6EAF1)),
+          borderSide: BorderSide(color: _line),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: fedoraBlue, width: 1.5),
+          borderSide: BorderSide(color: _accent, width: 2),
         ),
       ),
     );

@@ -138,10 +138,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 650;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final ink = dark ? const Color(0xFFEEF0F2) : const Color(0xFF252B36);
-    final muted = dark ? const Color(0xFFAAB2BD) : const Color(0xFF626D7B);
+    final ink = Theme.of(context).colorScheme.onSurface;
+    final muted = dark ? const Color(0xFFB5BECC) : const Color(0xFF545E6D);
     return Scaffold(
-      backgroundColor: dark ? const Color(0xFF111315) : const Color(0xFFF6F7F8),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(
@@ -175,20 +175,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: dark ? const Color(0xFF1C1F23) : Colors.white,
-                      borderRadius: BorderRadius.circular(22),
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                         color: dark
-                            ? const Color(0xFF343A42)
-                            : const Color(0xFFE0E5EA),
+                            ? const Color(0xFF3E4653)
+                            : const Color(0xFFDDE2EA),
                       ),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x10173B6E),
-                          blurRadius: 30,
-                          offset: Offset(0, 12),
-                        ),
-                      ],
                     ),
                     child: Padding(
                       padding: EdgeInsets.all(compact ? 22 : 38),
@@ -200,15 +193,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             height: 48,
                             decoration: BoxDecoration(
                               color: dark
-                                  ? const Color(0xFF303747)
-                                  : const Color(0xFFEAEDF7),
+                                  ? const Color(0xFF26334A)
+                                  : const Color(0xFFE9F0FC),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: Icon(
                               Icons.person_outline_rounded,
-                              color: dark
-                                  ? const Color(0xFFBAC5E7)
-                                  : const Color(0xFF5668A5),
+                              color: Theme.of(context).colorScheme.primary,
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -282,7 +273,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
                                 AppStrings.of(context).error(_error!),
-                                style: const TextStyle(color: Colors.red),
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
                               ),
                             ),
                           const SizedBox(height: 14),
