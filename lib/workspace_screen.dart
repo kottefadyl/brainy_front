@@ -1292,7 +1292,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     child: ListTile(
                       selected: collection.id == _selectedId,
                       selectedTileColor: _dark
-                          ? const Color(0xFF383343)
+                          ? const Color(0xFF24589B)
                           : const Color(0xFF1D5197),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -1509,7 +1509,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                             height: 64,
                             decoration: BoxDecoration(
                               color: _dark
-                                  ? const Color(0xFF383343)
+                                  ? BrainyColors.darkAccentSoft
                                   : const Color(0xFFE8F2FE),
                               shape: BoxShape.circle,
                             ),
@@ -2110,7 +2110,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       color: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
       borderRadius: BorderRadius.circular(18),
       border: Border.all(
-        color: _dark ? const Color(0xFF4B4B51) : const Color(0xFF22549C),
+        color: _dark ? const Color(0xFF4A82C8) : const Color(0xFF22549C),
       ),
     ),
     child: LayoutBuilder(
@@ -2119,10 +2119,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         final heroOutlineStyle = OutlinedButton.styleFrom(
           foregroundColor: Colors.white,
           backgroundColor: _dark
-              ? const Color(0xFF37373B)
+              ? const Color(0xFF2C629E)
               : const Color(0xFF3B75BE),
           side: BorderSide(
-            color: _dark ? const Color(0xFF73737B) : const Color(0xFFBBD6F5),
+            color: _dark ? const Color(0xFFA5C9F5) : const Color(0xFFBBD6F5),
           ),
         );
         final action = FilledButton.icon(
@@ -2245,7 +2245,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Widget _statBadge(IconData icon, String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
     decoration: BoxDecoration(
-      color: _dark ? const Color(0xFF37373B) : const Color(0xFF3B75BE),
+      color: _dark ? const Color(0xFF2C629E) : const Color(0xFF3B75BE),
       borderRadius: BorderRadius.circular(9),
     ),
     child: Row(

@@ -62,7 +62,7 @@ class WorkspaceToolsDialog extends StatelessWidget {
                     height: 44,
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF383343)
+                          ? BrainyColors.darkAccentSoft
                           : const Color(0xFFEBF2FC),
                       borderRadius: BorderRadius.circular(12),
                     ),

@@ -97,7 +97,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                     height: 36,
                     decoration: BoxDecoration(
                       color: widget.isDark
-                          ? const Color(0xFF383343)
+                          ? BrainyColors.darkAccentSoft
                           : const Color(0xFFEBF2FC),
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -375,7 +375,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                 height: 36,
                 decoration: BoxDecoration(
                   color: featured
-                      ? (widget.isDark ? const Color(0xFF383343) : const Color(0xFFDFECFB))
+                      ? (widget.isDark ? BrainyColors.darkAccentSoft : const Color(0xFFDFECFB))
                       : (widget.isDark ? const Color(0xFF343438) : const Color(0xFFE9EEF5)),
                   borderRadius: BorderRadius.circular(9),
                 ),

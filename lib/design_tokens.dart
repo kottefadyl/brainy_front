@@ -19,7 +19,8 @@ abstract final class BrainyColors {
   static const darkLine = Color(0xFF49494F);
   static const darkControl = Color(0xFF85858E);
   static const darkSidebar = Color(0xFF111113);
-  static const darkHero = Color(0xFF2A2A2E);
-  static const darkAccent = Color(0xFFB6A8F7);
-  static const darkOnAccent = Color(0xFF211B34);
+  static const darkHero = Color(0xFF1D4C8B);
+  static const darkAccent = Color(0xFF96BDFF);
+  static const darkAccentSoft = Color(0xFF263A59);
+  static const darkOnAccent = Color(0xFF142443);
 }
