@@ -309,9 +309,14 @@ void main() {
     expect(find.textContaining('Created'), findsOneWidget);
     expect(find.textContaining('October 20, 2026'), findsOneWidget);
     expect(find.textContaining('October 21, 2026'), findsOneWidget);
-    await tester.ensureVisible(find.byTooltip('Copy entry'));
+    await tester.ensureVisible(find.byTooltip('View details'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Copy entry'));
+    await tester.tap(find.byTooltip('View details'));
+    await tester.pumpAndSettle();
+    expect(find.text('Distance'), findsOneWidget);
+    expect(find.text('12.5 km'), findsOneWidget);
+    expect(find.text('Fresh air\nBlue sky'), findsOneWidget);
+    await tester.tap(find.text('Copy entry'));
     await tester.pumpAndSettle();
     expect(
       copiedText,

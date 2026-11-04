@@ -20,6 +20,7 @@ import 'entry_reminder_dialog.dart';
 import 'push_registration.dart';
 import 'collection_transfer.dart';
 import 'entry_clipboard.dart';
+import 'entry_details_dialog.dart';
 import 'number_units.dart';
 import 'object_dialog.dart';
 import 'unit_dialog.dart';
@@ -2516,191 +2517,85 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     ),
   );
 
+  Future<void> _showEntryDetails(BrainyCollection collection, BrainyEntry entry) async {
+    final format = collection.formatFor(entry);
+    final edited = entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2)));
+    final shouldEdit = await showEntryDetailsDialog(
+      context,
+      collection: collection,
+      entry: entry,
+      formatName: _displayFormatName(context, format),
+      created: _formatTimestamp(entry.createdAt),
+      edited: edited ? _formatTimestamp(entry.updatedAt) : null,
+      copy: _copy,
+      onCopy: () => _copyEntry(collection, entry),
+      onReference: (field) => _showObjectReferences(entry, field),
+      onAttachment: (field) => _downloadAttachment(entry, field),
+      onLink: _openSavedLink,
+    );
+    if (shouldEdit && mounted) await _editEntry(entry);
+  }
+
   Widget _entryCard(BrainyCollection collection, BrainyEntry entry) {
     final format = collection.formatFor(entry);
     final titleField = format.fields.where((field) => field.kind == BrainyFieldKind.title && (entry.values[field.id]?.trim().isNotEmpty ?? false)).firstOrNull;
-    final title = titleField == null ? null : entry.values[titleField.id]!.trim();
-    final otherFields = format.fields.where((field) => field.id != titleField?.id && (entry.values[field.id]?.trim().isNotEmpty ?? false)).toList();
-    final previewFields = otherFields.take(3).toList();
-    final moreFields = otherFields.length - previewFields.length;
-    final edited = entry.updatedAt.isAfter(
-      entry.createdAt.add(const Duration(seconds: 2)),
-    );
+    final firstField = format.fields.where((field) => entry.values[field.id]?.trim().isNotEmpty ?? false).firstOrNull;
+    final title = titleField != null ? entry.values[titleField.id]!.trim() : firstField != null ? displayEntryValue(firstField, entry.values[firstField.id]!, _copy, snapshot: entry.unitSnapshots[firstField.id], collection: collection) : _displayFormatName(context, format);
+    final edited = entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2)));
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      margin: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.fromLTRB(12, 5, 5, 7),
       decoration: BoxDecoration(
         color: _formatSurface(format),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _dark
-              ? _pastelColor(format.color).withValues(alpha: 0.43)
-              : const Color(0xFFDDE8F4),
-        ),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: _dark ? _pastelColor(format.color).withValues(alpha: 0.43) : const Color(0xFFDDE8F4)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final showCopyLabel = constraints.maxWidth >= 310;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      runSpacing: 3,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _dark
-                                ? Color.alphaBlend(
-                                    _pastelColor(format.color)
-                                        .withValues(alpha: 0.19),
-                                     BrainyColors.darkSurface,
-                                  )
-                                : Colors.white.withValues(alpha: 0.65),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            _displayFormatName(context, format),
-                            style: TextStyle(
-                              color: _dark
-                                  ? const Color(0xFFE4E8EC)
-                                  : _panelInk,
-                             fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '${_t('Created')} ${_formatTimestamp(entry.createdAt)}',
-                          style: TextStyle(
-                            color: _panelMuted,
-                             fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        if (edited)
-                          Text(
-                            '${_t('Edited')} ${_formatTimestamp(entry.updatedAt)}',
-                             style: TextStyle(color: _panelMuted, fontSize: 12),
-                          ),
-                        if (entry.contributionLinkId != null && entry.contributionReceivedAt != null)
-                          Text(
-                            '${_copy.isFrench ? 'Contribution externe reçue le' : 'External contribution received'} ${_formatTimestamp(entry.contributionReceivedAt!)}',
-                            style: TextStyle(color: _panelMuted, fontSize: 11),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (showCopyLabel)
-                    TextButton.icon(
-                      onPressed: () => _copyEntry(collection, entry),
-                      icon: const Icon(Icons.content_copy_rounded, size: 16),
-                      label: Text(_t('Copy entry')),
-                      style: TextButton.styleFrom(
-                        foregroundColor: _blue,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    )
-                  else
-                    IconButton(
-                      onPressed: () => _copyEntry(collection, entry),
-                      tooltip: _t('Copy entry'),
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(
-                        Icons.content_copy_rounded,
-                        size: 18,
-                        color: _blue,
-                      ),
-                    ),
-                  PopupMenuButton<String>(
-                    tooltip: _t('Entry actions'),
-                    icon: const Icon(Icons.more_horiz_rounded, color: _muted),
-                    onSelected: (value) {
-                      if (value == 'ledger') {
-                        _editEntry(entry);
-                      } else if (value == 'edit') {
-                        _editEntry(entry);
-                      } else if (value == 'reminder') {
-                        showEntryReminderDialog(
-                          context,
-                          api: _api,
-                          collection: collection,
-                          entry: entry,
-                          push: _push,
-                          view: _selectedView,
-                        );
-                      } else if (value == 'links') {
-                        showEntryLinksDialog(
-                          context,
-                          _api,
-                          collection,
-                          entry,
-                        ).then((linked) {
-                          if (linked != null && mounted) _editEntry(linked);
-                        });
-                      } else if (value == 'delete') {
-                        _deleteEntry(entry);
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      if (collection.formatFor(entry).appendOnly)
-                        PopupMenuItem(value: 'ledger', child: Text(_copy.isFrench ? 'Ouvrir le registre' : 'Open register'))
-                      else PopupMenuItem(value: 'edit', child: Text(_t('Edit'))),
-                      PopupMenuItem(
-                        value: 'reminder',
-                        child: Text(_copy.isFrench ? 'Rappels' : 'Reminders'),
-                      ),
-                      PopupMenuItem(
-                        value: 'links',
-                        child: Text(
-                          _copy.isFrench
-                              ? 'Liens entre entrées'
-                              : 'Entry links',
-                        ),
-                      ),
-                      if (!collection.formatFor(entry).appendOnly) PopupMenuItem(
-                        value: 'delete',
-                        child: Text(
-                          _t('Delete'),
-                          style: const TextStyle(color: Color(0xFFC54242)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-               if (title != null) ...[
-                 const SizedBox(height: 6),
-                 Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: _panelInk, fontSize: 16, fontWeight: FontWeight.w800)),
-               ],
-               if (previewFields.isNotEmpty || moreFields > 0) ...[
-                 const SizedBox(height: 7),
-                Wrap(
-                  spacing: 14,
-                  runSpacing: 5,
-                  children: [
-                     for (final field in previewFields)
-                      _entryFieldTile(field, entry.values[field.id]!, entry),
-                     if (moreFields > 0) Text(_copy.isFrench ? '+$moreFields champs' : '+$moreFields fields', style: TextStyle(color: _panelMuted, fontSize: 12, fontWeight: FontWeight.w700)),
-                  ],
-                ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: TextButton(
+              onPressed: () => _showEntryDetails(collection, entry),
+              style: TextButton.styleFrom(alignment: Alignment.centerLeft, padding: const EdgeInsets.symmetric(horizontal: 2), foregroundColor: _panelInk),
+              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            )),
+            IconButton(
+              onPressed: () => _showEntryDetails(collection, entry),
+              tooltip: _copy.isFrench ? 'Voir les détails' : 'View details',
+              icon: const Icon(Icons.visibility_outlined, size: 19),
+            ),
+            PopupMenuButton<String>(
+              tooltip: _t('Entry actions'),
+              icon: const Icon(Icons.more_horiz_rounded, color: _muted),
+              onSelected: (value) {
+                if (value == 'copy') _copyEntry(collection, entry);
+                if (value == 'edit') _editEntry(entry);
+                if (value == 'reminder') showEntryReminderDialog(context, api: _api, collection: collection, entry: entry, push: _push, view: _selectedView);
+                if (value == 'links') showEntryLinksDialog(context, _api, collection, entry).then((linked) { if (linked != null && mounted) _editEntry(linked); });
+                if (value == 'delete') _deleteEntry(entry);
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(value: 'copy', child: Text(_t('Copy entry'))),
+                PopupMenuItem(value: 'edit', child: Text(format.appendOnly ? _copy.isFrench ? 'Ouvrir le registre' : 'Open register' : _t('Edit'))),
+                PopupMenuItem(value: 'reminder', child: Text(_copy.isFrench ? 'Rappels' : 'Reminders')),
+                PopupMenuItem(value: 'links', child: Text(_copy.isFrench ? 'Liens entre entrées' : 'Entry links')),
+                if (!format.appendOnly) PopupMenuItem(value: 'delete', child: Text(_t('Delete'), style: const TextStyle(color: Color(0xFFC54242)))),
               ],
-            ],
-          );
-        },
+            ),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(left: 3, right: 6),
+            child: Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
+              Text(_displayFormatName(context, format), style: TextStyle(color: _panelInk, fontSize: 11, fontWeight: FontWeight.w700)),
+              Text('${_t('Created')} ${_formatTimestamp(entry.createdAt)}', style: TextStyle(color: _panelMuted, fontSize: 11)),
+              if (edited) Text('${_t('Edited')} ${_formatTimestamp(entry.updatedAt)}', style: TextStyle(color: _panelMuted, fontSize: 11)),
+            ]),
+          ),
+        ],
       ),
     );
   }
-
   Future<void> _showObjectReferences(
     BrainyEntry entry,
     BrainyField field,
@@ -2807,75 +2702,6 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     }
   }
 
-  Future<void> _copySavedLink(String value) async {
-    await Clipboard.setData(ClipboardData(text: value));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_copy.isFrench ? 'Lien copié' : 'Link copied')),
-      );
-    }
-  }
-
-  Widget _entryFieldTile(BrainyField field, String value, BrainyEntry entry) =>
-      ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 240),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${field.name}:',
-              style: TextStyle(
-                color: _panelMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Flexible(
-              child: field.kind == BrainyFieldKind.objectRef
-                  ? TextButton(
-                      onPressed: () => _showObjectReferences(entry, field),
-                      child: Text(displayEntryValue(field, value, _copy)),
-                    )
-                  : field.kind == BrainyFieldKind.attachment
-                  ? TextButton(
-                      onPressed: () => _downloadAttachment(entry, field),
-                      child: Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    )
-                  : Text(
-                      displayEntryValue(
-                        field,
-                        value,
-                        _copy,
-                        snapshot: entry.unitSnapshots[field.id],
-                        collection: _selected,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: _panelInk, fontSize: 13),
-                    ),
-            ),
-            if (field.kind == BrainyFieldKind.link) ...[
-              IconButton(
-                onPressed: () => _openSavedLink(value),
-                tooltip: _copy.isFrench ? 'Ouvrir le lien' : 'Open link',
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              ),
-              IconButton(
-                onPressed: () => _copySavedLink(value),
-                tooltip: _copy.isFrench ? 'Copier le lien' : 'Copy link',
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.copy_rounded, size: 18),
-              ),
-            ],
-          ],
-        ),
-      );
 }
 
 class _DraftField {
