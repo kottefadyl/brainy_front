@@ -129,6 +129,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Timer? _filterDebounce;
   int _entryRequest = 0;
   String _search = '';
+  String _collectionQuery = '';
   String? _filterFormatId;
   String? _filterFieldId;
   String _filterOperator = 'EQ';
@@ -1258,10 +1259,28 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           ),
         ),
         const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: TextField(
+            onChanged: (value) => setState(() => _collectionQuery = value),
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: _copy.isFrench ? 'Rechercher…' : 'Search…',
+              hintStyle: TextStyle(color: _dark ? BrainyColors.darkMuted : const Color(0xFFE0EDFF)),
+              prefixIcon: const Icon(Icons.search_rounded, color: Colors.white70),
+              filled: true,
+              fillColor: _dark ? const Color(0xFF242427) : const Color(0x33FFFFFF),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(11), borderSide: BorderSide(color: _dark ? BrainyColors.darkLine : const Color(0xFF9FC2F0))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(11), borderSide: const BorderSide(color: Colors.white, width: 2)),
+              isDense: true,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         Expanded(
           child: ListView(
             children: [
-              for (final collection in _collections)
+              for (final collection in _collections.where((item) => item.name.toLowerCase().contains(_collectionQuery.trim().toLowerCase())))
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -1299,6 +1318,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     ),
                   ),
                 ),
+              if (_collectionQuery.isNotEmpty && !_collections.any((item) => item.name.toLowerCase().contains(_collectionQuery.trim().toLowerCase())))
+                Padding(padding: const EdgeInsets.all(18), child: Text(_copy.isFrench ? 'Aucune collection trouvée' : 'No matching collections', style: TextStyle(color: _dark ? BrainyColors.darkMuted : const Color(0xFFE0EDFF)))),
             ],
           ),
         ),
@@ -1369,10 +1390,17 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           onPressed: _createCollection,
           icon: const Icon(Icons.create_new_folder_outlined),
         ),
-        IconButton(
-          tooltip: _copy.isFrench ? 'Créer manuellement' : 'Create manually',
-          onPressed: _createCollectionManually,
-          icon: const Icon(Icons.tune_outlined),
+        PopupMenuButton<String>(
+          tooltip: _copy.isFrench ? 'Autres actions' : 'More actions',
+          icon: const Icon(Icons.more_horiz_rounded),
+          onSelected: (value) {
+            if (value == 'manual') _createCollectionManually();
+            if (value == 'transfer') _openTransfer();
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(value: 'manual', child: Text(_copy.isFrench ? 'Créer manuellement' : 'Create manually')),
+            PopupMenuItem(value: 'transfer', child: Text(_t('Import and export'))),
+          ],
         ),
       ],
     ),
@@ -1420,38 +1448,6 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 children: [
                   _overviewBanner(collection),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
-                  const SizedBox(height: 18),
-                  CollectionToolsHub(
-                    collection: collection,
-                    userId: widget.user.id,
-                    isFrench: _copy.isFrench,
-                    isDark: _dark,
-                    onStock: () => showStockScreen(context, _api, collection, widget.user.id),
-                    onLedger: () async {
-                      await showLedgerScreen(context, _api, collection, french: _copy.isFrench, userId: widget.user.id);
-                      if (mounted) await _load();
-                    },
-                    onInsights: () => _showInsights(collection),
-                    onUnits: _manageUnits,
-                    onObjects: _manageObjects,
-                    onClassifications: _manageClassifications,
-                    onSensitivity: () async {
-                      if (await showSensitivityScreen(context, _api, collection, french: _copy.isFrench) && mounted) {
-                        await _load();
-                      }
-                    },
-                    onWorkflow: () async {
-                      if (await showWorkflowScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) {
-                        await _load();
-                      }
-                    },
-                    onContributions: () async {
-                      await showContributionScreen(context, _api, collection, french: _copy.isFrench);
-                      if (mounted) await _load();
-                    },
-                    onMap: _showGeoMap,
-                  ),
-                  const SizedBox(height: 28),
                   Row(
                     children: [
                       Expanded(
@@ -1575,6 +1571,38 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     ),
                   const SizedBox(height: 30),
                   _collectionFormat(collection),
+                  const SizedBox(height: 18),
+                  CollectionToolsHub(
+                    collection: collection,
+                    userId: widget.user.id,
+                    isFrench: _copy.isFrench,
+                    isDark: _dark,
+                    onStock: () => showStockScreen(context, _api, collection, widget.user.id),
+                    onLedger: () async {
+                      await showLedgerScreen(context, _api, collection, french: _copy.isFrench, userId: widget.user.id);
+                      if (mounted) await _load();
+                    },
+                    onInsights: () => _showInsights(collection),
+                    onUnits: _manageUnits,
+                    onObjects: _manageObjects,
+                    onClassifications: _manageClassifications,
+                    onSensitivity: () async {
+                      if (await showSensitivityScreen(context, _api, collection, french: _copy.isFrench) && mounted) {
+                        await _load();
+                      }
+                    },
+                    onWorkflow: () async {
+                      if (await showWorkflowScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) {
+                        await _load();
+                      }
+                    },
+                    onContributions: () async {
+                      await showContributionScreen(context, _api, collection, french: _copy.isFrench);
+                      if (mounted) await _load();
+                    },
+                    onMap: _showGeoMap,
+                  ),
+                  const SizedBox(height: 28),
                 ],
               ),
             ),

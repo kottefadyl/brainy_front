@@ -69,13 +69,45 @@ class _QuickEntryDialogState extends State<_QuickEntryDialog> {
     } catch (cause) { if (mounted) setState(() => error = fr ? 'Enregistrement impossible : $cause. Les valeurs sont conservées.' : 'Could not save: $cause. Values are kept.'); }
     finally { if (mounted) setState(() => busy = false); }
   }
+  Future<void> _pickDate(BrainyField field) async {
+    final controller = values[field.id]!;
+    DateTime? initial;
+    try { initial = DateTime.parse(controller.text); } catch (_) {}
+    if (!mounted) return;
+    final day = await showDatePicker(context: context, initialDate: initial ?? DateTime.now(), firstDate: DateTime(1900), lastDate: DateTime(2100));
+    if (day == null || !mounted) return;
+    final date = '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    if (field.kind == BrainyFieldKind.date) { controller.text = date; return; }
+    final time = await showTimePicker(context: context, initialTime: initial == null ? TimeOfDay.now() : TimeOfDay.fromDateTime(initial));
+    if (time == null) return;
+    controller.text = '${date}T${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
   Widget _field(BrainyField field) {
     final controller = values[field.id]!;
-    final suggestions = recent.map((entry) => entry.values[field.id]).whereType<String>().where((item) => item.isNotEmpty).toSet().take(8).toList();
+    final suggestions = recent.map((entry) => entry.values[field.id]).whereType<String>().where((item) => item.isNotEmpty).toSet().take(3).toList();
     final input = field.kind == BrainyFieldKind.select || field.kind == BrainyFieldKind.boolean
-      ? DropdownButtonFormField<String>(initialValue: controller.text.isEmpty ? null : controller.text, decoration: InputDecoration(labelText: field.name), items: (field.kind == BrainyFieldKind.boolean ? ['true', 'false'] : field.options).map((item) => DropdownMenuItem(value: item, child: Text(item == 'true' ? fr ? 'Oui' : 'Yes' : item == 'false' ? fr ? 'Non' : 'No' : item))).toList(), onChanged: (value) => controller.text = value ?? '')
-      : TextField(controller: controller, enabled: !datesToday.contains(field.id), keyboardType: field.kind == BrainyFieldKind.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, decoration: InputDecoration(labelText: field.name, hintText: datesToday.contains(field.id) ? _today(field) : null));
-    return Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [input, if (suggestions.isNotEmpty && [BrainyFieldKind.text, BrainyFieldKind.title, BrainyFieldKind.number].contains(field.kind)) Wrap(spacing: 4, children: suggestions.map((item) => ActionChip(label: Text(item), onPressed: () { controller.text = item; setState(() {}); })).toList()), if ([BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind)) CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, value: datesToday.contains(field.id), title: Text(fr ? 'Date du jour automatique' : 'Automatic current date'), onChanged: (value) => setState(() { value == true ? datesToday.add(field.id) : datesToday.remove(field.id); })), CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, value: hidden.contains(field.id), title: Text(fr ? 'Replier ce champ' : 'Fold this field'), onChanged: (value) => setState(() { value == true ? hidden.add(field.id) : hidden.remove(field.id); }))]));
+      ? DropdownButtonFormField<String>(key: ValueKey('${field.id}:${controller.text}'), initialValue: controller.text.isEmpty ? null : controller.text, decoration: InputDecoration(labelText: field.name), items: (field.kind == BrainyFieldKind.boolean ? ['true', 'false'] : field.options).map((item) => DropdownMenuItem(value: item, child: Text(item == 'true' ? fr ? 'Oui' : 'Yes' : item == 'false' ? fr ? 'Non' : 'No' : item))).toList(), onChanged: (value) => controller.text = value ?? '')
+      : TextField(controller: controller, enabled: !datesToday.contains(field.id), readOnly: [BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind), onTap: [BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind) ? () => _pickDate(field) : null, keyboardType: field.kind == BrainyFieldKind.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, maxLines: field.kind == BrainyFieldKind.longText ? 3 : 1, decoration: InputDecoration(labelText: field.name, hintText: datesToday.contains(field.id) ? _today(field) : null, suffixIcon: [BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind) ? const Icon(Icons.calendar_today_outlined) : null));
+    return Padding(padding: const EdgeInsets.only(bottom: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [input, if (suggestions.isNotEmpty && [BrainyFieldKind.text, BrainyFieldKind.title, BrainyFieldKind.number].contains(field.kind)) Padding(padding: const EdgeInsets.only(top: 5), child: Wrap(spacing: 5, runSpacing: 4, children: suggestions.map((item) => ActionChip(label: Text(item, overflow: TextOverflow.ellipsis), onPressed: () { controller.text = item; setState(() {}); })).toList())), if ([BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind)) CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, value: datesToday.contains(field.id), title: Text(fr ? 'Date du jour' : 'Today'), onChanged: (value) => setState(() { value == true ? datesToday.add(field.id) : datesToday.remove(field.id); }))]));
   }
-  @override Widget build(BuildContext context) => AlertDialog(title: Text(fr ? 'Saisie rapide' : 'Quick entry'), content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [DropdownButtonFormField<String>(initialValue: formatId, decoration: InputDecoration(labelText: fr ? 'Format de données' : 'Data format'), items: widget.collection.formats.where((item) => !item.objectModel).map((item) => DropdownMenuItem(value: item.id, child: Text(item.name))).toList(), onChanged: (value) { setState(() => formatId = value); _load(); }), const SizedBox(height: 12), Align(alignment: Alignment.centerLeft, child: TextButton(onPressed: recent.isEmpty ? null : _duplicate, child: Text(fr ? 'Dupliquer la dernière entrée' : 'Duplicate last entry'))), for (final field in fields) hidden.contains(field.id) ? ExpansionTile(key: ValueKey(field.id), title: Text(field.name), children: [_field(field)]) : _field(field), if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))]))), actions: [TextButton(onPressed: _remember, child: Text(fr ? 'Mémoriser les valeurs' : 'Remember values')), TextButton(onPressed: () => Navigator.pop(context), child: Text(fr ? 'Annuler' : 'Cancel')), FilledButton(onPressed: busy ? null : _save, child: Text(fr ? 'Enregistrer' : 'Save'))]);
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(fr ? 'Saisie rapide' : 'Quick entry'),
+    content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(fr ? 'Remplissez au moins un champ.' : 'Fill in at least one field.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      const SizedBox(height: 16),
+      DropdownButtonFormField<String>(key: ValueKey(formatId), initialValue: formatId, isExpanded: true, decoration: InputDecoration(labelText: fr ? 'Format de données' : 'Data format'), items: widget.collection.formats.where((item) => !item.objectModel).map((item) => DropdownMenuItem(value: item.id, child: Text(item.name, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) { setState(() => formatId = value); _load(); }),
+      if (recent.isNotEmpty) Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: _duplicate, icon: const Icon(Icons.content_copy_outlined), label: Text(fr ? 'Reprendre la dernière entrée' : 'Use last entry'))),
+      const SizedBox(height: 14),
+      if (formatId != null && fields.isEmpty) Text(fr ? 'Ce format de données utilise des champs avancés. Utilisez « Nouvelle entrée ».' : 'This data format uses advanced fields. Use New entry.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      for (final field in fields.where((item) => !hidden.contains(item.id))) _field(field),
+      if (fields.any((item) => hidden.contains(item.id))) ExpansionTile(title: Text(fr ? 'Autres champs' : 'More fields'), tilePadding: EdgeInsets.zero, children: [for (final field in fields.where((item) => hidden.contains(item.id))) _field(field)]),
+      ExpansionTile(title: Text(fr ? 'Personnaliser la saisie' : 'Customize entry form'), tilePadding: EdgeInsets.zero, children: [
+        for (final field in fields) CheckboxListTile(dense: true, value: !hidden.contains(field.id), title: Text(field.name), onChanged: (value) => setState(() { value == true ? hidden.remove(field.id) : hidden.add(field.id); })),
+        Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: _remember, icon: const Icon(Icons.bookmark_add_outlined), label: Text(fr ? 'Mémoriser les valeurs' : 'Remember values'))),
+      ]),
+      if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
+    ]))),
+    actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(fr ? 'Annuler' : 'Cancel')), FilledButton(onPressed: busy || formatId == null || fields.isEmpty ? null : _save, child: Text(busy ? fr ? 'Enregistrement…' : 'Saving…' : fr ? 'Enregistrer l’entrée' : 'Save entry'))],
+  );
 }
