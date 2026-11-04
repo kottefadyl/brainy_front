@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'brand_assets.dart';
+import 'design_tokens.dart';
 
 import 'auth_api.dart';
 import 'app_strings.dart';
@@ -48,7 +49,6 @@ part 'workspace_entry_pagination.dart';
 const _ink = Color(0xFF20242C);
 const _muted = Color(0xFF545E6D);
 const _blue = Color(0xFF2463CE);
-const _canvas = Color(0xFFF5F6F8);
 
 Color _dialogInk(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark
@@ -100,16 +100,16 @@ class WorkspaceScreen extends StatefulWidget {
 class _WorkspaceScreenState extends State<WorkspaceScreen> {
   void _mutate(VoidCallback change) => setState(change);
   bool get _dark => Theme.of(context).brightness == Brightness.dark;
-  Color get _panel => _dark ? const Color(0xFF24272E) : Colors.white;
+  Color get _panel => _dark ? BrainyColors.darkSurface : BrainyColors.lightSurface;
   Color get _panelBorder =>
-      _dark ? const Color(0xFF3E4653) : const Color(0xFFDDE2EA);
-  Color get _panelInk => _dark ? const Color(0xFFF1F3F7) : _ink;
-  Color get _panelMuted => _dark ? const Color(0xFFB5BECC) : _muted;
-  Color get _actionAccent => _dark ? const Color(0xFF96BDFF) : _blue;
+      _dark ? BrainyColors.darkLine : BrainyColors.lightLine;
+  Color get _panelInk => _dark ? BrainyColors.darkInk : BrainyColors.lightInk;
+  Color get _panelMuted => _dark ? BrainyColors.darkMuted : BrainyColors.lightMuted;
+  Color get _actionAccent => _dark ? BrainyColors.darkBlue : _blue;
   Color _formatSurface(BrainyFormat format) => _dark
       ? Color.alphaBlend(
-          _pastelColor(format.color).withValues(alpha: 0.12),
-          const Color(0xFF24272E),
+          _pastelColor(format.color).withValues(alpha: 0.19),
+          BrainyColors.darkSurface,
         )
       : _formatTint(format);
 
@@ -1103,7 +1103,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _dark ? const Color(0xFF1B1D22) : _canvas,
+      backgroundColor: _dark ? BrainyColors.darkCanvas : BrainyColors.lightCanvas,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -1223,21 +1223,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _sidebar() => Container(
     decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: _dark
-            ? [
-                const Color(0xFF1B1D22),
-                const Color(0xFF1B1D22),
-                const Color(0xFF1B1D22),
-              ]
-            : [
-                const Color(0xFF20242C),
-                const Color(0xFF20242C),
-                const Color(0xFF20242C),
-              ],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
+      color: _dark ? BrainyColors.darkSidebar : BrainyColors.lightSidebar,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1286,8 +1272,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     child: ListTile(
                       selected: collection.id == _selectedId,
                       selectedTileColor: _dark
-                          ? const Color(0xFF333438)
-                          : const Color(0xFF3372BB),
+                           ? const Color(0xFF2A4D78)
+                           : const Color(0xFF365C8C),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1329,9 +1315,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             onPressed: _createCollection,
             icon: const Icon(Icons.add),
             label: Text(_t('New collection')),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Color(0xFF6484AA)),
+           style: OutlinedButton.styleFrom(
+             backgroundColor: BrainyColors.blue,
+             foregroundColor: Colors.white,
+             side: const BorderSide(color: BrainyColors.blue),
               minimumSize: const Size(double.infinity, 46),
             ),
           ),
@@ -1457,8 +1444,6 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     },
                     onMap: _showGeoMap,
                   ),
-                  const SizedBox(height: 20),
-                  _collectionFormat(collection),
                   const SizedBox(height: 28),
                   Row(
                     children: [
@@ -1579,6 +1564,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         ),
                       ),
                     ),
+                  const SizedBox(height: 30),
+                  _collectionFormat(collection),
                 ],
               ),
             ),
@@ -2082,9 +2069,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     width: double.infinity,
     padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
-      color: _panel,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: _panelBorder),
+      color: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: _dark ? const Color(0xFF5579A6) : const Color(0xFFC5DAF7)),
     ),
     child: LayoutBuilder(
       builder: (context, constraints) {
@@ -2094,8 +2081,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           icon: const Icon(Icons.add_rounded, size: 20),
           label: Text(_t('New entry')),
           style: FilledButton.styleFrom(
-            backgroundColor: _dark ? const Color(0xFF666DA6) : _blue,
-            foregroundColor: Colors.white,
+            backgroundColor: _dark ? BrainyColors.darkBlue : _blue,
+            foregroundColor: _dark ? BrainyColors.darkSidebar : Colors.white,
             minimumSize: const Size(0, 46),
           ),
         );
@@ -2111,8 +2098,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   height: 52,
                   decoration: BoxDecoration(
                     color: _dark
-                        ? const Color(0xFF303747)
-                        : const Color(0xFFE9ECF6),
+                        ? const Color(0xFF385A82)
+                        : const Color(0xFFD5E6FB),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Icon(
@@ -2141,7 +2128,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: _panelInk,
+                           color: _dark ? BrainyColors.darkInk : BrainyColors.lightInk,
                           fontSize: 27,
                           fontWeight: FontWeight.w800,
                           height: 1.12,
@@ -2151,7 +2138,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       const SizedBox(height: 7),
                       Text(
                         _t('Save information in your own data format.'),
-                        style: TextStyle(color: _panelMuted, fontSize: 13),
+                         style: TextStyle(color: _dark ? const Color(0xFFD3E2F5) : BrainyColors.lightMuted, fontSize: 13),
                       ),
                     ],
                   ),
@@ -2189,13 +2176,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Widget _statBadge(IconData icon, String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
     decoration: BoxDecoration(
-      color: _dark ? const Color(0xFF303747) : const Color(0xFFEDEFF6),
+      color: _dark ? const Color(0xFF385A82) : const Color(0xFFD5E6FB),
       borderRadius: BorderRadius.circular(9),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: _dark ? const Color(0xFFBEC9E6) : _blue, size: 15),
+        Icon(icon, color: _dark ? BrainyColors.darkBlue : _blue, size: 15),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -2203,7 +2190,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: _dark ? const Color(0xFFD3DAF0) : const Color(0xFF465783),
+              color: _dark ? BrainyColors.darkInk : const Color(0xFF365578),
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
@@ -2391,14 +2378,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                     vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.66),
+                                    color: _dark ? BrainyColors.darkElevated : Colors.white.withValues(alpha: 0.76),
                                     borderRadius: BorderRadius.circular(7),
                                   ),
                                   child: Text(
                                     '${field.name} · ${_t(field.kind.label)}${field.unit == null ? '' : ' · ${numberUnit(field.unit)?.symbol ?? field.unit}'}',
-                                    style: const TextStyle(
-                                      color: _ink,
-                                      fontSize: 11,
+                                    style: TextStyle(
+                                      color: _panelInk,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ),
@@ -2463,22 +2450,24 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _entryCard(BrainyCollection collection, BrainyEntry entry) {
     final format = collection.formatFor(entry);
-    final visibleFields = format.fields
-        .where((field) => entry.values[field.id]?.trim().isNotEmpty ?? false)
-        .toList();
+    final titleField = format.fields.where((field) => field.kind == BrainyFieldKind.title && (entry.values[field.id]?.trim().isNotEmpty ?? false)).firstOrNull;
+    final title = titleField == null ? null : entry.values[titleField.id]!.trim();
+    final otherFields = format.fields.where((field) => field.id != titleField?.id && (entry.values[field.id]?.trim().isNotEmpty ?? false)).toList();
+    final previewFields = otherFields.take(3).toList();
+    final moreFields = otherFields.length - previewFields.length;
     final edited = entry.updatedAt.isAfter(
       entry.createdAt.add(const Duration(seconds: 2)),
     );
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       decoration: BoxDecoration(
         color: _formatSurface(format),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: _dark
-              ? _pastelColor(format.color).withValues(alpha: 0.28)
+              ? _pastelColor(format.color).withValues(alpha: 0.43)
               : const Color(0xFFDDE8F4),
         ),
       ),
@@ -2506,7 +2495,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                 ? Color.alphaBlend(
                                     _pastelColor(format.color)
                                         .withValues(alpha: 0.19),
-                                    const Color(0xFF252930),
+                                     BrainyColors.darkSurface,
                                   )
                                 : Colors.white.withValues(alpha: 0.65),
                             borderRadius: BorderRadius.circular(6),
@@ -2517,7 +2506,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                               color: _dark
                                   ? const Color(0xFFE4E8EC)
                                   : _panelInk,
-                              fontSize: 11,
+                             fontSize: 12,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -2526,14 +2515,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                           '${_t('Created')} ${_formatTimestamp(entry.createdAt)}',
                           style: TextStyle(
                             color: _panelMuted,
-                            fontSize: 11,
+                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         if (edited)
                           Text(
                             '${_t('Edited')} ${_formatTimestamp(entry.updatedAt)}',
-                            style: TextStyle(color: _panelMuted, fontSize: 11),
+                             style: TextStyle(color: _panelMuted, fontSize: 12),
                           ),
                         if (entry.contributionLinkId != null && entry.contributionReceivedAt != null)
                           Text(
@@ -2621,14 +2610,19 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   ),
                 ],
               ),
-              if (visibleFields.isNotEmpty) ...[
-                const SizedBox(height: 5),
+               if (title != null) ...[
+                 const SizedBox(height: 6),
+                 Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: _panelInk, fontSize: 16, fontWeight: FontWeight.w800)),
+               ],
+               if (previewFields.isNotEmpty || moreFields > 0) ...[
+                 const SizedBox(height: 7),
                 Wrap(
                   spacing: 14,
                   runSpacing: 5,
                   children: [
-                    for (final field in visibleFields)
+                     for (final field in previewFields)
                       _entryFieldTile(field, entry.values[field.id]!, entry),
+                     if (moreFields > 0) Text(_copy.isFrench ? '+$moreFields champs' : '+$moreFields fields', style: TextStyle(color: _panelMuted, fontSize: 12, fontWeight: FontWeight.w700)),
                   ],
                 ),
               ],
@@ -2764,7 +2758,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               '${field.name}:',
               style: TextStyle(
                 color: _panelMuted,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
             ),

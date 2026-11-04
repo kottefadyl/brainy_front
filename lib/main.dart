@@ -7,7 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'app_theme_button.dart';
 import 'auth_api.dart';
 import 'auth_screen.dart';
-import 'brand_assets.dart';
+import 'design_tokens.dart';
 import 'google_auth.dart';
 import 'profile_screen.dart';
 import 'workspace_screen.dart' as workspace;
@@ -139,16 +139,16 @@ class _BrainyAppState extends State<BrainyApp> {
         useMaterial3: true,
         fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2463CE),
-          primary: const Color(0xFF2463CE),
+          seedColor: BrainyColors.blue,
+          primary: BrainyColors.blue,
           onPrimary: const Color(0xFFFFFFFF),
-          surface: const Color(0xFFFFFFFF),
-          onSurface: const Color(0xFF20242C),
+          surface: BrainyColors.lightSurface,
+          onSurface: BrainyColors.lightInk,
           error: const Color(0xFFB42332),
         ),
-        scaffoldBackgroundColor: const Color(0xFFF5F6F8),
+        scaffoldBackgroundColor: BrainyColors.lightCanvas,
         dialogTheme: DialogThemeData(
-          backgroundColor: const Color(0xFFFFFFFF),
+          backgroundColor: BrainyColors.lightSurface,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 18,
@@ -205,17 +205,17 @@ class _BrainyAppState extends State<BrainyApp> {
         useMaterial3: true,
         fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF96BDFF),
+          seedColor: BrainyColors.darkBlue,
           brightness: Brightness.dark,
-          primary: const Color(0xFF96BDFF),
+          primary: BrainyColors.darkBlue,
           onPrimary: const Color(0xFF142443),
-          surface: const Color(0xFF24272E),
-          onSurface: const Color(0xFFF1F3F7),
+          surface: BrainyColors.darkSurface,
+          onSurface: BrainyColors.darkInk,
           error: const Color(0xFFFFADB5),
         ),
-        scaffoldBackgroundColor: const Color(0xFF1B1D22),
+        scaffoldBackgroundColor: BrainyColors.darkCanvas,
         dialogTheme: DialogThemeData(
-          backgroundColor: const Color(0xFF2D313A),
+          backgroundColor: BrainyColors.darkElevated,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 18,
@@ -226,7 +226,7 @@ class _BrainyAppState extends State<BrainyApp> {
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF96BDFF),
+            backgroundColor: BrainyColors.darkBlue,
             foregroundColor: const Color(0xFF142443),
             minimumSize: const Size(0, 48),
             shape: RoundedRectangleBorder(
@@ -237,7 +237,7 @@ class _BrainyAppState extends State<BrainyApp> {
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(0, 48),
-            side: const BorderSide(color: Color(0xFF7B8799)),
+            side: const BorderSide(color: BrainyColors.darkControl),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
@@ -245,16 +245,16 @@ class _BrainyAppState extends State<BrainyApp> {
         ),
         inputDecorationTheme: const InputDecorationTheme(
           filled: true,
-          fillColor: Color(0xFF24272E),
+          fillColor: BrainyColors.darkSurface,
           contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          labelStyle: TextStyle(color: Color(0xFFB5BECC)),
-          floatingLabelStyle: TextStyle(color: Color(0xFF96BDFF)),
+          labelStyle: TextStyle(color: BrainyColors.darkMuted),
+          floatingLabelStyle: TextStyle(color: BrainyColors.darkBlue),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(10)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(10)),
-            borderSide: BorderSide(color: Color(0xFF7B8799)),
+            borderSide: BorderSide(color: BrainyColors.darkControl),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(10)),

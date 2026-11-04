@@ -29,6 +29,7 @@ class _FlowAuthApi extends AuthApi {
   Future<Map<String, dynamic>> authenticatedRequest(
     String query,
     Map<String, dynamic> variables,
+    {Duration timeout = const Duration(seconds: 12)}
   ) async {
     if (query.contains('collectionsList')) {
       return {'collectionsList': collections};
@@ -243,6 +244,8 @@ Future<void> _choose(WidgetTester tester, String label, String option) async {
   await tester.ensureVisible(dropdown);
   await tester.pumpAndSettle();
   await tester.tap(dropdown);
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(find.text(option).last);
   await tester.pumpAndSettle();
   await tester.tap(find.text(option).last);
   await tester.pumpAndSettle();

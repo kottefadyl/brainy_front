@@ -74,7 +74,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
             ? []
             : [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
+                  color: Colors.black.withValues(alpha: 0.03),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -113,14 +113,18 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              fr
-                                  ? 'Outils et options de la collection'
-                                  : 'Collection tools & options',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: _inkColor,
+                            Flexible(
+                              child: Text(
+                                fr
+                                    ? 'Outils et options de la collection'
+                                    : 'Collection tools & options',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: _inkColor,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -413,7 +417,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
               Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 13,
-                color: _mutedColor.withOpacity(0.7),
+                color: _mutedColor.withValues(alpha: 0.7),
               ),
             ],
           ),
