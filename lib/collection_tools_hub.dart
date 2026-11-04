@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'collections_api.dart';
+import 'design_tokens.dart';
 
 class CollectionToolsHub extends StatefulWidget {
   const CollectionToolsHub({
@@ -45,19 +46,19 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
   bool _expanded = false;
 
   Color get _surfaceColor =>
-      widget.isDark ? const Color(0xFF242830) : Colors.white;
+      widget.isDark ? BrainyColors.darkSurface : Colors.white;
   Color get _borderColor =>
-      widget.isDark ? const Color(0xFF383F4C) : const Color(0xFFE2E7F0);
+      widget.isDark ? BrainyColors.darkLine : const Color(0xFFE2E7F0);
   Color get _inkColor =>
-      widget.isDark ? Colors.white : const Color(0xFF1E242B);
+      widget.isDark ? BrainyColors.darkInk : const Color(0xFF1E242B);
   Color get _mutedColor =>
-      widget.isDark ? const Color(0xFF9EAAB9) : const Color(0xFF64748B);
+      widget.isDark ? BrainyColors.darkMuted : const Color(0xFF64748B);
   Color get _accentColor =>
-      widget.isDark ? const Color(0xFF8BB5FA) : const Color(0xFF2E6FD8);
+      widget.isDark ? BrainyColors.darkAccent : const Color(0xFF2E6FD8);
   Color get _cardBgColor =>
-      widget.isDark ? const Color(0xFF1E2128) : const Color(0xFFF8FAFC);
+      widget.isDark ? const Color(0xFF29292C) : const Color(0xFFF8FAFC);
   Color get _cardBorderColor =>
-      widget.isDark ? const Color(0xFF323844) : const Color(0xFFE5E9F0);
+      widget.isDark ? BrainyColors.darkLine : const Color(0xFFE5E9F0);
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +97,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                     height: 36,
                     decoration: BoxDecoration(
                       color: widget.isDark
-                          ? const Color(0xFF303747)
+                          ? const Color(0xFF383343)
                           : const Color(0xFFEBF2FC),
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -135,7 +136,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                               ),
                               decoration: BoxDecoration(
                                 color: widget.isDark
-                                    ? const Color(0xFF323846)
+                                    ? const Color(0xFF37373B)
                                     : const Color(0xFFE8EEF8),
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -334,7 +335,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
         child: Container(
           height: 1,
           color: widget.isDark
-              ? const Color(0xFF2E333E)
+              ? const Color(0xFF49494F)
               : const Color(0xFFEDF2F7),
         ),
       ),
@@ -352,13 +353,13 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
     width: width,
     child: Material(
       color: featured
-          ? (widget.isDark ? const Color(0xFF282F3E) : const Color(0xFFF1F6FD))
+          ? (widget.isDark ? const Color(0xFF302D36) : const Color(0xFFF1F6FD))
           : _cardBgColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
           color: featured
-              ? (widget.isDark ? const Color(0xFF3E4F6F) : const Color(0xFFBCD5F5))
+              ? (widget.isDark ? const Color(0xFF625B72) : const Color(0xFFBCD5F5))
               : _cardBorderColor,
         ),
       ),
@@ -374,8 +375,8 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                 height: 36,
                 decoration: BoxDecoration(
                   color: featured
-                      ? (widget.isDark ? const Color(0xFF35445E) : const Color(0xFFDFECFB))
-                      : (widget.isDark ? const Color(0xFF2B303B) : const Color(0xFFE9EEF5)),
+                      ? (widget.isDark ? const Color(0xFF383343) : const Color(0xFFDFECFB))
+                      : (widget.isDark ? const Color(0xFF343438) : const Color(0xFFE9EEF5)),
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Icon(

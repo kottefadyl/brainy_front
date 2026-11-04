@@ -205,10 +205,10 @@ class _BrainyAppState extends State<BrainyApp> {
         useMaterial3: true,
         fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: BrainyColors.darkBlue,
+          seedColor: BrainyColors.darkAccent,
           brightness: Brightness.dark,
-          primary: BrainyColors.darkBlue,
-          onPrimary: const Color(0xFF142443),
+          primary: BrainyColors.darkAccent,
+          onPrimary: BrainyColors.darkOnAccent,
           surface: BrainyColors.darkSurface,
           onSurface: BrainyColors.darkInk,
           error: const Color(0xFFFFADB5),
@@ -226,8 +226,8 @@ class _BrainyAppState extends State<BrainyApp> {
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-            backgroundColor: BrainyColors.darkBlue,
-            foregroundColor: const Color(0xFF142443),
+            backgroundColor: BrainyColors.darkAccent,
+            foregroundColor: BrainyColors.darkOnAccent,
             minimumSize: const Size(0, 48),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
@@ -248,7 +248,7 @@ class _BrainyAppState extends State<BrainyApp> {
           fillColor: BrainyColors.darkSurface,
           contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           labelStyle: TextStyle(color: BrainyColors.darkMuted),
-          floatingLabelStyle: TextStyle(color: BrainyColors.darkBlue),
+          floatingLabelStyle: TextStyle(color: BrainyColors.darkAccent),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(10)),
           ),
@@ -258,7 +258,7 @@ class _BrainyAppState extends State<BrainyApp> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(10)),
-            borderSide: BorderSide(color: Color(0xFFA9CBFF), width: 2),
+            borderSide: BorderSide(color: BrainyColors.darkAccent, width: 2),
           ),
         ),
         cardTheme: CardThemeData(

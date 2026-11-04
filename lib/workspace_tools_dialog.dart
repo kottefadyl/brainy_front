@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_strings.dart';
 import 'background_jobs_panel.dart';
 import 'collections_api.dart';
+import 'design_tokens.dart';
 import 'workspace_backup_panel.dart';
 
 Future<void> showWorkspaceToolsDialog(
@@ -37,11 +38,11 @@ class WorkspaceToolsDialog extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(
-      backgroundColor: isDark ? const Color(0xFF242830) : Colors.white,
+      backgroundColor: isDark ? BrainyColors.darkSurface : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(
-          color: isDark ? const Color(0xFF383F4C) : const Color(0xFFE2E7F0),
+          color: isDark ? BrainyColors.darkLine : const Color(0xFFE2E7F0),
         ),
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -61,14 +62,14 @@ class WorkspaceToolsDialog extends StatelessWidget {
                     height: 44,
                     decoration: BoxDecoration(
                       color: isDark
-                          ? const Color(0xFF303747)
+                          ? const Color(0xFF383343)
                           : const Color(0xFFEBF2FC),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       Icons.tune_rounded,
                       color: isDark
-                          ? const Color(0xFF8BB5FA)
+                          ? BrainyColors.darkAccent
                           : const Color(0xFF2E6FD8),
                       size: 24,
                     ),
@@ -85,7 +86,7 @@ class WorkspaceToolsDialog extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : const Color(0xFF1E242B),
+                            color: isDark ? BrainyColors.darkInk : const Color(0xFF1E242B),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -96,7 +97,7 @@ class WorkspaceToolsDialog extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             color: isDark
-                                ? const Color(0xFF9EAAB9)
+                                ? BrainyColors.darkMuted
                                 : const Color(0xFF64748B),
                           ),
                         ),

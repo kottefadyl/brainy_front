@@ -105,11 +105,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       _dark ? BrainyColors.darkLine : BrainyColors.lightLine;
   Color get _panelInk => _dark ? BrainyColors.darkInk : BrainyColors.lightInk;
   Color get _panelMuted => _dark ? BrainyColors.darkMuted : BrainyColors.lightMuted;
-  Color get _actionAccent => _dark ? BrainyColors.darkBlue : _blue;
+  Color get _actionAccent => _dark ? BrainyColors.darkAccent : _blue;
   Color _formatSurface(BrainyFormat format) => _dark
       ? Color.alphaBlend(
-          _pastelColor(format.color).withValues(alpha: 0.19),
-          BrainyColors.darkSurface,
+          _pastelColor(format.color).withValues(alpha: 0.08),
+          const Color(0xFF3D3D42),
         )
       : _formatTint(format);
 
@@ -1107,10 +1107,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final wide = constraints.maxWidth >= 760;
+            final wide = constraints.maxWidth >= 860;
             return Row(
               children: [
-                if (wide) SizedBox(width: 260, child: _sidebar()),
+                if (wide) SizedBox(width: 292, child: _sidebar()),
                 Expanded(
                   child: Column(
                     children: [
@@ -1188,7 +1188,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           tooltip: _t('Account'),
           icon: CircleAvatar(
             backgroundColor: _dark
-                ? const Color(0xFF303747)
+                ? const Color(0xFF35353A)
                 : const Color(0xFFE6F1FC),
             child: Icon(Icons.person_outline, color: _actionAccent),
           ),
@@ -1249,8 +1249,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
             _t('COLLECTIONS'),
-            style: const TextStyle(
-              color: Color(0xFF94A8C3),
+            style: TextStyle(
+              color: _dark ? BrainyColors.darkMuted : const Color(0xFFE0EDFF),
               fontSize: 11,
               letterSpacing: 1.5,
               fontWeight: FontWeight.w700,
@@ -1272,8 +1272,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     child: ListTile(
                       selected: collection.id == _selectedId,
                       selectedTileColor: _dark
-                           ? const Color(0xFF2A4D78)
-                           : const Color(0xFF365C8C),
+                          ? const Color(0xFF383343)
+                          : const Color(0xFF1D5197),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1283,7 +1283,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                             : Icons.folder_outlined,
                         color: collection.id == _selectedId
                             ? Colors.white
-                            : const Color(0xFFADD0F3),
+                            : _dark ? const Color(0xFFD2D2D8) : const Color(0xFFADD0F3),
                         size: 21,
                       ),
                       title: Text(
@@ -1306,7 +1306,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
           child: Text(
             _t('One account. Every device.'),
-            style: const TextStyle(color: Color(0xFFBED6F2), fontSize: 11),
+            style: TextStyle(
+              color: _dark ? BrainyColors.darkMuted : const Color(0xFFBED6F2),
+              fontSize: 11,
+            ),
           ),
         ),
         Padding(
@@ -1315,10 +1318,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             onPressed: _createCollection,
             icon: const Icon(Icons.add),
             label: Text(_t('New collection')),
-           style: OutlinedButton.styleFrom(
-             backgroundColor: BrainyColors.blue,
-             foregroundColor: Colors.white,
-             side: const BorderSide(color: BrainyColors.blue),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: _dark ? BrainyColors.darkAccent : Colors.white,
+              foregroundColor: _dark
+                  ? BrainyColors.darkOnAccent
+                  : const Color(0xFF174A88),
+              side: BorderSide(
+                color: _dark ? BrainyColors.darkAccent : Colors.white,
+              ),
               minimumSize: const Size(double.infinity, 46),
             ),
           ),
@@ -1503,13 +1510,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                           Container(
                             width: 64,
                             height: 64,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE8F2FE),
+                            decoration: BoxDecoration(
+                              color: _dark
+                                  ? const Color(0xFF383343)
+                                  : const Color(0xFFE8F2FE),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.note_add_outlined,
-                              color: _blue,
+                              color: _actionAccent,
                               size: 32,
                             ),
                           ),
@@ -2071,22 +2080,40 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     decoration: BoxDecoration(
       color: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: _dark ? const Color(0xFF5579A6) : const Color(0xFFC5DAF7)),
+      border: Border.all(
+        color: _dark ? const Color(0xFF4B4B51) : const Color(0xFF22549C),
+      ),
     ),
     child: LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 540;
+        final compact = constraints.maxWidth < 760;
+        final heroOutlineStyle = OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: _dark
+              ? const Color(0xFF37373B)
+              : const Color(0xFF3B75BE),
+          side: BorderSide(
+            color: _dark ? const Color(0xFF73737B) : const Color(0xFFBBD6F5),
+          ),
+        );
         final action = FilledButton.icon(
           onPressed: () => _editEntry(),
           icon: const Icon(Icons.add_rounded, size: 20),
           label: Text(_t('New entry')),
           style: FilledButton.styleFrom(
-            backgroundColor: _dark ? BrainyColors.darkBlue : _blue,
-            foregroundColor: _dark ? BrainyColors.darkSidebar : Colors.white,
+            backgroundColor: _dark ? BrainyColors.darkAccent : Colors.white,
+            foregroundColor: _dark
+                ? BrainyColors.darkOnAccent
+                : const Color(0xFF174A88),
             minimumSize: const Size(0, 46),
           ),
         );
-        final quickAction = OutlinedButton.icon(onPressed: _showQuickEntry, icon: const Icon(Icons.bolt_rounded, size: 18), label: Text(_copy.isFrench ? 'Saisie rapide' : 'Quick entry'));
+        final quickAction = OutlinedButton.icon(
+          onPressed: _showQuickEntry,
+          icon: const Icon(Icons.bolt_rounded, size: 18),
+          label: Text(_copy.isFrench ? 'Saisie rapide' : 'Quick entry'),
+          style: heroOutlineStyle,
+        );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2097,14 +2124,12 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: _dark
-                        ? const Color(0xFF385A82)
-                        : const Color(0xFFD5E6FB),
+                    color: Colors.white.withValues(alpha: 0.17),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Icon(
                     Icons.folder_copy_outlined,
-                    color: _actionAccent,
+                    color: Colors.white,
                     size: 27,
                   ),
                 ),
@@ -2116,7 +2141,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       Text(
                         _t('Collection').toUpperCase(),
                         style: TextStyle(
-                          color: _actionAccent,
+                          color: _dark ? const Color(0xFFC7C7CD) : const Color(0xFFE0EDFF),
                           fontSize: 10,
                           letterSpacing: 1.4,
                           fontWeight: FontWeight.w800,
@@ -2128,7 +2153,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                           color: _dark ? BrainyColors.darkInk : BrainyColors.lightInk,
+                          color: Colors.white,
                           fontSize: 27,
                           fontWeight: FontWeight.w800,
                           height: 1.12,
@@ -2138,12 +2163,27 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       const SizedBox(height: 7),
                       Text(
                         _t('Save information in your own data format.'),
-                         style: TextStyle(color: _dark ? const Color(0xFFD3E2F5) : BrainyColors.lightMuted, fontSize: 13),
+                        style: TextStyle(
+                          color: _dark ? const Color(0xFFC7C7CD) : const Color(0xFFE0EDFF),
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                if (!compact) ...[const SizedBox(width: 14), OutlinedButton.icon(onPressed: () => _showInsights(collection), icon: const Icon(Icons.auto_graph_rounded, size: 18), label: Text(_copy.isFrench ? 'Calculs' : 'Insights')), const SizedBox(width: 8), quickAction, const SizedBox(width: 8), action],
+                if (!compact) ...[
+                  const SizedBox(width: 14),
+                  OutlinedButton.icon(
+                    onPressed: () => _showInsights(collection),
+                    icon: const Icon(Icons.auto_graph_rounded, size: 18),
+                    label: Text(_copy.isFrench ? 'Calculs' : 'Insights'),
+                    style: heroOutlineStyle,
+                  ),
+                  const SizedBox(width: 8),
+                  quickAction,
+                  const SizedBox(width: 8),
+                  action,
+                ],
               ],
             ),
             if (compact) ...[
@@ -2176,13 +2216,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Widget _statBadge(IconData icon, String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
     decoration: BoxDecoration(
-      color: _dark ? const Color(0xFF385A82) : const Color(0xFFD5E6FB),
+      color: _dark ? const Color(0xFF37373B) : const Color(0xFF3B75BE),
       borderRadius: BorderRadius.circular(9),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: _dark ? BrainyColors.darkBlue : _blue, size: 15),
+        Icon(icon, color: _dark ? BrainyColors.darkAccent : Colors.white, size: 15),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -2190,7 +2230,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: _dark ? BrainyColors.darkInk : const Color(0xFF365578),
+              color: Colors.white,
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
