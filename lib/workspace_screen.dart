@@ -8,6 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'brand_assets.dart';
 import 'design_tokens.dart';
+import 'workspace_navigation.dart';
+import 'workspace_format_cards.dart';
+import 'workspace_entry_row.dart';
 
 import 'auth_api.dart';
 import 'app_strings.dart';
@@ -107,12 +110,6 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Color get _panelInk => _dark ? BrainyColors.darkInk : BrainyColors.lightInk;
   Color get _panelMuted => _dark ? BrainyColors.darkMuted : BrainyColors.lightMuted;
   Color get _actionAccent => _dark ? BrainyColors.darkAccent : _blue;
-  Color _formatSurface(BrainyFormat format) => _dark
-      ? Color.alphaBlend(
-          _pastelColor(format.color).withValues(alpha: 0.08),
-          const Color(0xFF3D3D42),
-        )
-      : _formatTint(format);
 
 
   String _t(String value) => AppStrings.of(context).text(value);
@@ -130,7 +127,6 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Timer? _filterDebounce;
   int _entryRequest = 0;
   String _search = '';
-  String _collectionQuery = '';
   String? _filterFormatId;
   String? _filterFieldId;
   String _filterOperator = 'EQ';
@@ -1075,10 +1071,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     if (changed && mounted) await _loadEntries();
   }
 
-  String _formatTimestamp(DateTime timestamp) {
+  String _formatTimestamp(DateTime timestamp, {bool compact = false}) {
     final local = timestamp.toLocal();
     final formatting = MaterialLocalizations.of(context);
-    final date = formatting.formatFullDate(local);
+    final date = compact ? formatting.formatCompactDate(local) : formatting.formatFullDate(local);
     final time = formatting.formatTimeOfDay(
       TimeOfDay.fromDateTime(local),
       alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
@@ -1135,7 +1131,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     height: 72,
     padding: EdgeInsets.symmetric(horizontal: wide ? 36 : 18),
     decoration: BoxDecoration(
-      color: _panel,
+      color: wide ? _panel : _dark ? BrainyColors.darkSidebar : BrainyColors.lightSidebar,
       border: Border(bottom: BorderSide(color: _panelBorder)),
     ),
     child: Row(
@@ -1147,7 +1143,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             Text(
               'brainy',
               style: TextStyle(
-                color: _panelInk,
+                color: wide ? _panelInk : BrainyColors.navigationInk,
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
@@ -1161,7 +1157,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: _panelInk,
+                color: wide ? _panelInk : BrainyColors.navigationInk,
                 fontSize: 21,
                 fontWeight: FontWeight.w800,
               ),
@@ -1176,15 +1172,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               ),
             ),
         ],
-        LanguageMenu(onChanged: widget.onLanguageChanged),
+        LanguageMenu(onChanged: widget.onLanguageChanged, onDark: !wide),
         if (MediaQuery.sizeOf(context).width >= 430)
-          IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: _actionAccent)),
-        if (widget.themeButton != null) widget.themeButton!,
+          IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: wide ? _actionAccent : BrainyColors.navigationInk)),
+        if (widget.themeButton != null) Theme(data: Theme.of(context).copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: wide ? _actionAccent : BrainyColors.navigationInk)), child: widget.themeButton!),
         if (MediaQuery.sizeOf(context).width >= 430)
           IconButton(
             tooltip: _t('Import and export'),
             onPressed: _openTransfer,
-            icon: Icon(Icons.import_export_rounded, color: _actionAccent),
+            icon: Icon(Icons.import_export_rounded, color: wide ? _actionAccent : BrainyColors.navigationInk),
           ),
         PopupMenuButton<String>(
           tooltip: _t('Account'),
@@ -1223,188 +1219,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     ),
   );
 
-  Widget _sidebar() => Container(
-    decoration: BoxDecoration(
-      color: _dark ? BrainyColors.darkSidebar : BrainyColors.lightSidebar,
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(24, 25, 20, 31),
-          child: Row(
-            children: [
-              BrainyMark(size: 32),
-              SizedBox(width: 10),
-              Text(
-                'brainy',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 23,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            _t('COLLECTIONS'),
-            style: TextStyle(
-              color: _dark ? BrainyColors.darkMuted : const Color(0xFFE0EDFF),
-              fontSize: 11,
-              letterSpacing: 1.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: TextField(
-            onChanged: (value) => setState(() => _collectionQuery = value),
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: _copy.isFrench ? 'Rechercher…' : 'Search…',
-              hintStyle: TextStyle(color: _dark ? BrainyColors.darkMuted : const Color(0xFFE0EDFF)),
-              prefixIcon: const Icon(Icons.search_rounded, color: Colors.white70),
-              filled: true,
-              fillColor: _dark ? const Color(0xFF242427) : const Color(0x33FFFFFF),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(11), borderSide: BorderSide(color: _dark ? BrainyColors.darkLine : const Color(0xFF9FC2F0))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(11), borderSide: const BorderSide(color: Colors.white, width: 2)),
-              isDense: true,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: ListView(
-            children: [
-              for (final collection in _collections.where((item) => item.name.toLowerCase().contains(_collectionQuery.trim().toLowerCase())))
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 2,
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: ListTile(
-                      selected: collection.id == _selectedId,
-                      selectedTileColor: _dark
-                          ? const Color(0xFF24589B)
-                          : const Color(0xFF1D5197),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      leading: Icon(
-                        collection.id == _selectedId
-                            ? Icons.folder_rounded
-                            : Icons.folder_outlined,
-                        color: collection.id == _selectedId
-                            ? Colors.white
-                            : _dark ? const Color(0xFFD2D2D8) : const Color(0xFFADD0F3),
-                        size: 21,
-                      ),
-                      title: Text(
-                        collection.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                        ),
-                      ),
-                      onTap: () => _select(collection),
-                    ),
-                  ),
-                ),
-              if (_collectionQuery.isNotEmpty && !_collections.any((item) => item.name.toLowerCase().contains(_collectionQuery.trim().toLowerCase())))
-                Padding(padding: const EdgeInsets.all(18), child: Text(_copy.isFrench ? 'Aucune collection trouvée' : 'No matching collections', style: TextStyle(color: _dark ? BrainyColors.darkMuted : const Color(0xFFE0EDFF)))),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
-          child: Text(
-            _t('One account. Every device.'),
-            style: TextStyle(
-              color: _dark ? BrainyColors.darkMuted : const Color(0xFFBED6F2),
-              fontSize: 11,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: OutlinedButton.icon(
-            onPressed: _createCollection,
-            icon: const Icon(Icons.add),
-            label: Text(_t('New collection')),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: _dark ? BrainyColors.darkAccent : Colors.white,
-              foregroundColor: _dark
-                  ? BrainyColors.darkOnAccent
-                  : const Color(0xFF174A88),
-              side: BorderSide(
-                color: _dark ? BrainyColors.darkAccent : Colors.white,
-              ),
-              minimumSize: const Size(double.infinity, 46),
-            ),
-          ),
-        ),
-      ],
-    ),
+  Widget _sidebar() => WorkspaceNavigation(
+    collections: _collections, selectedId: _selectedId,
+    onSelect: _select, onCreate: _createCollection,
   );
 
-  Widget _mobileCollectionPicker() => Container(
-    color: _panel,
-    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-    child: Row(
-      children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            key: ValueKey(_selectedId),
-            initialValue: _selectedId,
-            isExpanded: true,
-            decoration: InputDecoration(
-              labelText: _t('Collection'),
-              isDense: true,
-              border: const OutlineInputBorder(),
-            ),
-            items: [
-              for (final item in _collections)
-                DropdownMenuItem(
-                  value: item.id,
-                  child: Text(item.name, overflow: TextOverflow.ellipsis),
-                ),
-            ],
-            onChanged: (id) {
-              for (final item in _collections) {
-                if (item.id == id) _select(item);
-              }
-            },
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton.filledTonal(
-          tooltip: _t('New collection'),
-          onPressed: _createCollection,
-          icon: const Icon(Icons.create_new_folder_outlined),
-        ),
-        PopupMenuButton<String>(
-          tooltip: _copy.isFrench ? 'Autres actions' : 'More actions',
-          icon: const Icon(Icons.more_horiz_rounded),
-          onSelected: (value) {
-            if (value == 'manual') _createCollectionManually();
-            if (value == 'transfer') _openTransfer();
-          },
-          itemBuilder: (_) => [
-            PopupMenuItem(value: 'manual', child: Text(_copy.isFrench ? 'Créer manuellement' : 'Create manually')),
-            PopupMenuItem(value: 'transfer', child: Text(_t('Import and export'))),
-          ],
-        ),
-      ],
-    ),
+  Widget _mobileCollectionPicker() => WorkspaceMobileCollections(
+    collections: _collections, selectedId: _selectedId, onSelect: _select,
+    onCreate: _createCollection, onManual: _createCollectionManually, onTransfer: _openTransfer,
   );
 
   Widget _content() {
@@ -2107,22 +1929,20 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     width: double.infinity,
     padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
-      color: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
+      gradient: LinearGradient(colors: [Color.lerp(_panel, _actionAccent, .06)!, _panel]),
       borderRadius: BorderRadius.circular(18),
       border: Border.all(
-        color: _dark ? const Color(0xFF4A82C8) : const Color(0xFF22549C),
+        color: _panelBorder,
       ),
     ),
     child: LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
         final heroOutlineStyle = OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
-          backgroundColor: _dark
-              ? const Color(0xFF2C629E)
-              : const Color(0xFF3B75BE),
+          foregroundColor: _actionAccent,
+          backgroundColor: _panel,
           side: BorderSide(
-            color: _dark ? const Color(0xFFA5C9F5) : const Color(0xFFBBD6F5),
+            color: _dark ? BrainyColors.darkControl : BrainyColors.lightControl,
           ),
         );
         final action = FilledButton.icon(
@@ -2130,10 +1950,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           icon: const Icon(Icons.add_rounded, size: 20),
           label: Text(_t('New entry')),
           style: FilledButton.styleFrom(
-            backgroundColor: _dark ? BrainyColors.darkAccent : Colors.white,
+            backgroundColor: _actionAccent,
             foregroundColor: _dark
                 ? BrainyColors.darkOnAccent
-                : const Color(0xFF174A88),
+                : BrainyColors.lightSurface,
             minimumSize: const Size(0, 46),
           ),
         );
@@ -2153,12 +1973,12 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.17),
+                    color: _actionAccent.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Icon(
                     Icons.folder_copy_outlined,
-                    color: Colors.white,
+                    color: _panelInk,
                     size: 27,
                   ),
                 ),
@@ -2170,8 +1990,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       Text(
                         _t('Collection').toUpperCase(),
                         style: TextStyle(
-                          color: _dark ? const Color(0xFFC7C7CD) : const Color(0xFFE0EDFF),
-                          fontSize: 10,
+                          color: _panelMuted,
+                          fontSize: 13,
                           letterSpacing: 1.4,
                           fontWeight: FontWeight.w800,
                         ),
@@ -2182,7 +2002,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: _panelInk,
                           fontSize: 27,
                           fontWeight: FontWeight.w800,
                           height: 1.12,
@@ -2193,7 +2013,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       Text(
                         _t('Save information in your own data format.'),
                         style: TextStyle(
-                          color: _dark ? const Color(0xFFC7C7CD) : const Color(0xFFE0EDFF),
+                          color: _panelMuted,
                           fontSize: 13,
                         ),
                       ),
@@ -2245,13 +2065,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Widget _statBadge(IconData icon, String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
     decoration: BoxDecoration(
-      color: _dark ? const Color(0xFF2C629E) : const Color(0xFF3B75BE),
+      color: _actionAccent.withValues(alpha: .08),
       borderRadius: BorderRadius.circular(9),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: _dark ? BrainyColors.darkAccent : Colors.white, size: 15),
+        Icon(icon, color: _actionAccent, size: 15),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -2259,7 +2079,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: Colors.white,
+              color: _panelInk,
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
@@ -2269,215 +2089,16 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     ),
   );
 
-  Widget _collectionFormat(BrainyCollection collection) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.fromLTRB(20, 14, 12, 18),
-    decoration: BoxDecoration(
-      color: _panel,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: _panelBorder),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.tune_rounded, size: 20, color: _actionAccent),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(
-                _t('Collection data formats'),
-                style: TextStyle(
-                  color: _panelInk,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: _t('Collection actions'),
-              icon: const Icon(Icons.more_horiz_rounded, color: _muted),
-              onSelected: (value) {
-                if (value == 'rename') {
-                  _renameCollection();
-                } else if (value == 'delete') {
-                  _deleteCollection();
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(value: 'rename', child: Text(_t('Rename'))),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Text(
-                    _t('Delete collection'),
-                    style: const TextStyle(color: Color(0xFFC54242)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth < 520
-                ? constraints.maxWidth
-                : (constraints.maxWidth - 10) / 2;
-            return Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final format in collection.formats)
-                  SizedBox(
-                    width: width,
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: _formatSurface(format),
-                        borderRadius: BorderRadius.circular(13),
-                        border: Border.all(
-                          color: _dark
-                              ? _pastelColor(format.color)
-                                    .withValues(alpha: 0.28)
-                              : const Color(0xFFE1E9F2),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _displayFormatName(context, format),
-                                  style: TextStyle(
-                                    color: _panelInk,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => _editFormat(format),
-                                tooltip: _t('Edit data format'),
-                                visualDensity: VisualDensity.compact,
-                                icon: const Icon(
-                                  Icons.edit_outlined,
-                                  size: 19,
-                                  color: _blue,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () async {
-                                  final copied = await showCopyToCollection(
-                                    context,
-                                    api: _api,
-                                    source: collection,
-                                    formatId: format.id,
-                                  );
-                                  if (copied) await _load();
-                                },
-                                tooltip: _t('Copy to collection'),
-                                visualDensity: VisualDensity.compact,
-                                icon: const Icon(
-                                  Icons.copy_all_outlined,
-                                  size: 19,
-                                  color: _blue,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () async {
-                                  final linked = await showCopyToCollection(
-                                    context,
-                                    api: _api,
-                                    source: collection,
-                                    formatId: format.id,
-                                    link: true,
-                                  );
-                                  if (linked) await _load();
-                                },
-                                tooltip: _t('Share by link'),
-                                visualDensity: VisualDensity.compact,
-                                icon: const Icon(
-                                  Icons.link_outlined,
-                                  size: 19,
-                                  color: _blue,
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () => _changeFormatColor(format),
-                                tooltip: _t('Change color'),
-                                visualDensity: VisualDensity.compact,
-                                icon: const Icon(
-                                  Icons.palette_outlined,
-                                  size: 19,
-                                  color: _blue,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          if (format.linkedSource != null)
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton.icon(
-                                onPressed: () async {
-                                  final changed = await showLinkedFormatUpdate(
-                                    context,
-                                    api: _api,
-                                    collection: collection,
-                                    format: format,
-                                  );
-                                  if (changed) await _load();
-                                },
-                                icon: const Icon(Icons.sync_outlined, size: 17),
-                                label: Text(
-                                  '${_t('Review updates')} · ${format.linkedSource!['acceptedVersion']}',
-                                ),
-                              ),
-                            ),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: [
-                              for (final field in format.fields)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _dark ? BrainyColors.darkElevated : Colors.white.withValues(alpha: 0.76),
-                                    borderRadius: BorderRadius.circular(7),
-                                  ),
-                                  child: Text(
-                                    '${field.name} · ${_t(field.kind.label)}${field.unit == null ? '' : ' · ${numberUnit(field.unit)?.symbol ?? field.unit}'}',
-                                    style: TextStyle(
-                                      color: _panelInk,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: collection.formats.length >= brainyFormatColors.length
-              ? null
-              : _addFormat,
-          icon: const Icon(Icons.add_rounded, size: 18),
-          label: Text(_t('Add data format')),
-        ),
-      ],
-    ),
+  Widget _collectionFormat(BrainyCollection collection) => WorkspaceFormatCards(
+    collection: collection,
+    entryCounts: {for (final format in collection.formats) format.id: _entries.where((entry) => entry.formatId == format.id).length},
+    partialCounts: _loadingEntries || _pageCursor != null || _previousPages.isNotEmpty || _search.isNotEmpty || _filterFormatId != null || _filterFieldId != null || _selectedViewId != null,
+    onAdd: _addFormat, onAddEntry: (format) => _editEntry(null, format.id),
+    onEdit: _editFormat, onColor: _changeFormatColor,
+    onCopy: (format) async { if (await showCopyToCollection(context, api: _api, source: collection, formatId: format.id)) await _load(); },
+    onLink: (format) async { if (await showCopyToCollection(context, api: _api, source: collection, formatId: format.id, link: true)) await _load(); },
+    onReview: (format) async { if (await showLinkedFormatUpdate(context, api: _api, collection: collection, format: format)) await _load(); },
+    onRename: _renameCollection, onDelete: _deleteCollection,
   );
 
   Widget _message(
@@ -2538,64 +2159,28 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _entryCard(BrainyCollection collection, BrainyEntry entry) {
     final format = collection.formatFor(entry);
-    final titleField = format.fields.where((field) => field.kind == BrainyFieldKind.title && (entry.values[field.id]?.trim().isNotEmpty ?? false)).firstOrNull;
-    final firstField = format.fields.where((field) => entry.values[field.id]?.trim().isNotEmpty ?? false).firstOrNull;
-    final title = titleField != null ? entry.values[titleField.id]!.trim() : firstField != null ? displayEntryValue(firstField, entry.values[firstField.id]!, _copy, snapshot: entry.unitSnapshots[firstField.id], collection: collection) : _displayFormatName(context, format);
-    final edited = entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2)));
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 7),
-      padding: const EdgeInsets.fromLTRB(12, 5, 5, 7),
-      decoration: BoxDecoration(
-        color: _formatSurface(format),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: _dark ? _pastelColor(format.color).withValues(alpha: 0.43) : const Color(0xFFDDE8F4)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Expanded(child: TextButton(
-              onPressed: () => _showEntryDetails(collection, entry),
-              style: TextButton.styleFrom(alignment: Alignment.centerLeft, padding: const EdgeInsets.symmetric(horizontal: 2), foregroundColor: _panelInk),
-              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            )),
-            IconButton(
-              onPressed: () => _showEntryDetails(collection, entry),
-              tooltip: _copy.isFrench ? 'Voir les détails' : 'View details',
-              icon: const Icon(Icons.visibility_outlined, size: 19),
-            ),
-            PopupMenuButton<String>(
-              tooltip: _t('Entry actions'),
-              icon: const Icon(Icons.more_horiz_rounded, color: _muted),
-              onSelected: (value) {
-                if (value == 'copy') _copyEntry(collection, entry);
-                if (value == 'edit') _editEntry(entry);
-                if (value == 'reminder') showEntryReminderDialog(context, api: _api, collection: collection, entry: entry, push: _push, view: _selectedView);
-                if (value == 'links') showEntryLinksDialog(context, _api, collection, entry).then((linked) { if (linked != null && mounted) _editEntry(linked); });
-                if (value == 'delete') _deleteEntry(entry);
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(value: 'copy', child: Text(_t('Copy entry'))),
-                PopupMenuItem(value: 'edit', child: Text(format.appendOnly ? _copy.isFrench ? 'Ouvrir le registre' : 'Open register' : _t('Edit'))),
-                PopupMenuItem(value: 'reminder', child: Text(_copy.isFrench ? 'Rappels' : 'Reminders')),
-                PopupMenuItem(value: 'links', child: Text(_copy.isFrench ? 'Liens entre entrées' : 'Entry links')),
-                if (!format.appendOnly) PopupMenuItem(value: 'delete', child: Text(_t('Delete'), style: const TextStyle(color: Color(0xFFC54242)))),
-              ],
-            ),
-          ]),
-          Padding(
-            padding: const EdgeInsets.only(left: 3, right: 6),
-            child: Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
-              Text(_displayFormatName(context, format), style: TextStyle(color: _panelInk, fontSize: 11, fontWeight: FontWeight.w700)),
-              Text('${_t('Created')} ${_formatTimestamp(entry.createdAt)}', style: TextStyle(color: _panelMuted, fontSize: 11)),
-              if (edited) Text('${_t('Edited')} ${_formatTimestamp(entry.updatedAt)}', style: TextStyle(color: _panelMuted, fontSize: 11)),
-            ]),
-          ),
-        ],
-      ),
+    final visible = format.fields.where((field) => entry.values[field.id]?.trim().isNotEmpty ?? false);
+    final titleField = visible.where((field) => field.kind == BrainyFieldKind.title).firstOrNull;
+    final firstField = visible.firstOrNull;
+    final previewField = visible.where((field) => field.id != titleField?.id && field.kind != BrainyFieldKind.attachment && field.kind != BrainyFieldKind.objectRef).firstOrNull;
+    final title = titleField != null ? entry.values[titleField.id]! : firstField != null ? displayEntryValue(firstField, entry.values[firstField.id]!, _copy, snapshot: entry.unitSnapshots[firstField.id], collection: collection) : _displayFormatName(context, format);
+    return WorkspaceEntryRow(
+      key: ValueKey(entry.id), color: format.color, title: title,
+      formatName: _displayFormatName(context, format), appendOnly: format.appendOnly,
+      preview: titleField != null && previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
+      created: _formatTimestamp(entry.createdAt, compact: true),
+      edited: entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2))) ? _formatTimestamp(entry.updatedAt, compact: true) : null,
+      onDetails: () => _showEntryDetails(collection, entry),
+      onAction: (action) {
+        if (action == 'copy') _copyEntry(collection, entry);
+        if (action == 'edit') _editEntry(entry);
+        if (action == 'reminder') showEntryReminderDialog(context, api: _api, collection: collection, entry: entry, push: _push, view: _selectedView);
+        if (action == 'links') showEntryLinksDialog(context, _api, collection, entry).then((linked) { if (linked != null && mounted) _editEntry(linked); });
+        if (action == 'delete') _deleteEntry(entry);
+      },
     );
   }
+
   Future<void> _showObjectReferences(
     BrainyEntry entry,
     BrainyField field,

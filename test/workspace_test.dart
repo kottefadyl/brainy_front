@@ -307,14 +307,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Created'), findsOneWidget);
-    expect(find.textContaining('October 20, 2026'), findsOneWidget);
-    expect(find.textContaining('October 21, 2026'), findsOneWidget);
+    expect(find.textContaining('10/20/2026'), findsOneWidget);
+    expect(find.textContaining('10/21/2026'), findsOneWidget);
     await tester.ensureVisible(find.byTooltip('View details'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('View details'));
     await tester.pumpAndSettle();
+    expect(find.textContaining('October 20, 2026'), findsOneWidget);
+    expect(find.textContaining('October 21, 2026'), findsOneWidget);
     expect(find.text('Distance'), findsOneWidget);
-    expect(find.text('12.5 km'), findsOneWidget);
+    expect(find.descendant(of: find.byType(Dialog), matching: find.text('12.5 km')), findsOneWidget);
     expect(find.text('Fresh air\nBlue sky'), findsOneWidget);
     await tester.tap(find.text('Copy entry'));
     await tester.pumpAndSettle();
@@ -601,10 +603,12 @@ void main() {
 
       expect(api.entries.single['formatId'], 'format-1');
       expect(find.text('A second shape of thought'), findsOneWidget);
-      final recolor = find.byTooltip('Change color').last;
+      final recolor = find.byTooltip('Data format actions').last;
       await tester.ensureVisible(recolor);
       await tester.pumpAndSettle();
       await tester.tap(recolor);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Change color').last);
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Color 3'));
       await tester.pumpAndSettle();
@@ -661,10 +665,12 @@ void main() {
     await tester.tap(find.text('Save entry'));
     await tester.pumpAndSettle();
 
-    final editButton = find.byTooltip('Edit data format').first;
+    final editButton = find.byTooltip('Data format actions').first;
     await tester.ensureVisible(editButton);
     await tester.pumpAndSettle();
     await tester.tap(editButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit data format').last);
     await tester.pumpAndSettle();
     expect(
       find.textContaining('Entries using this data format: 1'),
