@@ -1172,7 +1172,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               ),
             ),
         ],
-        LanguageMenu(onChanged: widget.onLanguageChanged),
+        LanguageMenu(onChanged: widget.onLanguageChanged, onDark: !wide),
         if (MediaQuery.sizeOf(context).width >= 430)
           IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: wide ? _actionAccent : BrainyNavigationColors.ink(_dark))),
         if (widget.themeButton != null) Theme(data: Theme.of(context).copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: wide ? _actionAccent : BrainyNavigationColors.ink(_dark))), child: widget.themeButton!),
