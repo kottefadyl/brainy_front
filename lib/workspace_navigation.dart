@@ -38,8 +38,8 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(24, 24, 20, 10),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 24, 20, 10),
             child: Row(
               children: [
                 BrainyMark(size: 32),
@@ -47,7 +47,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
                 Text(
                   'brainy',
                   style: TextStyle(
-                    color: BrainyColors.navigationInk,
+                    color: BrainyNavigationColors.ink(dark),
                     fontSize: 23,
                     fontWeight: FontWeight.w700,
                   ),
@@ -67,8 +67,8 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
             padding: const EdgeInsets.fromLTRB(24, 0, 20, 28),
             child: Text(
               copy.text('One account. Every device.'),
-              style: const TextStyle(
-                color: BrainyColors.navigationMuted,
+              style: TextStyle(
+                color: BrainyNavigationColors.muted(dark),
                 fontSize: 13,
               ),
             ),
@@ -77,8 +77,8 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               copy.text('COLLECTIONS'),
-              style: const TextStyle(
-                color: BrainyColors.navigationMuted,
+              style: TextStyle(
+                color: BrainyNavigationColors.muted(dark),
                 fontSize: 13,
                 letterSpacing: 1,
                 fontWeight: FontWeight.w600,
@@ -89,26 +89,26 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: TextField(
               onChanged: (value) => setState(() => _query = value),
-              style: const TextStyle(color: BrainyColors.navigationInk),
+              style: TextStyle(color: BrainyNavigationColors.ink(dark)),
               decoration: InputDecoration(
                 hintText: copy.isFrench ? 'Rechercher…' : 'Search…',
-                hintStyle: const TextStyle(color: BrainyColors.navigationMuted),
-                prefixIcon: const Icon(
+                hintStyle: TextStyle(color: BrainyNavigationColors.muted(dark)),
+                prefixIcon: Icon(
                   Icons.search_rounded,
-                  color: BrainyColors.navigationMuted,
+                  color: BrainyNavigationColors.muted(dark),
                 ),
                 filled: true,
-                fillColor: BrainyColors.navigationField,
+                fillColor: BrainyNavigationColors.field(dark),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                    color: BrainyColors.navigationBorder,
+                  borderSide: BorderSide(
+                    color: BrainyNavigationColors.border(dark),
                   ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(
-                    color: BrainyColors.navigationInk,
+                  borderSide: BorderSide(
+                    color: BrainyNavigationColors.ink(dark),
                     width: 2,
                   ),
                 ),
@@ -124,20 +124,18 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Material(
                       color: collection.id == widget.selectedId
-                          ? BrainyColors.navigationSelected
+                          ? BrainyNavigationColors.selected(dark)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
                       child: ListTile(
                         selected: collection.id == widget.selectedId,
-                        selectedColor: BrainyColors.navigationInk,
-                        textColor: BrainyColors.navigationInk,
-                        iconColor: BrainyColors.navigationMuted,
-                        hoverColor: BrainyColors.navigationInk.withValues(
-                          alpha: .09,
-                        ),
-                        focusColor: BrainyColors.navigationInk.withValues(
-                          alpha: .20,
-                        ),
+                        selectedColor: BrainyNavigationColors.ink(dark),
+                        textColor: BrainyNavigationColors.ink(dark),
+                        iconColor: BrainyNavigationColors.muted(dark),
+                        hoverColor: BrainyNavigationColors.ink(dark)
+                            .withValues(alpha: .09),
+                        focusColor: BrainyNavigationColors.ink(dark)
+                            .withValues(alpha: .20),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -169,8 +167,8 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
                       copy.isFrench
                           ? 'Aucune collection trouvée'
                           : 'No matching collections',
-                      style: const TextStyle(
-                        color: BrainyColors.navigationMuted,
+                      style: TextStyle(
+                        color: BrainyNavigationColors.muted(dark),
                       ),
                     ),
                   ),
@@ -184,8 +182,10 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
               icon: const Icon(Icons.add_rounded, size: 20),
               label: Text(copy.text('New collection')),
               style: OutlinedButton.styleFrom(
-                backgroundColor: BrainyColors.navigationInk,
-                foregroundColor: BrainyColors.lightSidebar,
+                backgroundColor: BrainyNavigationColors.ink(dark),
+                foregroundColor: dark
+                    ? BrainyColors.darkSidebar
+                    : BrainyColors.lightSidebar,
                 minimumSize: const Size(double.infinity, 48),
                 side: BorderSide.none,
               ),
@@ -227,32 +227,32 @@ class WorkspaceMobileCollections extends StatelessWidget {
                 key: ValueKey(selectedId),
                 initialValue: selectedId,
                 isExpanded: true,
-                dropdownColor: BrainyColors.navigationField,
-                style: const TextStyle(
-                  color: BrainyColors.navigationInk,
+                dropdownColor: BrainyNavigationColors.field(dark),
+                style: TextStyle(
+                  color: BrainyNavigationColors.ink(dark),
                   fontSize: 14,
                 ),
-                iconEnabledColor: BrainyColors.navigationInk,
+                iconEnabledColor: BrainyNavigationColors.ink(dark),
                 decoration: InputDecoration(
                   labelText: copy.text('Collection'),
-                  labelStyle: const TextStyle(
-                    color: BrainyColors.navigationMuted,
+                  labelStyle: TextStyle(
+                    color: BrainyNavigationColors.muted(dark),
                   ),
-                  floatingLabelStyle: const TextStyle(
-                    color: BrainyColors.navigationMuted,
+                  floatingLabelStyle: TextStyle(
+                    color: BrainyNavigationColors.muted(dark),
                   ),
                   filled: true,
-                  fillColor: BrainyColors.navigationField,
+                  fillColor: BrainyNavigationColors.field(dark),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: BrainyColors.navigationBorder,
+                    borderSide: BorderSide(
+                      color: BrainyNavigationColors.border(dark),
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: BrainyColors.navigationInk,
+                    borderSide: BorderSide(
+                      color: BrainyNavigationColors.ink(dark),
                       width: 2,
                     ),
                   ),
@@ -275,14 +275,14 @@ class WorkspaceMobileCollections extends StatelessWidget {
             IconButton(
               tooltip: copy.text('New collection'),
               onPressed: onCreate,
-              color: BrainyColors.navigationInk,
+              color: BrainyNavigationColors.ink(dark),
               icon: const Icon(Icons.create_new_folder_outlined),
             ),
             PopupMenuButton<String>(
               tooltip: copy.isFrench ? 'Autres actions' : 'More actions',
-              icon: const Icon(
+              icon: Icon(
                 Icons.more_horiz_rounded,
-                color: BrainyColors.navigationInk,
+                color: BrainyNavigationColors.ink(dark),
               ),
               onSelected: (value) =>
                   value == 'manual' ? onManual() : onTransfer(),

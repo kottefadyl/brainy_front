@@ -141,20 +141,25 @@ class _IdentityPreviewState extends State<IdentityPreview> {
           _dark = dark;
         });
         await Future<void>.delayed(const Duration(milliseconds: 700));
-        for (final view in ['entries', 'formats']) {
+        for (final view in ['collection', 'entries', 'formats']) {
           final target = _find(
-            (widget) => view == 'formats'
+            (widget) => view != 'entries'
                 ? widget is WorkspaceFormatCards
                 : widget is WorkspaceEntryRow,
           );
           if (target != null) {
-            await Scrollable.ensureVisible(
-              target,
-              alignment: view == 'formats' ? 0 : .6,
-              duration: const Duration(milliseconds: 150),
-            );
+            if (view == 'collection') {
+              Scrollable.of(target).position.jumpTo(0);
+            } else {
+              await Scrollable.ensureVisible(
+                target,
+                alignment: view == 'formats' ? 0 : .6,
+                duration: const Duration(milliseconds: 150),
+              );
+            }
           }
           await Future<void>.delayed(const Duration(milliseconds: 300));
+          await WidgetsBinding.instance.endOfFrame;
           final boundary =
               _boundary.currentContext!.findRenderObject()!
                   as RenderRepaintBoundary;
@@ -173,6 +178,7 @@ class _IdentityPreviewState extends State<IdentityPreview> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
+    themeAnimationDuration: Duration.zero,
     theme: _dark ? BrainyTheme.dark : BrainyTheme.light,
     locale: const Locale('fr'),
     supportedLocales: const [Locale('fr'), Locale('en')],

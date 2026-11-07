@@ -1143,7 +1143,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             Text(
               'brainy',
               style: TextStyle(
-                color: wide ? _panelInk : BrainyColors.navigationInk,
+                color: wide ? _panelInk : BrainyNavigationColors.ink(_dark),
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
               ),
@@ -1157,7 +1157,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: wide ? _panelInk : BrainyColors.navigationInk,
+                color: wide ? _panelInk : BrainyNavigationColors.ink(_dark),
                 fontSize: 21,
                 fontWeight: FontWeight.w800,
               ),
@@ -1172,15 +1172,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               ),
             ),
         ],
-        LanguageMenu(onChanged: widget.onLanguageChanged, onDark: !wide),
+        LanguageMenu(onChanged: widget.onLanguageChanged),
         if (MediaQuery.sizeOf(context).width >= 430)
-          IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: wide ? _actionAccent : BrainyColors.navigationInk)),
-        if (widget.themeButton != null) Theme(data: Theme.of(context).copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: wide ? _actionAccent : BrainyColors.navigationInk)), child: widget.themeButton!),
+          IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: wide ? _actionAccent : BrainyNavigationColors.ink(_dark))),
+        if (widget.themeButton != null) Theme(data: Theme.of(context).copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: wide ? _actionAccent : BrainyNavigationColors.ink(_dark))), child: widget.themeButton!),
         if (MediaQuery.sizeOf(context).width >= 430)
           IconButton(
             tooltip: _t('Import and export'),
             onPressed: _openTransfer,
-            icon: Icon(Icons.import_export_rounded, color: wide ? _actionAccent : BrainyColors.navigationInk),
+            icon: Icon(Icons.import_export_rounded, color: wide ? _actionAccent : BrainyNavigationColors.ink(_dark)),
           ),
         PopupMenuButton<String>(
           tooltip: _t('Account'),
@@ -1265,7 +1265,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         children: [
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1020),
+              constraints: const BoxConstraints(maxWidth: 1160),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1927,22 +1927,22 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _overviewBanner(BrainyCollection collection) => Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(22),
+    padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 760 ? 20 : 28),
     decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [Color.lerp(_panel, _actionAccent, .06)!, _panel]),
+      color: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
       borderRadius: BorderRadius.circular(18),
       border: Border.all(
-        color: _panelBorder,
+        color: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
       ),
     ),
     child: LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 760;
         final heroOutlineStyle = OutlinedButton.styleFrom(
-          foregroundColor: _actionAccent,
-          backgroundColor: _panel,
+          foregroundColor: BrainyNavigationColors.ink(_dark),
+          backgroundColor: Colors.transparent,
           side: BorderSide(
-            color: _dark ? BrainyColors.darkControl : BrainyColors.lightControl,
+            color: BrainyNavigationColors.border(_dark),
           ),
         );
         final action = FilledButton.icon(
@@ -1950,11 +1950,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           icon: const Icon(Icons.add_rounded, size: 20),
           label: Text(_t('New entry')),
           style: FilledButton.styleFrom(
-            backgroundColor: _actionAccent,
-            foregroundColor: _dark
-                ? BrainyColors.darkOnAccent
-                : BrainyColors.lightSurface,
-            minimumSize: const Size(0, 46),
+            backgroundColor: BrainyNavigationColors.ink(_dark),
+            foregroundColor: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
+            minimumSize: const Size(0, 48),
           ),
         );
         final quickAction = OutlinedButton.icon(
@@ -1973,12 +1971,12 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: _actionAccent.withValues(alpha: 0.10),
+                    color: BrainyNavigationColors.ink(_dark).withValues(alpha: .12),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Icon(
                     Icons.folder_copy_outlined,
-                    color: _panelInk,
+                    color: BrainyNavigationColors.ink(_dark),
                     size: 27,
                   ),
                 ),
@@ -1990,7 +1988,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       Text(
                         _t('Collection').toUpperCase(),
                         style: TextStyle(
-                          color: _panelMuted,
+                          color: BrainyNavigationColors.ink(_dark),
                           fontSize: 13,
                           letterSpacing: 1.4,
                           fontWeight: FontWeight.w800,
@@ -2002,7 +2000,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: _panelInk,
+                          color: BrainyNavigationColors.ink(_dark),
                           fontSize: 27,
                           fontWeight: FontWeight.w800,
                           height: 1.12,
@@ -2013,7 +2011,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       Text(
                         _t('Save information in your own data format.'),
                         style: TextStyle(
-                          color: _panelMuted,
+                          color: BrainyNavigationColors.ink(_dark),
                           fontSize: 13,
                         ),
                       ),
@@ -2065,13 +2063,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Widget _statBadge(IconData icon, String label) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
     decoration: BoxDecoration(
-      color: _actionAccent.withValues(alpha: .08),
+      color: BrainyNavigationColors.ink(_dark).withValues(alpha: .12),
       borderRadius: BorderRadius.circular(9),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: _actionAccent, size: 15),
+        Icon(icon, color: BrainyNavigationColors.ink(_dark), size: 15),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -2079,9 +2077,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: _panelInk,
+              color: BrainyNavigationColors.ink(_dark),
               fontWeight: FontWeight.w700,
-              fontSize: 12,
+              fontSize: 13,
             ),
           ),
         ),
