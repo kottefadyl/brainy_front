@@ -22,11 +22,13 @@ class WorkspaceFormatCards extends StatelessWidget {
     required this.onReview,
     required this.onRename,
     required this.onDelete,
+    this.onPackages,
   });
   final BrainyCollection collection;
   final Map<String, int> entryCounts;
   final bool partialCounts;
   final VoidCallback onAdd, onRename, onDelete;
+  final VoidCallback? onPackages;
   final ValueChanged<BrainyFormat> onAddEntry,
       onEdit,
       onColor,
@@ -59,13 +61,21 @@ class WorkspaceFormatCards extends StatelessWidget {
             ),
             PopupMenuButton<String>(
               tooltip: copy.text('Collection actions'),
-              onSelected: (action) =>
-                  action == 'rename' ? onRename() : onDelete(),
+              onSelected: (action) => switch (action) {
+                'rename' => onRename(),
+                'packages' => onPackages?.call(),
+                _ => onDelete(),
+              },
               itemBuilder: (_) => [
                 PopupMenuItem(
                   value: 'rename',
                   child: Text(copy.text('Rename')),
                 ),
+                if (onPackages != null)
+                  PopupMenuItem(
+                    value: 'packages',
+                    child: Text(copy.isFrench ? 'Paquets de domaine' : 'Domain packages'),
+                  ),
                 PopupMenuItem(
                   value: 'delete',
                   child: Text(

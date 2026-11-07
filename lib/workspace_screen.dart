@@ -28,6 +28,7 @@ import 'number_units.dart';
 import 'object_dialog.dart';
 import 'unit_dialog.dart';
 import 'starter_dialog.dart';
+import 'domain_packages_sheet.dart';
 import 'insights_dialog.dart';
 import 'stock_screen.dart';
 import 'workflow_screen.dart';
@@ -278,7 +279,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   }
 
   Future<void> _createCollection() async {
-    final collection = await showStarterDialog(context, _api);
+    final collection = await showStarterDialog(context, _api, onPackages: _openPackages);
     if (!mounted || collection == null) return;
     setState(() {
       _collections = [collection, ..._collections];
@@ -554,6 +555,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     } catch (error) {
       _showError(error);
     }
+  }
+
+  Future<void> _openPackages() async {
+    final id = await showDomainPackages(context, api: _api, collections: _collections, current: _selected, userId: widget.user.id, userName: widget.user.name, french: _copy.isFrench);
+    if (!mounted || id == null) return;
+    setState(() => _selectedId = id);
+    await _load();
   }
 
   Future<void> _renameCollection() async {
@@ -2096,7 +2104,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     onCopy: (format) async { if (await showCopyToCollection(context, api: _api, source: collection, formatId: format.id)) await _load(); },
     onLink: (format) async { if (await showCopyToCollection(context, api: _api, source: collection, formatId: format.id, link: true)) await _load(); },
     onReview: (format) async { if (await showLinkedFormatUpdate(context, api: _api, collection: collection, format: format)) await _load(); },
-    onRename: _renameCollection, onDelete: _deleteCollection,
+    onRename: _renameCollection, onDelete: _deleteCollection, onPackages: _openPackages,
   );
 
   Widget _message(

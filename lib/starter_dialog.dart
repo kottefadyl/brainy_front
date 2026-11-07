@@ -5,17 +5,19 @@ import 'collections_api.dart';
 
 Future<BrainyCollection?> showStarterDialog(
   BuildContext context,
-  CollectionsApi api,
-) {
+  CollectionsApi api, {
+  VoidCallback? onPackages,
+}) {
   return showDialog<BrainyCollection>(
     context: context,
-    builder: (context) => _StarterDialog(api: api),
+    builder: (context) => _StarterDialog(api: api, onPackages: onPackages),
   );
 }
 
 class _StarterDialog extends StatefulWidget {
-  const _StarterDialog({required this.api});
+  const _StarterDialog({required this.api, this.onPackages});
   final CollectionsApi api;
+  final VoidCallback? onPackages;
   @override
   State<_StarterDialog> createState() => _StarterDialogState();
 }
@@ -93,6 +95,18 @@ class _StarterDialogState extends State<_StarterDialog> {
                     ? 'Choisissez un point de départ. Les formats de données restent modifiables et la collection n’a pas de type permanent.'
                     : 'Choose a starting point. Data formats stay editable and the collection has no permanent type.',
               ),
+              if (widget.onPackages != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      widget.onPackages!();
+                    },
+                    icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                    label: Text(fr ? 'Installer un paquet de domaine (fichier, lien ou paquet Brainy)…' : 'Install a domain package (file, link or Brainy package)…'),
+                  ),
+                ),
               const SizedBox(height: 20),
               TextField(
                 controller: name,
