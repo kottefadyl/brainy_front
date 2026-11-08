@@ -60,7 +60,9 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
       if (!mounted) return;
       setState(() {
         if (errors.isEmpty) { codes = (preview['codes'] as List<dynamic>).map((item) => Map<String, dynamic>.from(item as Map<String, dynamic>)).toList(); notice = t('${codes.length} codes prêts. Vérifiez puis enregistrez.', '${codes.length} codes ready. Review and save.'); }
-        else error = errors.map((item) => '${t('Ligne', 'Row')} ${item['row']}: ${item['message']}').join('\n');
+        else {
+          error = errors.map((item) => '${t('Ligne', 'Row')} ${item['row']}: ${item['message']}').join('\n');
+        }
       });
     } catch (cause) { if (mounted) setState(() => error = '$cause'); }
   }

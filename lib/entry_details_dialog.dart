@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_strings.dart';
 import 'collections_api.dart';
@@ -97,9 +98,10 @@ Future<bool> showEntryDetailsDialog(
                           child: Text(entry.values[field.id]!),
                         )
                       else if (field.kind == BrainyFieldKind.link)
-                        TextButton(
-                          onPressed: () => onLink(entry.values[field.id]!),
-                          child: Text(entry.values[field.id]!),
+                        _LinkValue(
+                          url: entry.values[field.id]!,
+                          copy: copy,
+                          onOpen: onLink,
                         )
                       else
                         SelectableText(
@@ -149,4 +151,46 @@ Future<bool> showEntryDetailsDialog(
     ),
   );
   return result == true;
+}
+
+class _LinkValue extends StatelessWidget {
+  const _LinkValue({required this.url, required this.copy, required this.onOpen});
+
+  final String url;
+  final AppStrings copy;
+  final void Function(String) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Tooltip(
+            message: copy.isFrench ? 'Ouvrir le lien' : 'Open link',
+            child: TextButton(
+              onPressed: () => onOpen(url),
+              style: TextButton.styleFrom(
+                alignment: Alignment.centerLeft,
+                padding: EdgeInsets.zero,
+              ),
+              child: Text(url),
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: copy.isFrench ? 'Copier le lien' : 'Copy link',
+          icon: const Icon(Icons.link_rounded, size: 19),
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: url));
+            messenger?.showSnackBar(
+              SnackBar(
+                content: Text(copy.isFrench ? 'Lien copié' : 'Link copied'),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
 }

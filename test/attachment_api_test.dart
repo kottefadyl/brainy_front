@@ -10,8 +10,9 @@ class _RecordingAuthApi extends AuthApi {
   @override
   Future<Map<String, dynamic>> authenticatedRequest(
     String query,
-    Map<String, dynamic> variables,
-  ) async {
+    Map<String, dynamic> variables, {
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
     if (query.contains('createEntry')) {
       savedInput = variables['input'] as Map<String, dynamic>;
       return {

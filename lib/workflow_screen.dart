@@ -81,8 +81,9 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
     }
     final required = RegExp(r'Fill in (.+) before entering (.+)')
         .firstMatch(value);
-    if (required != null)
+    if (required != null) {
       return 'Renseignez ${required[1]} avant de passer à ${required[2]}.';
+    }
     return t('Opération impossible. Actualisez et réessayez.', value);
   }
 
@@ -115,12 +116,13 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
               ),
         widget.api.workflowNotifications(),
       ]);
-      if (mounted)
+      if (mounted) {
         setState(() {
           page = results[0] as BrainyEntryPage?;
           notices = results[1] as List<Map<String, dynamic>>;
           error = null;
         });
+      }
     } catch (cause) {
       if (mounted) setState(() => error = message(cause));
     }
@@ -225,7 +227,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
         ((selected.workflow?['transitions'] as List<dynamic>?) ?? [])
             .map((item) => Map<String, dynamic>.from(item as Map))
             .toList();
-    if (transitions.isEmpty)
+    if (transitions.isEmpty) {
       transitions = [
         for (var i = 0; i < choices.first.options.length - 1; i++)
           {
@@ -234,6 +236,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
             'minimumRole': 'EDITOR',
           },
       ];
+    }
     List<Map<String, dynamic>> requirements =
         ((selected.workflow?['requirements'] as List<dynamic>?) ?? [])
             .map((item) => Map<String, dynamic>.from(item as Map))
@@ -430,11 +433,12 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                                 requirements.removeWhere(
                                   (row) => row['state'] == state,
                                 );
-                                if (ids.isNotEmpty)
+                                if (ids.isNotEmpty) {
                                   requirements.add({
                                     'state': state,
                                     'fieldIds': ids,
                                   });
+                                }
                               }),
                             ),
                         ],
@@ -465,7 +469,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
         },
       ),
     );
-    if (saved != null)
+    if (saved != null) {
       await _run(() async {
         collection = await widget.api.setWorkflow(
           collection.id,
@@ -473,6 +477,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
           saved,
         );
       });
+    }
   }
 
   Future<void> _assign(BrainyEntry entry) async {
@@ -489,8 +494,9 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
       if (member.sharedFieldIds.isNotEmpty &&
           !format!.fields.every(
             (field) => member.sharedFieldIds.contains(field.id),
-          ))
+          )) {
         continue;
+      }
       people[member.userId] = member.name.isEmpty ? member.email : member.name;
     }
     if (!people.containsKey(assignee)) assignee = '';
@@ -531,7 +537,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                     context: ctx,
                     initialTime: TimeOfDay.fromDateTime(due ?? DateTime.now()),
                   );
-                  if (time != null)
+                  if (time != null) {
                     update(
                       () => due = DateTime(
                         picked.year,
@@ -541,6 +547,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                         time.minute,
                       ),
                     );
+                  }
                 },
                 icon: const Icon(Icons.event),
                 label: Text(
@@ -589,10 +596,11 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
         ),
       ),
     );
-    if (input != null)
+    if (input != null) {
       await _run(() async {
         await widget.api.assignWorkflowEntry(entry.id, input);
       });
+    }
   }
 
   Widget _entry(BrainyEntry entry) {

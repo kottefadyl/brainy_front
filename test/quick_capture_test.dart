@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,7 +16,7 @@ class CaptureApi extends CollectionsApi {
   @override
   Future<List<BrainyEntry>> duplicateLinks(String collectionId, String formatId, String fieldId, String url, {String? excludeEntryId}) async => [existing];
   @override
-  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}}) async {
+  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
     saved = values;
     return BrainyEntry(id: 'new', formatId: formatId, values: values, createdAt: DateTime.utc(2026, 10, 27), updatedAt: DateTime.utc(2026, 10, 27));
   }
@@ -58,7 +57,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) => ElevatedButton(onPressed: () => showQuickEntrySheet(context, api: api, collection: collection, userId: 'test', french: false), child: const Text('Open'))))));
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save entry'));
     await tester.pumpAndSettle();
     expect(api.saved?['qty'], '2');
     expect(api.saved?['amount'], '3.50');
@@ -83,7 +82,7 @@ void main() {
     await tester.enterText(find.byType(TextField).last, 'Keep on network failure');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Values are kept'), findsOneWidget);
+    expect(find.textContaining('Your content is kept'), findsOneWidget);
     expect(find.text('https://example.org/field-guide'), findsOneWidget);
     expect(find.text('Keep on network failure'), findsOneWidget);
   });
@@ -93,7 +92,7 @@ class _FailingCaptureApi extends CaptureApi {
   @override
   Future<List<BrainyEntry>> duplicateLinks(String collectionId, String formatId, String fieldId, String url, {String? excludeEntryId}) async => const [];
   @override
-  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}}) async {
+  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
     throw StateError('Network unreachable');
   }
 }

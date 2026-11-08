@@ -59,12 +59,16 @@ class _GeoMapViewState extends State<GeoMapView> {
   }
 
   Future<void> select(String id) async {
-    setState(() { if (selected.contains(id)) selected.remove(id); else { if (selected.length == 2) selected.removeAt(0); selected.add(id); } distance = null; });
-    if (selected.length == 2) try {
+    setState(() { if (selected.contains(id)) {
+      selected.remove(id);
+    } else { if (selected.length == 2) selected.removeAt(0); selected.add(id); } distance = null; });
+    if (selected.length == 2) {
+      try {
       final target = positions[chosen];
       final result = await widget.api.geoDistance(widget.collection.id, target.format.id, target.field.id, selected[0], selected[1]);
       if (mounted) setState(() => distance = '${(double.tryParse(result['value'] as String? ?? '') ?? 0).toStringAsFixed(2)} km');
     } catch (cause) { if (mounted) setState(() => error = '$cause'); }
+    }
   }
 
   Future<void> importPoints(bool commit) async {
@@ -129,8 +133,12 @@ class _GridPainter extends CustomPainter {
     canvas.drawRect(Offset.zero & size, Paint()..color = dark ? const Color(0xFF24272E) : const Color(0xFFF5F6F8));
     final grid = Paint()..color = dark ? const Color(0xFF596273) : const Color(0xFFCBD5E1);
     grid.strokeWidth = 1;
-    for (var x = 1; x < 6; x++) canvas.drawLine(Offset(size.width * x / 6, 0), Offset(size.width * x / 6, size.height), grid);
-    for (var y = 1; y < 6; y++) canvas.drawLine(Offset(0, size.height * y / 6), Offset(size.width, size.height * y / 6), grid);
+    for (var x = 1; x < 6; x++) {
+      canvas.drawLine(Offset(size.width * x / 6, 0), Offset(size.width * x / 6, size.height), grid);
+    }
+    for (var y = 1; y < 6; y++) {
+      canvas.drawLine(Offset(0, size.height * y / 6), Offset(size.width, size.height * y / 6), grid);
+    }
     for (final point in points) {
       final longitude = (point['longitude'] as num).toDouble(), latitude = (point['latitude'] as num).toDouble();
       canvas.drawCircle(Offset((longitude + 180) / 360 * size.width, (90 - latitude) / 180 * size.height), selected.contains(point['entryId']) ? 6 : 4, Paint()..color = selected.contains(point['entryId']) ? const Color(0xFFB34242) : const Color(0xFF2463CE));

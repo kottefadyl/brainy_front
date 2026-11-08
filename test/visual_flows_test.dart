@@ -586,10 +586,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Brainy reference'), findsOneWidget);
     expect(find.text('Another page'), findsNothing);
+    // Link actions live in the entry details since the compact entry rows.
     await Scrollable.ensureVisible(
-      tester.element(find.byTooltip('Open link')),
+      tester.element(find.byTooltip('View details')),
       alignment: 0.5,
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('View details'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Open link'));
     await tester.pumpAndSettle();

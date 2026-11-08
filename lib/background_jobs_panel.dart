@@ -59,11 +59,12 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
     if (id == null) return;
     try {
       final result = await widget.api.backgroundJobs(id);
-      if (mounted && collection?.id == id)
+      if (mounted && collection?.id == id) {
         setState(() {
           jobs = result;
           error = null;
         });
+      }
     } catch (cause) {
       if (mounted) setState(() => error = '$cause');
     }
@@ -85,10 +86,11 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
     });
     try {
       final job = await action();
-      if (mounted)
+      if (mounted) {
         setState(() {
           jobs = [job, ...jobs.where((item) => item['id'] != job['id'])];
         });
+      }
     } catch (cause) {
       if (mounted) setState(() => error = '$cause');
     } finally {
@@ -138,27 +140,30 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
       );
       if (file == null) return;
       final bytes = await file.readAsBytes();
-      if (bytes.length > 2000000)
+      if (bytes.length > 2000000) {
         throw FormatException(
           fr
               ? 'Fichier trop volumineux (2 Mo maximum)'
               : 'File is too large (2 MB maximum)',
         );
+      }
       final parsed = jsonDecode(utf8.decode(bytes));
       if (parsed is! Map<String, dynamic> ||
           parsed['formatId'] is! String ||
-          parsed['rows'] is! List)
+          parsed['rows'] is! List) {
         throw FormatException(
           fr
               ? 'Le fichier doit contenir formatId et rows'
               : 'The file must contain formatId and rows',
         );
-      if (mounted)
+      }
+      if (mounted) {
         setState(() {
           importPayload = parsed;
           error = null;
           notice = file.name;
         });
+      }
     } catch (cause) {
       if (mounted) setState(() => error = '$cause');
     }
@@ -172,10 +177,11 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
     try {
       final detail = await widget.api.backgroundJob(job['id'] as String);
       final result = detail['result'] as String?;
-      if (result == null)
+      if (result == null) {
         throw FormatException(
           fr ? 'Résultat indisponible' : 'Result is unavailable',
         );
+      }
       await FilePicker.saveFile(
         fileName:
             'brainy-${(job['kind'] as String).toLowerCase()}-${job['id']}.json',

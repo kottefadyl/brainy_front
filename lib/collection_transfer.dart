@@ -56,8 +56,9 @@ class BrainyTransfer {
       if (list['id'] is! String ||
           list['name'] is! String ||
           list['codes'] is! List ||
-          !codeIds.add(list['id'] as String))
+          !codeIds.add(list['id'] as String)) {
         throw const FormatException('Invalid code list');
+      }
     }
     for (final format in result.formats) {
       if (format['id'] is! String ||
@@ -77,8 +78,9 @@ class BrainyTransfer {
             !fieldIds.add(field['id'] as String)) {
           throw const FormatException('Invalid field');
         }
-        if (field['kind'] == 'CODE' && !codeIds.contains(field['codeListId']))
+        if (field['kind'] == 'CODE' && !codeIds.contains(field['codeListId'])) {
           throw const FormatException('Missing code list');
+        }
       }
     }
     final ids = <String>{};
@@ -348,8 +350,9 @@ class BrainyTransfer {
                 ),
           )
           .firstOrNull;
-      if (match != null)
+      if (match != null) {
         codeIds[sourceList['id'] as String] = match['id'] as String;
+      }
     }
     for (final sourceFormat in formats) {
       final targetFormat = target.formats

@@ -8,8 +8,9 @@ class _ObjectAuthApi extends AuthApi {
   @override
   Future<Map<String, dynamic>> authenticatedRequest(
     String query,
-    Map<String, dynamic> variables,
-  ) async {
+    Map<String, dynamic> variables, {
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
     if (query.contains('objectModelTemplates')) {
       return {'objectModelTemplates': <Map<String, dynamic>>[]};
     }
@@ -69,8 +70,9 @@ class _ConversionAuthApi extends _ObjectAuthApi {
   @override
   Future<Map<String, dynamic>> authenticatedRequest(
     String query,
-    Map<String, dynamic> variables,
-  ) async {
+    Map<String, dynamic> variables, {
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
     if (query.contains('collectionFormatImpact')) {
       return {
         'collectionFormatImpact': {
@@ -94,7 +96,7 @@ class _ConversionAuthApi extends _ObjectAuthApi {
         },
       };
     }
-    return super.authenticatedRequest(query, variables);
+    return super.authenticatedRequest(query, variables, timeout: timeout);
   }
 }
 
