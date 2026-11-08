@@ -382,6 +382,7 @@ class AppStrings {
     'Choose yes or no.': 'Choisissez oui ou non.',
     'Choose a valid file.': 'Choisissez un fichier valide.',
     'This file is no longer available.': 'Ce fichier n’est plus disponible.',
+    'Wait for the file upload to finish.': 'Attendez la fin de l’envoi du fichier.',
     'Choose a file smaller than 2 MB. An entry can hold at most 8 MB of files.': 'Choisissez un fichier de moins de 2 Mo. Une entrée peut contenir au plus 8 Mo de fichiers.',
     'Yes': 'Oui',
     'No': 'Non',

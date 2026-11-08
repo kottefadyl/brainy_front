@@ -34,6 +34,7 @@ import 'stock_screen.dart';
 import 'workflow_screen.dart';
 import 'contribution_screen.dart';
 import 'data_sources_screen.dart';
+import 'large_file_attachment_field.dart';
 import 'ledger_screen.dart';
 import 'sensitivity_screen.dart';
 import 'entry_links_dialog.dart';
@@ -3140,6 +3141,8 @@ class _EntryEditorState extends State<_EntryEditor> {
   bool _saving = false;
   String? _error;
   final Map<String, Uint8List> _attachments = {};
+  final Map<String, String> _largeFiles = {};
+  int _uploadingFiles = 0;
   final Map<String, String> _objectNames = {};
 
   @override
@@ -3360,6 +3363,10 @@ class _EntryEditorState extends State<_EntryEditor> {
       setState(() => _error = _t('Write something before saving.'));
       return;
     }
+    if (_uploadingFiles > 0) {
+      setState(() => _error = _t('Wait for the file upload to finish.'));
+      return;
+    }
     if (_attachments.values.fold<int>(0, (sum, bytes) => sum + bytes.length) >
         8_388_608) {
       setState(
@@ -3418,7 +3425,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     final mutationId = OfflineEntryQueue.newId();
     try {
       if (widget.entry?.offlinePending == true) {
-        if (_attachments.isNotEmpty) throw const FormatException('Attachments need a connection');
+        if (_attachments.isNotEmpty || _largeFiles.isNotEmpty) throw const FormatException('Attachments need a connection');
         await queue.revise(widget.entry!.id, values);
         if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry!.id, values: values, formatId: _selectedFormatId, createdAt: widget.entry!.createdAt, updatedAt: DateTime.now(), offlinePending: true));
         return;
@@ -3429,13 +3436,14 @@ class _EntryEditorState extends State<_EntryEditor> {
         entryId: widget.entry?.id,
         formatId: _selectedFormatId,
         attachments: _attachments,
+        largeFiles: _largeFiles,
         clientMutationId: mutationId,
         expectedUpdatedAt: widget.entry?.updatedAt,
       );
       if (mounted) Navigator.pop(context, saved);
     } catch (error) {
       final networkFailure = error is AuthApiException && (error.message.contains('Could not reach') || error.message.contains('temporarily unavailable'));
-      if (networkFailure && _attachments.isEmpty && !_activeFormat.fields.any((field) => field.kind == BrainyFieldKind.objectRef && (values[field.id]?.isNotEmpty ?? false))) {
+      if (networkFailure && _attachments.isEmpty && _largeFiles.isEmpty && !_activeFormat.fields.any((field) => field.kind == BrainyFieldKind.objectRef && (values[field.id]?.isNotEmpty ?? false))) {
         try {
           await queue.enqueue({'id': mutationId, 'collectionId': widget.collection.id, if (widget.entry != null) 'entryId': widget.entry!.id, 'formatId': _selectedFormatId, 'values': values, if (widget.entry != null) 'expectedUpdatedAt': widget.entry!.updatedAt.toUtc().toIso8601String(), 'createdAt': DateTime.now().toUtc().toIso8601String(), 'status': 'pending'});
           if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry?.id ?? 'offline:$mutationId', values: values, formatId: _selectedFormatId, createdAt: widget.entry?.createdAt ?? DateTime.now(), updatedAt: DateTime.now(), offlinePending: true));
@@ -3460,24 +3468,6 @@ class _EntryEditorState extends State<_EntryEditor> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _pickAttachment(BrainyField field) async {
-    try {
-      final picked = await pickEntryAttachment();
-      if (picked == null || !mounted) return;
-      if (picked.bytes == null) {
-        setState(() => _error = _t('Choose a file smaller than 2 MB. An entry can hold at most 8 MB of files.'));
-        return;
-      }
-      setState(() {
-        _controllers[field.id]!.text = picked.name;
-        _attachments[field.id] = picked.bytes!;
-        _error = null;
-      });
-    } catch (error) {
-      if (mounted) setState(() => _error = _copy.error(error));
-    }
-  }
-
   Widget _field(BrainyField field) {
     final kind = field.kind;
     if (kind == BrainyFieldKind.position || kind == BrainyFieldKind.zone) {
@@ -3493,47 +3483,21 @@ class _EntryEditorState extends State<_EntryEditor> {
       return entryObjectRefField(context: context, field: field, controller: _controllers[field.id]!, objectNames: _objectNames, isFrench: _copy.isFrench, onChoose: () => _chooseObjects(field), ink: _dialogInk(context));
     }
     if (kind == BrainyFieldKind.attachment) {
-      final name = _controllers[field.id]!.text;
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              field.name,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: _dialogInk(context),
-              ),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => _pickAttachment(field),
-              icon: const Icon(Icons.attach_file),
-              label: Text(_t('Choose a file')),
-            ),
-            if (name.isNotEmpty)
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: _t('Remove file'),
-                    onPressed: () => setState(() {
-                      _controllers[field.id]!.clear();
-                      _attachments.remove(field.id);
-                    }),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-          ],
-        ),
+      return LargeFileAttachmentField(
+        key: ValueKey('attachment-${field.id}'),
+        api: widget.api,
+        field: field,
+        collectionId: widget.collection.id,
+        controller: _controllers[field.id]!,
+        french: _copy.isFrench,
+        ink: _dialogInk(context),
+        entry: widget.entry,
+        largeFileId: _largeFiles[field.id],
+        onSmallFile: (name, bytes) => setState(() { _controllers[field.id]!.text = name; _attachments[field.id] = bytes; _largeFiles.remove(field.id); _error = null; }),
+        onLargeFile: (id, name) => setState(() { _controllers[field.id]!.text = name; _largeFiles[field.id] = id; _attachments.remove(field.id); _error = null; }),
+        onClear: () => setState(() { _controllers[field.id]!.clear(); _attachments.remove(field.id); _largeFiles.remove(field.id); }),
+        onUploadingChanged: (uploading) => setState(() => _uploadingFiles = (_uploadingFiles + (uploading ? 1 : -1)).clamp(0, 99)),
+        onError: (message) => setState(() => _error = message),
       );
     }
     if (kind == BrainyFieldKind.boolean || kind == BrainyFieldKind.select) {

@@ -1,6 +1,4 @@
-import 'dart:typed_data';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 Future<void> pickEntryDate(
@@ -64,14 +62,4 @@ Future<void> pickEntryDateTime(
     time.hour,
     time.minute,
   ).toUtc().toIso8601String();
-}
-
-Future<({String name, Uint8List? bytes})?> pickEntryAttachment() async {
-  final file = await FilePicker.pickFile();
-  if (file == null) return null;
-  final length = await file.length();
-  if (length == null || length == 0 || length > 2_097_152) {
-    return (name: file.name, bytes: null);
-  }
-  return (name: file.name, bytes: await file.readAsBytes());
 }

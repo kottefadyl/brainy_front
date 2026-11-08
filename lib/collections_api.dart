@@ -443,6 +443,7 @@ class BrainyEntry {
     this.recurrence,
     this.workflow,
     this.offlinePending = false,
+    this.largeFiles = const {},
   });
   final String id;
   final Map<String, String> values;
@@ -460,6 +461,9 @@ class BrainyEntry {
   final Map<String, dynamic>? recurrence;
   final Map<String, dynamic>? workflow;
   final bool offlinePending;
+
+  /// T44: attachment fields stored by reference, with their size in bytes.
+  final Map<String, int> largeFiles;
 
   factory BrainyEntry.fromJson(Map<String, dynamic> json) => BrainyEntry(
     id: json['id'] as String,
@@ -492,6 +496,11 @@ class BrainyEntry {
         if ((item as Map<String, dynamic>)['objectSnapshots'] is List<dynamic>)
           item['fieldId'] as String: (item['objectSnapshots'] as List<dynamic>)
               .cast<Map<String, dynamic>>(),
+    },
+    largeFiles: {
+      for (final item in json['values'] as List<dynamic>)
+        if ((item as Map<String, dynamic>)['largeFileId'] is String)
+          item['fieldId'] as String: (item['attachmentSize'] as num?)?.toInt() ?? 0,
     },
   );
 }
@@ -547,7 +556,7 @@ class CollectionsApi {
   static const _collectionFields =
       'id ownerId name minAggregateSize fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds }';
   static const _entryFields =
-      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
+      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
 
   static String get workflowCollectionFields => _collectionFields;
   static String get workflowEntryFields => _entryFields;
@@ -1042,7 +1051,7 @@ class CollectionsApi {
 
   Future<Map<String, dynamic>> objectDetail(String id) async {
     final data = await auth.authenticatedRequest(
-      'query Object(\$id: String!) { collectionObject(id: \$id) { $_entryFields revisions { at formatVersion values { fieldId value } } } }',
+      'query Object(\$id: String!) { collectionObject(id: \$id) { $_entryFields revisions { at formatVersion values { fieldId value largeFileId attachmentSize } } } }',
       {'id': id},
     );
     return data['collectionObject'] as Map<String, dynamic>;
@@ -1692,6 +1701,7 @@ class CollectionsApi {
     String? entryId,
     String? formatId,
     Map<String, Uint8List> attachments = const {},
+    Map<String, String> largeFiles = const {},
     String? clientMutationId,
     DateTime? expectedUpdatedAt,
   }) async {
@@ -1708,8 +1718,16 @@ class CollectionsApi {
           'values': [
             for (final item in values.entries)
               if (item.value.trim().isNotEmpty &&
-                  !attachments.containsKey(item.key))
+                  !attachments.containsKey(item.key) &&
+                  !largeFiles.containsKey(item.key))
                 {'fieldId': item.key, 'value': item.value.trim()},
+            for (final item in largeFiles.entries)
+              if (values[item.key]?.trim().isNotEmpty ?? false)
+                {
+                  'fieldId': item.key,
+                  'value': values[item.key]!.trim(),
+                  'largeFileId': item.value,
+                },
             for (final item in attachments.entries)
               if (values[item.key]?.trim().isNotEmpty ?? false)
                 {
