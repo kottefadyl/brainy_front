@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import 'collections_api.dart';
+import 'osm_map.dart';
 
 Future<bool> showGeoMapView(BuildContext context, CollectionsApi api, BrainyCollection collection, {required bool french, String? initialSearch, String? filterFieldId, String? filterOperator, String? filterValue, String? viewId, required Future<void> Function(String) onOpenEntry}) async {
   await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => GeoMapView(api: api, collection: collection, french: french, initialSearch: initialSearch, filterFieldId: filterFieldId, filterOperator: filterOperator, filterValue: filterValue, viewId: viewId, onOpenEntry: onOpenEntry)));
@@ -102,12 +103,12 @@ class _GeoMapViewState extends State<GeoMapView> {
   @override Widget build(BuildContext context) {
     final points = (page?['points'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
     return Scaffold(appBar: AppBar(title: Text(t('Carte des positions', 'Position map')), leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t('Retour', 'Back'), onPressed: () => Navigator.pop(context, changed))), body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1000), child: ListView(padding: const EdgeInsets.all(16), children: [
-      Text(t('Grille WGS84 locale, sans fond de carte externe ni envoi des coordonnées à un tiers.', 'Local WGS84 grid, with no external map tiles or coordinate sharing.')),
+      Text(t('Déplacez et zoomez la carte, puis touchez un repère pour ouvrir son entrée.', 'Move and zoom the map, then tap a marker to open its entry.')),
       const SizedBox(height: 16),
       if (positions.isEmpty) Text(t('Ajoutez un champ position à un format de données.', 'Add a position field to a data format.')) else ...[
         DropdownButtonFormField<int>(initialValue: chosen, decoration: InputDecoration(labelText: t('Champ position', 'Position field'), border: const OutlineInputBorder()), items: [for (var i = 0; i < positions.length; i++) DropdownMenuItem(value: i, child: Text('${positions[i].format.name} · ${positions[i].field.name}'))], onChanged: (value) { if (value == null) return; setState(() { chosen = value; after = null; history.clear(); page = null; selected.clear(); }); load(); }),
         const SizedBox(height: 10), TextField(controller: search, decoration: InputDecoration(labelText: t('Rechercher', 'Search'), suffixIcon: IconButton(icon: const Icon(Icons.search), tooltip: t('Rechercher', 'Search'), onPressed: () { setState(() { after = null; history.clear(); }); load(); }), border: const OutlineInputBorder()), onSubmitted: (_) { setState(() { after = null; history.clear(); }); load(); }),
-        const SizedBox(height: 14), AspectRatio(aspectRatio: 2, child: Semantics(label: t('Carte des points de la page', 'Map of points on this page'), child: CustomPaint(painter: _GridPainter(points: points, selected: selected, dark: Theme.of(context).brightness == Brightness.dark)))),
+        const SizedBox(height: 14), OsmMap(markers: [for (final point in points) MapMarker(id: point['entryId'] as String, title: (point['name'] as String?)?.isNotEmpty == true ? point['name'] as String : point['entryId'] as String, latitude: (point['latitude'] as num).toDouble(), longitude: (point['longitude'] as num).toDouble(), accuracy: (point['accuracy'] as num?)?.toDouble())], french: widget.french, formatColor: positions[chosen].format.color, selected: selected, onOpenEntry: widget.onOpenEntry),
         const SizedBox(height: 10), Text(t('Sélectionnez deux lignes pour mesurer la distance.', 'Select two rows to measure distance.')),
         if (distance != null) Text(distance!, style: Theme.of(context).textTheme.titleMedium),
         if (busy) const LinearProgressIndicator(),
@@ -122,27 +123,4 @@ class _GeoMapViewState extends State<GeoMapView> {
       if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
     ]))));
   }
-}
-
-class _GridPainter extends CustomPainter {
-  _GridPainter({required this.points, required this.selected, required this.dark});
-  final List<Map<String, dynamic>> points;
-  final List<String> selected;
-  final bool dark;
-  @override void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = dark ? const Color(0xFF24272E) : const Color(0xFFF5F6F8));
-    final grid = Paint()..color = dark ? const Color(0xFF596273) : const Color(0xFFCBD5E1);
-    grid.strokeWidth = 1;
-    for (var x = 1; x < 6; x++) {
-      canvas.drawLine(Offset(size.width * x / 6, 0), Offset(size.width * x / 6, size.height), grid);
-    }
-    for (var y = 1; y < 6; y++) {
-      canvas.drawLine(Offset(0, size.height * y / 6), Offset(size.width, size.height * y / 6), grid);
-    }
-    for (final point in points) {
-      final longitude = (point['longitude'] as num).toDouble(), latitude = (point['latitude'] as num).toDouble();
-      canvas.drawCircle(Offset((longitude + 180) / 360 * size.width, (90 - latitude) / 180 * size.height), selected.contains(point['entryId']) ? 6 : 4, Paint()..color = selected.contains(point['entryId']) ? const Color(0xFFB34242) : const Color(0xFF2463CE));
-    }
-  }
-  @override bool shouldRepaint(covariant _GridPainter oldDelegate) => oldDelegate.points != points || oldDelegate.selected != selected || oldDelegate.dark != dark;
 }
