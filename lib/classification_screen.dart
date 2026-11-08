@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'code_picker.dart';
+import 'code_tree.dart';
 import 'collections_api.dart';
 
 Future<bool> showClassificationScreen(BuildContext context, CollectionsApi api, BrainyCollection collection, List<BrainyCollection> targets, {required bool french}) async {
@@ -101,6 +103,21 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
     if (result == true && mounted) { choose(collection.codeLists.firstWhere((item) => item['id'] == listId)); setState(() { changed = true; notice = t('Codes fusionnés', 'Codes merged'); }); }
   }
 
+  /// Codes already named, as a fresh list so that each picker sees the current draft.
+  List<Map<String, dynamic>> get usableCodes => [for (final item in codes) if ((item['code'] as String? ?? '').isNotEmpty) item];
+
+  bool Function(CodeNode) parentFilter(String code) {
+    final below = CodeTree.build(usableCodes, widget.french).descendantsOf(code);
+    return (node) => node.code != code && !below.contains(node.code);
+  }
+
+  String? get tooDeep {
+    for (final node in CodeTree.build(usableCodes, widget.french).nodes.values) {
+      if (node.level > maxCodeLevels) return node.code;
+    }
+    return null;
+  }
+
   @override Widget build(BuildContext context) {
     final list = selected;
     return Scaffold(
@@ -115,11 +132,13 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
           TextFormField(initialValue: codes[index]['code'] as String? ?? '', readOnly: list != null && (list['codes'] as List<dynamic>).any((item) => item['code'] == codes[index]['code']), decoration: InputDecoration(labelText: t('Code stable', 'Stable code')), onChanged: (value) => codes[index]['code'] = value),
           TextFormField(initialValue: codes[index]['labelEn'] as String? ?? '', decoration: const InputDecoration(labelText: 'English'), onChanged: (value) => codes[index]['labelEn'] = value),
           TextFormField(initialValue: codes[index]['labelFr'] as String? ?? '', decoration: const InputDecoration(labelText: 'Français'), onChanged: (value) => codes[index]['labelFr'] = value),
-          DropdownButtonFormField<String>(initialValue: codes[index]['parentCode'] as String?, decoration: InputDecoration(labelText: t('Parent', 'Parent')), items: [DropdownMenuItem(value: '', child: Text(t('Aucun', 'None'))), for (final item in codes) if (item['code'] != codes[index]['code'] && (item['code'] as String? ?? '').isNotEmpty) DropdownMenuItem(value: item['code'] as String, child: Text(item['code'] as String))], onChanged: (value) => codes[index]['parentCode'] = value?.isEmpty == true ? null : value),
+          Padding(padding: const EdgeInsets.only(top: 8), child: CodePickerField(label: t('Parent', 'Parent'), codes: usableCodes, french: widget.french, value: codes[index]['parentCode'] as String? ?? '', emptyLabel: t('Aucun parent', 'No parent'), canSelect: parentFilter(codes[index]['code'] as String? ?? ''), onChanged: (value) => setState(() => codes[index]['parentCode'] = value.isEmpty ? null : value))),
           SwitchListTile(title: Text(t('Actif', 'Active')), value: codes[index]['active'] as bool? ?? true, onChanged: (value) => setState(() => codes[index]['active'] = value)),
           if (list == null || !(list['codes'] as List<dynamic>).any((item) => item['code'] == codes[index]['code'])) Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => setState(() => codes.removeAt(index)), child: Text(t('Retirer', 'Remove')))),
         ]))),
         Wrap(spacing: 8, children: [OutlinedButton(onPressed: () => setState(() => codes.add({'code': '', 'labelEn': '', 'labelFr': '', 'active': true})), child: Text(t('Ajouter un code', 'Add code'))), FilledButton(onPressed: busy || name.text.trim().isEmpty || codes.isEmpty ? null : save, child: Text(t('Enregistrer', 'Save'))), if (list != null) OutlinedButton(onPressed: busy ? null : copyList, child: Text(t('Copier vers…', 'Copy to…'))), if (list != null) OutlinedButton(onPressed: busy ? null : mergeCodes, child: Text(t('Fusionner des codes', 'Merge codes')))]),
+        if (tooDeep != null) Text(t('La hiérarchie dépasse $maxCodeLevels niveaux au code $tooDeep.', 'The hierarchy exceeds $maxCodeLevels levels at code $tooDeep.'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        if (usableCodes.isNotEmpty) ExpansionTile(key: ValueKey('browse-${usableCodes.length}'), tilePadding: EdgeInsets.zero, title: Text(t('Parcourir l’arborescence', 'Browse the tree')), children: [SizedBox(height: 360, child: CodeBrowser(codes: usableCodes, french: widget.french))]),
         if (notice != null) Text(notice!, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
         if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
       ]))),

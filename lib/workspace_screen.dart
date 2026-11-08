@@ -14,6 +14,7 @@ import 'workspace_entry_row.dart';
 
 import 'auth_api.dart';
 import 'app_strings.dart';
+import 'code_picker.dart';
 import 'collections_api.dart';
 import 'collection_copy_dialog.dart';
 import 'linked_format_dialog.dart';
@@ -3476,8 +3477,19 @@ class _EntryEditorState extends State<_EntryEditor> {
     if (kind == BrainyFieldKind.code) {
       final list = widget.collection.codeLists.where((item) => item['id'] == field.codeListId).firstOrNull;
       final value = _controllers[field.id]!.text;
-      final codes = (list?['codes'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>().where((item) => item['active'] == true || item['code'] == value).toList();
-      return Padding(padding: const EdgeInsets.only(bottom: 16), child: DropdownButtonFormField<String>(initialValue: value.isEmpty ? '' : value, decoration: InputDecoration(labelText: field.name, border: const OutlineInputBorder()), items: [DropdownMenuItem(value: '', child: Text(_t('Choose a value'))), for (final item in codes) DropdownMenuItem(value: item['code'] as String, child: Text('${item[_copy.isFrench ? 'labelFr' : 'labelEn']} (${item['code']})${item['active'] == true ? '' : _copy.isFrench ? ' · obsolète' : ' · obsolete'}'))], onChanged: (next) => setState(() => _controllers[field.id]!.text = next ?? '')));
+      final codes = (list?['codes'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: CodePickerField(
+          label: field.name,
+          codes: codes,
+          french: _copy.isFrench,
+          value: value,
+          canSelect: (node) => node.active || node.code == value,
+          emptyLabel: _copy.isFrench ? 'Aucune valeur' : 'No value',
+          onChanged: (next) => setState(() => _controllers[field.id]!.text = next),
+        ),
+      );
     }
     if (kind == BrainyFieldKind.objectRef) {
       return entryObjectRefField(context: context, field: field, controller: _controllers[field.id]!, objectNames: _objectNames, isFrench: _copy.isFrench, onChoose: () => _chooseObjects(field), ink: _dialogInk(context));

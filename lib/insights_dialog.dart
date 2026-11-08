@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'analysis_chart.dart';
+import 'code_tree.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 
@@ -54,7 +55,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
   final denominatorValueCtrl = TextEditingController();
   final windowSizeCtrl = TextEditingController(text: '3');
   String? left, right, measure, dateFieldId, groupFieldId, zoneFormatId, zoneFieldId;
-  int groupDepth = 2;
+  int groupDepth = exactCodeDepth;
   String? secondaryGroupFieldId, denominatorFieldId, weightFieldId, counterResetFieldId;
   String secondaryGroupBy = 'MONTH';
   String? formulaFromFieldId, formulaToFieldId;
@@ -209,6 +210,18 @@ class _InsightsDialogState extends State<_InsightsDialog> {
     } finally {
       if (mounted) setState(() => busy = false);
     }
+  }
+
+  List<DropdownMenuItem<int>> groupLevelItems(bool fr) {
+    final fieldId = groupFieldId ?? format.fields.where((item) => item.kind == BrainyFieldKind.code).firstOrNull?.id;
+    final listId = format.fields.where((item) => item.id == fieldId).firstOrNull?.codeListId;
+    final list = collection.codeLists.where((item) => item['id'] == listId).firstOrNull;
+    final levels = CodeTree.build((list?['codes'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>(), fr).deepestLevel;
+    return [
+      for (var level = 0; level < levels - 1 && level < exactCodeDepth; level++)
+        DropdownMenuItem(value: level, child: Text(level == 0 ? (fr ? 'Racine' : 'Root') : (fr ? 'Niveau ${level + 1}' : 'Level ${level + 1}'))),
+      DropdownMenuItem(value: exactCodeDepth, child: Text(fr ? 'Code précis' : 'Exact code')),
+    ];
   }
 
   String? _sourceId(dynamic node) {
@@ -1114,7 +1127,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                       ],
                       (value) => setState(() => groupFieldId = value),
                     ),
-                    if (groupBy == 'CATEGORY' && format.fields.any((field) => field.id == (groupFieldId ?? groups.firstOrNull?.id) && field.kind == BrainyFieldKind.code)) DropdownButtonFormField<int>(initialValue: groupDepth, decoration: InputDecoration(labelText: fr ? 'Niveau de regroupement' : 'Grouping level'), items: [DropdownMenuItem(value: 0, child: Text(fr ? 'Racine' : 'Root')), DropdownMenuItem(value: 1, child: Text(fr ? 'Intermédiaire' : 'Middle')), DropdownMenuItem(value: 2, child: Text(fr ? 'Code précis' : 'Exact code'))], onChanged: (value) => setState(() => groupDepth = value ?? 2)),
+                    if (groupBy == 'CATEGORY' && format.fields.any((field) => field.id == (groupFieldId ?? groups.firstOrNull?.id) && field.kind == BrainyFieldKind.code)) DropdownButtonFormField<int>(initialValue: groupDepth, decoration: InputDecoration(labelText: fr ? 'Niveau de regroupement' : 'Grouping level'), items: groupLevelItems(fr), onChanged: (value) => setState(() => groupDepth = value ?? 2)),
                   ],
                   if (groupBy == 'ZONE') ...[
                     const SizedBox(height: 8),
