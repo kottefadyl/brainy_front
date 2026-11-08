@@ -20,6 +20,7 @@ class CollectionToolsHub extends StatefulWidget {
     required this.onWorkflow,
     required this.onContributions,
     required this.onMap,
+    this.onDataSources,
   });
 
   final BrainyCollection collection;
@@ -37,6 +38,7 @@ class CollectionToolsHub extends StatefulWidget {
   final VoidCallback onWorkflow;
   final VoidCallback onContributions;
   final VoidCallback onMap;
+  final VoidCallback? onDataSources;
 
   @override
   State<CollectionToolsHub> createState() => _CollectionToolsHubState();
@@ -64,7 +66,8 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
   Widget build(BuildContext context) {
     final fr = widget.isFrench;
     final isOwner = widget.collection.ownerId == widget.userId;
-    final totalCount = isOwner ? 10 : 9;
+    final canSend = widget.onDataSources != null && (isOwner || widget.collection.members.any((member) => member.userId == widget.userId && member.role != BrainyCollectionRole.reader));
+    final totalCount = (isOwner ? 10 : 9) + (canSend ? 1 : 0);
 
     return Container(
       decoration: BoxDecoration(
@@ -283,6 +286,14 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                             fr ? 'Assignations et échéances' : 'Assignments and due dates',
                             widget.onWorkflow,
                           ),
+                          if (canSend)
+                            _toolCard(
+                              cardWidth,
+                              Icons.dataset_linked_outlined,
+                              fr ? 'Sources de données' : 'Data sources',
+                              fr ? 'Fichiers et systèmes externes' : 'Files and external systems',
+                              widget.onDataSources!,
+                            ),
                           if (isOwner)
                             _toolCard(
                               cardWidth,

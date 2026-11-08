@@ -33,6 +33,7 @@ import 'insights_dialog.dart';
 import 'stock_screen.dart';
 import 'workflow_screen.dart';
 import 'contribution_screen.dart';
+import 'data_sources_screen.dart';
 import 'ledger_screen.dart';
 import 'sensitivity_screen.dart';
 import 'entry_links_dialog.dart';
@@ -1432,6 +1433,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       if (mounted) await _load();
                     },
                     onMap: _showGeoMap,
+                    onDataSources: () async {
+                      if (await showDataSourcesScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) await _load();
+                    },
                   ),
                   const SizedBox(height: 28),
                 ],
