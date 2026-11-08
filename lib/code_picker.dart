@@ -1,8 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'code_tree.dart';
 
 const _emptyChoice = '';
+
+/// A physical keyboard is expected: focus the search box without covering the tree.
+bool get _isDesktop => const {TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(defaultTargetPlatform);
 
 /// Search box and expandable tree. Without [onSelect] the tree can only be read.
 class CodeBrowser extends StatefulWidget {
@@ -31,7 +36,11 @@ class _CodeBrowserState extends State<CodeBrowser> {
   late final CodeTree _tree = CodeTree.build(widget.codes, widget.french);
   late final Set<String> _reachable = _tree.reachable(_selectable);
   late final Set<String> _expanded = _openPath();
+  final _activeRow = GlobalKey();
+  List<(CodeNode, int)> _rows = const [];
   String _query = '';
+  int _active = 0;
+  bool _usingKeys = false;
 
   String t(String french, String english) => widget.french ? french : english;
   bool _selectable(CodeNode node) => widget.canSelect?.call(node) ?? true;
@@ -59,6 +68,56 @@ class _CodeBrowserState extends State<CodeBrowser> {
     }
   }
 
+  void _move(int index, ScrollPositionAlignmentPolicy policy) {
+    setState(() {
+      _active = index.clamp(0, _rows.length - 1);
+      _usingKeys = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final row = _activeRow.currentContext;
+      if (row != null && row.mounted) Scrollable.ensureVisible(row, alignmentPolicy: policy);
+    });
+  }
+
+  /// Same keys as the web client; focus stays in the search box.
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent || _rows.isEmpty) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    final current = _active.clamp(0, _rows.length - 1);
+    final row = _rows[current].$1;
+    final searching = _query.trim().isNotEmpty;
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _move(current + 1, ScrollPositionAlignmentPolicy.keepVisibleAtEnd);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _move(current - 1, ScrollPositionAlignmentPolicy.keepVisibleAtStart);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+      _choose(row);
+      return KeyEventResult.handled;
+    }
+    if (searching) return KeyEventResult.ignored;
+    if (key == LogicalKeyboardKey.arrowRight && _hasChildren(row)) {
+      if (_expanded.contains(row.code)) {
+        _move(current + 1, ScrollPositionAlignmentPolicy.keepVisibleAtEnd);
+      } else {
+        _toggle(row);
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowLeft) {
+      if (_expanded.contains(row.code)) {
+        _toggle(row);
+      } else if (row.parent != null) {
+        _move(_rows.indexWhere((item) => item.$1.code == row.parent), ScrollPositionAlignmentPolicy.keepVisibleAtStart);
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   List<(CodeNode, int)> _treeRows() {
     final rows = <(CodeNode, int)>[];
     void visit(List<String> codes, int indent) {
@@ -79,21 +138,30 @@ class _CodeBrowserState extends State<CodeBrowser> {
     final searching = _query.trim().isNotEmpty;
     final found = _tree.search(_query, _selectable);
     final rows = searching ? [for (final node in found.results) (node, 0)] : _treeRows();
+    _rows = rows;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
-          key: const ValueKey('code-search'),
-          autofocus: widget.autofocus,
-          autocorrect: false,
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.search, size: 20),
-            hintText: t('Mot-clé ou code', 'Keyword or code'),
-            border: const OutlineInputBorder(),
-            isDense: true,
+        Focus(
+          canRequestFocus: false,
+          skipTraversal: true,
+          onKeyEvent: _onKey,
+          child: TextField(
+            key: const ValueKey('code-search'),
+            autofocus: widget.autofocus,
+            autocorrect: false,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search, size: 20),
+              hintText: t('Mot-clé ou code', 'Keyword or code'),
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+            onChanged: (value) => setState(() {
+              _query = value;
+              _active = 0;
+            }),
           ),
-          onChanged: (value) => setState(() => _query = value),
         ),
         const SizedBox(height: 6),
         Expanded(
@@ -104,7 +172,7 @@ class _CodeBrowserState extends State<CodeBrowser> {
                 )
               : ListView.builder(
                   itemCount: rows.length,
-                  itemBuilder: (context, index) => _row(context, rows[index].$1, rows[index].$2, searching, muted),
+                  itemBuilder: (context, index) => _row(context, rows[index].$1, rows[index].$2, searching, muted, index),
                 ),
         ),
         if (searching && found.total > found.results.length)
@@ -119,22 +187,27 @@ class _CodeBrowserState extends State<CodeBrowser> {
     );
   }
 
-  Widget _row(BuildContext context, CodeNode node, int indent, bool searching, Color muted) {
+  Widget _row(BuildContext context, CodeNode node, int indent, bool searching, Color muted, int index) {
     final enabled = widget.onSelect == null || _selectable(node);
     final parent = _hasChildren(node);
     final open = _expanded.contains(node.code);
     final colors = Theme.of(context).colorScheme;
+    final highlighted = _usingKeys && index == _active.clamp(0, _rows.length - 1);
     return Semantics(
       selected: node.code == widget.value,
       enabled: enabled,
       child: InkWell(
         key: ValueKey('code-row-${node.code}'),
         borderRadius: BorderRadius.circular(8),
+        // Arrows move through the rows from the search box, so Tab does not stop on each one.
+        canRequestFocus: false,
         onTap: enabled || parent ? () => _choose(node) : null,
         child: Container(
+          key: highlighted ? _activeRow : null,
           constraints: const BoxConstraints(minHeight: 48),
+          color: highlighted ? colors.surfaceContainerHighest : null,
           padding: EdgeInsetsDirectional.only(start: 4.0 + indent * 16, end: 8),
-          decoration: node.code == widget.value
+          foregroundDecoration: node.code == widget.value
               ? BoxDecoration(border: BorderDirectional(start: BorderSide(color: colors.primary, width: 3)))
               : null,
           child: Row(
@@ -143,11 +216,13 @@ class _CodeBrowserState extends State<CodeBrowser> {
                 SizedBox(
                   width: 40,
                   child: parent
-                      ? IconButton(
-                          tooltip: open ? t('Replier ${node.label}', 'Collapse ${node.label}') : t('Déplier ${node.label}', 'Expand ${node.label}'),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: () => _toggle(node),
-                          icon: Icon(open ? Icons.expand_more : Icons.chevron_right, size: 20),
+                      ? ExcludeFocus(
+                          child: IconButton(
+                            tooltip: open ? t('Replier ${node.label}', 'Collapse ${node.label}') : t('Déplier ${node.label}', 'Expand ${node.label}'),
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => _toggle(node),
+                            icon: Icon(open ? Icons.expand_more : Icons.chevron_right, size: 20),
+                          ),
                         )
                       : null,
                 ),
@@ -205,7 +280,7 @@ class CodePickerField extends StatelessWidget {
       french: french,
       value: value,
       canSelect: canSelect,
-      autofocus: MediaQuery.sizeOf(context).width >= 600,
+      autofocus: _isDesktop,
       onSelect: (code) => Navigator.pop(sheetContext, code),
     );
     Widget body(BuildContext sheetContext, double height) => SizedBox(

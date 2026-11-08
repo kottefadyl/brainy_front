@@ -1,6 +1,8 @@
 import 'package:brainy/code_picker.dart';
 import 'package:brainy/code_tree.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> _code(String code, String labelFr, [String? parent, bool active = true]) => {
@@ -211,6 +213,76 @@ void main() {
       final code = tester.getSize(find.text('47.11B').last);
       expect(code.width, lessThanOrEqualTo(88));
       expect(label.width, greaterThan(code.width));
+    });
+
+    Future<List<String>> keyboardHarness(WidgetTester tester) async {
+      final chosen = <String>[];
+      tester.view.physicalSize = const Size(1000, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CodePickerField(label: 'Activité', codes: _sample, french: true, value: '', canSelect: _active, onChanged: chosen.add),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(CodePickerField));
+      await tester.pumpAndSettle();
+      return chosen;
+    }
+
+    testWidgets('on desktop the search box takes the focus and the arrows walk the tree', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      final chosen = await keyboardHarness(tester);
+      final focused = FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<TextField>();
+      expect(focused, isNotNull, reason: 'typing can start at once');
+      expect(_row('47'), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(_row('47'), findsOneWidget, reason: 'right opens the branch');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(_row('47.1'), findsOneWidget, reason: 'right moves in, then opens');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      expect(_row('47.1'), findsNothing, reason: 'left closes the branch');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(chosen, ['G'], reason: 'left went back to the parent, Enter chose it');
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('arrows and Enter choose a search result; Escape closes', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      final chosen = await keyboardHarness(tester);
+      await tester.enterText(_search, 'alim');
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(chosen, ['47.11'], reason: 'second result');
+      await tester.tap(find.byType(CodePickerField));
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(Dialog), findsNothing);
+      expect(chosen, hasLength(1));
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('on mobile the keyboard does not cover the tree on opening', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      await _pick(tester, width: 700);
+      expect(FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<TextField>(), isNull);
+      expect(_row('G'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
     });
 
     testWidgets('a wide screen uses a dialog', (tester) async {
