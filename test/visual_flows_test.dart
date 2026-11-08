@@ -1,6 +1,7 @@
 import 'package:brainy/auth_api.dart';
 import 'package:brainy/collections_api.dart';
 import 'package:brainy/entry_links_dialog.dart';
+import 'package:brainy/analysis_chart.dart';
 import 'package:brainy/insights_dialog.dart';
 import 'package:brainy/starter_dialog.dart';
 import 'package:brainy/unit_dialog.dart';
@@ -342,14 +343,121 @@ void main() {
         expect(find.textContaining('2026-10-23 · 8'), findsOneWidget);
         expect(find.textContaining('2026-10-24 · 6'), findsOneWidget);
         await _choose(tester, 'Display', 'Bars');
-        expect(find.byType(LinearProgressIndicator), findsNWidgets(2));
+        expect(find.byType(AnalysisChart), findsOneWidget);
         await _choose(tester, 'Display', 'Line');
-        expect(find.byType(CustomPaint), findsWidgets);
-        expect(find.text('Value · 0–8'), findsOneWidget);
-        expect(find.text('2026-10-23 · 2026-10-24'), findsOneWidget);
+        expect(find.byType(AnalysisChart), findsOneWidget);
+        expect(find.byKey(const ValueKey('analysis-chart-series')), findsOneWidget);
+        // The chart buttons and the display selector stay in step.
+        await tester.ensureVisible(find.byTooltip('Bars'));
+        await tester.tap(find.byTooltip('Bars'));
+        await tester.pumpAndSettle();
+        expect(find.text('Bars'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
+  }
+
+  testWidgets('T21 advanced formula is labelled and cannot reach the simple editor', (
+    tester,
+  ) async {
+    final collection = BrainyCollection.fromJson({
+      'id': 'book',
+      'name': 'Book',
+      'fields': [
+        {'id': 'amount', 'name': 'Amount', 'kind': 'NUMBER'},
+      ],
+      'formats': [
+        {
+          'id': 'format',
+          'name': 'Chapter',
+          'color': '#EEF5FF',
+          'fields': [
+            {'id': 'amount', 'name': 'Amount', 'kind': 'NUMBER'},
+          ],
+        },
+      ],
+      'formulas': [
+        {
+          'id': 'simple',
+          'name': 'Doubled',
+          'formatId': 'format',
+          'version': 1,
+          'expression': '{"kind":"operation","operator":"MULTIPLY","args":[{"kind":"field","fieldId":"amount"},{"kind":"number","value":"2"}]}',
+        },
+        {
+          'id': 'conditional',
+          'name': 'Conditional bonus',
+          'formatId': 'format',
+          'version': 1,
+          'expression': '{"kind":"if","condition":{"kind":"comparison","operator":"GT","left":{"kind":"field","fieldId":"amount"},"right":{"kind":"number","value":"10"}},"then":{"kind":"number","value":"1"},"else":{"kind":"number","value":"0"}}',
+        },
+        {
+          'id': 'nested',
+          'name': 'Nested operation',
+          'formatId': 'format',
+          'version': 1,
+          'expression': '{"kind":"operation","operator":"ADD","args":[{"kind":"operation","operator":"MULTIPLY","args":[{"kind":"field","fieldId":"amount"},{"kind":"number","value":"2"}]},{"kind":"number","value":"1"}]}',
+        },
+      ],
+    });
+    await _mount(
+      tester,
+      const Size(320, 820),
+      (context) => TextButton(
+        onPressed: () => showInsightsDialog(
+          context,
+          CollectionsApi(_FlowAuthApi()),
+          collection,
+          onOpenEntry: (_) async {},
+        ),
+        child: const Text('Open insights'),
+      ),
+    );
+    await tester.tap(find.text('Open insights'));
+    await tester.pumpAndSettle();
+    final formulas = find.byType(ExpansionTile).first;
+    await tester.ensureVisible(formulas);
+    await tester.tap(formulas);
+    await tester.pumpAndSettle();
+    expect(find.text('Advanced formula'), findsNWidgets(2));
+    expect(find.byTooltip('Edit'), findsOneWidget);
+    expect(find.byTooltip('Delete'), findsNWidgets(3));
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final (label, id) in const [
+    ('Median', 'MEDIAN'),
+    ('Standard deviation', 'STDDEV'),
+    ('Standard deviation (sample)', 'STDDEV_SAMPLE'),
+    ('25th percentile (P25)', 'PERCENTILE_25'),
+    ('75th percentile (P75)', 'PERCENTILE_75'),
+    ('95th percentile (P95)', 'PERCENTILE_95'),
+    ('Mode (most frequent value)', 'MODE'),
+  ]) {
+    testWidgets('T22 $label is sent to the API as $id', (tester) async {
+      final fake = _FlowAuthApi();
+      await _mount(
+        tester,
+        const Size(390, 820),
+        (context) => TextButton(
+          onPressed: () => showInsightsDialog(
+            context,
+            CollectionsApi(fake),
+            _collection,
+            onOpenEntry: (_) async {},
+          ),
+          child: const Text('Open insights'),
+        ),
+      );
+      await tester.tap(find.text('Open insights'));
+      await tester.pumpAndSettle();
+      await _choose(tester, 'Calculation', label);
+      await tester.ensureVisible(find.text('Calculate'));
+      await tester.tap(find.text('Calculate'));
+      await tester.pumpAndSettle();
+      expect(fake.lastAnalysisInput?['operation'], id);
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets('T23 object chart shows the object name and kilograms', (
@@ -388,7 +496,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Water · 3.5 kg'), findsOneWidget);
     await _choose(tester, 'Display', 'Bars');
-    expect(find.text('Water'), findsOneWidget);
+    expect(find.text('Key figure'), findsOneWidget);
+    expect(find.text('3.5 kg'), findsOneWidget);
+    expect(find.text('Water · 2 entries'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -37,3 +37,50 @@ abstract final class BrainyNavigationColors {
   static Color selected(bool dark) => const Color(0xFF06378F);
   static Color border(bool dark) => const Color(0xFFD0E0FF);
 }
+
+/// Colors of the analysis chart, the same on the web client.
+@immutable
+class ChartColors {
+  const ChartColors._({
+    required this.main,
+    required this.comparison,
+    required this.ink,
+    required this.muted,
+    required this.line,
+    required this.surface,
+    required this.success,
+    required this.successSoft,
+    required this.danger,
+    required this.dangerSoft,
+  });
+
+  final Color main, comparison, ink, muted, line, surface;
+  final Color success, successSoft, danger, dangerSoft;
+
+  static const _light = ChartColors._(
+    main: Color(0xFF2463CE),
+    comparison: Color(0xFF0F8F72),
+    ink: BrainyColors.lightInk,
+    muted: BrainyColors.lightMuted,
+    line: BrainyColors.lightLine,
+    surface: BrainyColors.lightSurface,
+    success: Color(0xFF157F3B),
+    successSoft: Color(0xFFEAF7EF),
+    danger: Color(0xFFC8202F),
+    dangerSoft: Color(0xFFFDEDEE),
+  );
+  static const _dark = ChartColors._(
+    main: Color(0xFF4F8BE6),
+    comparison: Color(0xFF2BA98A),
+    ink: BrainyColors.darkInk,
+    muted: BrainyColors.darkMuted,
+    line: BrainyColors.darkLine,
+    surface: BrainyColors.darkElevated,
+    success: Color(0xFF5EDC8C),
+    successSoft: Color(0xFF233A2C),
+    danger: Color(0xFFFF8A8F),
+    dangerSoft: Color(0xFF442A2D),
+  );
+
+  static ChartColors of(Brightness brightness) => brightness == Brightness.dark ? _dark : _light;
+}

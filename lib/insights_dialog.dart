@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'analysis_chart.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 
@@ -210,38 +211,48 @@ class _InsightsDialogState extends State<_InsightsDialog> {
     }
   }
 
-  void editFormula(Map<String, dynamic> formula) {
+  String? _sourceId(dynamic node) {
+    if (node is! Map<String, dynamic>) return null;
+    for (final source in sources) {
+      if (jsonEncode(source.expression) == jsonEncode(node)) return source.id;
+    }
+    return null;
+  }
+
+  /// Whether the simple editor can show this formula without losing any of it.
+  bool isSimpleFormula(Map<String, dynamic> formula) {
     try {
       final stored =
           jsonDecode(formula['expression'] as String) as Map<String, dynamic>;
       final tree = stored['kind'] == 'round'
           ? stored['value'] as Map<String, dynamic>
           : stored;
-      if (tree['kind'] != 'operation' && tree['kind'] != 'dateDifference') {
+      if (tree['kind'] == 'dateDifference') return true;
+      if (tree['kind'] != 'operation') return false;
+      final args = tree['args'] as List<dynamic>;
+      if (args.length != 2 || _sourceId(args[0]) == null) return false;
+      return _sourceId(args[1]) != null ||
+          (args[1] as Map<String, dynamic>)['kind'] == 'number';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void editFormula(Map<String, dynamic> formula) {
+    try {
+      if (!isSimpleFormula(formula)) {
         throw const FormatException('Unsupported formula shape');
       }
-      String? sourceId(dynamic node) {
-        if (node is! Map<String, dynamic>) return null;
-        for (final source in sources) {
-          if (jsonEncode(source.expression) == jsonEncode(node)) {
-            return source.id;
-          }
-        }
-        return null;
-      }
-
+      final stored =
+          jsonDecode(formula['expression'] as String) as Map<String, dynamic>;
+      final tree = stored['kind'] == 'round'
+          ? stored['value'] as Map<String, dynamic>
+          : stored;
       final args = tree['kind'] == 'operation'
           ? (tree['args'] as List<dynamic>)
           : <dynamic>[];
-      final first = args.length == 2 ? sourceId(args[0]) : null;
-      final second = args.length == 2 ? sourceId(args[1]) : null;
-      if (tree['kind'] == 'operation' &&
-          (first == null ||
-              (second == null &&
-                  (args.length != 2 ||
-                      (args[1] as Map<String, dynamic>)['kind'] != 'number')))) {
-        throw const FormatException('Unsupported formula operands');
-      }
+      final first = args.length == 2 ? _sourceId(args[0]) : null;
+      final second = args.length == 2 ? _sourceId(args[1]) : null;
       setState(() {
         error = null;
         editingFormulaId = formula['id'] as String;
@@ -573,13 +584,6 @@ class _InsightsDialogState extends State<_InsightsDialog> {
     zoneFieldId ??= zoneFields.firstOrNull?.id;
     final rows =
         (result?['rows'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-    final maximum = rows.fold<double>(
-      1,
-      (current, row) => math.max(
-        current,
-        double.tryParse(row['value'] as String? ?? '')?.abs() ?? 0,
-      ),
-    );
     final nonnegative = rows.every(
       (row) => (double.tryParse(row['value'] as String? ?? '') ?? 0) >= 0,
     );
@@ -587,7 +591,11 @@ class _InsightsDialogState extends State<_InsightsDialog> {
       0,
       (sum, row) => sum + (double.tryParse(row['value'] as String? ?? '') ?? 0),
     );
-    final canShowLine = nonnegative && (groupBy == 'DAY' || groupBy == 'MONTH');
+    final canShowLine =
+        nonnegative &&
+        (groupBy == 'DAY' ||
+            groupBy == 'MONTH' ||
+            const ['CUMULATIVE', 'MOVING_AVERAGE', 'LINEAR_TREND'].contains(operation));
     final effectiveChart =
         (chart == 'PIE' && (!nonnegative || pieTotal <= 0)) ||
             (chart == 'LINE' && !canShowLine) ||
@@ -901,12 +909,42 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                       for (final formula in formulas)
                         Row(
                           children: [
-                            Expanded(child: Text(formula['name'] as String)),
-                            IconButton(
-                              tooltip: fr ? 'Modifier' : 'Edit',
-                              onPressed: () => editFormula(formula),
-                              icon: const Icon(Icons.edit_outlined),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(formula['name'] as String),
+                                  if (!isSimpleFormula(formula))
+                                    Tooltip(
+                                      message: fr
+                                          ? 'Cette formule utilise des conditions, des dates, du texte ou des objets liés. Modifiez-la depuis le web.'
+                                          : 'This formula uses conditions, dates, text or linked objects. Edit it on the web.',
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          child: Text(
+                                            fr ? 'Formule avancée' : 'Advanced formula',
+                                            style: TextStyle(
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
+                            if (isSimpleFormula(formula))
+                              IconButton(
+                                tooltip: fr ? 'Modifier' : 'Edit',
+                                onPressed: () => editFormula(formula),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
                             IconButton(
                               tooltip: fr ? 'Supprimer' : 'Delete',
                               onPressed: () async {
@@ -963,8 +1001,13 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                         'MAX',
                         'MEDIAN',
                         'PERCENTILE',
+                        'PERCENTILE_25',
+                        'PERCENTILE_75',
+                        'PERCENTILE_95',
+                        'MODE',
                         'VARIANCE',
                         'STDDEV',
+                        'STDDEV_SAMPLE',
                         'RANGE',
                         'RATE_PER_N',
                         'CROSSTAB',
@@ -982,7 +1025,12 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                         'MEDIAN': fr ? 'Médiane' : 'Median',
                         'PERCENTILE': fr ? 'Centile' : 'Percentile',
                         'VARIANCE': fr ? 'Variance' : 'Variance',
+                        'PERCENTILE_25': fr ? 'Quantile P25' : '25th percentile (P25)',
+                        'PERCENTILE_75': fr ? 'Quantile P75' : '75th percentile (P75)',
+                        'PERCENTILE_95': fr ? 'Quantile P95' : '95th percentile (P95)',
+                        'MODE': fr ? 'Mode (valeur la plus fréquente)' : 'Mode (most frequent value)',
                         'STDDEV': fr ? 'Écart-type' : 'Standard deviation',
+                        'STDDEV_SAMPLE': fr ? 'Écart-type (échantillon)' : 'Standard deviation (sample)',
                         'RANGE': fr ? 'Étendue (Max − Min)' : 'Range (Max − Min)',
                         'RATE_PER_N': fr ? 'Taux pour N' : 'Rate per N',
                         'CROSSTAB': fr
@@ -1460,41 +1508,24 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                       (value) => setState(() => chart = value!),
                     ),
                     const SizedBox(height: 12),
-                    if (effectiveChart == 'BAR')
-                      for (final row in rows)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            children: [
-                              SizedBox(
-                                width: 100,
-                                child: Text(
-                                  (row['label'] ?? row['group']) as String,
-                                ),
-                              ),
-                              Expanded(
-                                child: LinearProgressIndicator(
-                                  value:
-                                      (double.tryParse(
-                                            row['value'] as String? ?? '',
-                                          )?.abs() ??
-                                          0) /
-                                      maximum,
-                                  minHeight: 16,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(row['value'] as String),
-                            ],
-                          ),
-                        ),
-                    if (effectiveChart == 'LINE')
-                      Text(
-                        '${result!['unit'] ?? result!['dimension'] ?? (fr ? 'Valeur' : 'Value')} · 0–${maximum.toStringAsFixed(maximum == maximum.roundToDouble() ? 0 : 2)}',
-                        style: Theme.of(context).textTheme.bodySmall,
+                    if (rows.length == 1 ||
+                        effectiveChart == 'BAR' ||
+                        effectiveChart == 'LINE')
+                      AnalysisChart(
+                        rows: rows,
+                        comparisonRows: (result!['comparisonRows'] as List<dynamic>? ?? const [])
+                            .cast<Map<String, dynamic>>(),
+                        unit: result!['unit'] as String?,
+                        french: fr,
+                        view: effectiveChart == 'LINE' ? ChartView.line : ChartView.bar,
+                        views: [
+                          if (canShowLine) ChartView.line,
+                          if (nonnegative) ChartView.bar,
+                        ],
+                        onViewChange: (view) => setState(() => chart = view == ChartView.line ? 'LINE' : 'BAR'),
+                        height: MediaQuery.sizeOf(context).width < 600 ? 230 : 300,
                       ),
-                    if (effectiveChart == 'LINE' ||
-                        effectiveChart == 'PIE') ...[
+                    if (effectiveChart == 'PIE' && rows.length > 1) ...[
                       Semantics(
                         label:
                             '${fr ? 'Graphique' : 'Chart'}: ${rows.length} ${fr ? 'groupes' : 'groups'}',
@@ -1504,26 +1535,10 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                               : 280,
                           width: double.infinity,
                           child: CustomPaint(
-                            painter: _ChartPainter(
-                              rows: rows,
-                              line: effectiveChart == 'LINE',
-                            ),
+                            painter: _ChartPainter(rows: rows),
                           ),
                         ),
                       ),
-                      if (effectiveChart == 'LINE')
-                        Text(
-                          rows
-                              .map(
-                                (row) =>
-                                    (row['label'] ?? row['group']) as String,
-                              )
-                              .join(' · '),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      if (effectiveChart == 'PIE')
                         Wrap(
                           spacing: 12,
                           runSpacing: 6,
@@ -1631,9 +1646,8 @@ class _InsightsDialogState extends State<_InsightsDialog> {
 }
 
 class _ChartPainter extends CustomPainter {
-  const _ChartPainter({required this.rows, required this.line});
+  const _ChartPainter({required this.rows});
   final List<Map<String, dynamic>> rows;
-  final bool line;
   @override
   void paint(Canvas canvas, Size size) {
     final numbers = rows
@@ -1642,60 +1656,35 @@ class _ChartPainter extends CustomPainter {
     if (numbers.isEmpty) return;
     final maximum = numbers.map((value) => value.abs()).reduce(math.max);
     if (maximum <= 0) return;
-    final paint = Paint()
-      ..color = const Color(0xFF3478C9)
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-    if (line) {
-      final path = Path();
-      for (var index = 0; index < numbers.length; index++) {
-        final x =
-            16 + index * (size.width - 32) / math.max(1, numbers.length - 1);
-        final y =
-            size.height - 16 - numbers[index] / maximum * (size.height - 32);
-        if (index == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-        canvas.drawCircle(
-          Offset(x, y),
-          4,
-          Paint()..color = const Color(0xFF3478C9),
-        );
-      }
-      canvas.drawPath(path, paint);
-    } else {
-      final total = numbers
-          .where((value) => value > 0)
-          .fold<double>(0, (a, b) => a + b);
-      if (total <= 0) return;
-      var start = -math.pi / 2;
-      final colors = [
-        const Color(0xFF3478C9),
-        const Color(0xFF5DB5A0),
-        const Color(0xFFE2A653),
-        const Color(0xFFAA8BCB),
-        const Color(0xFFD7839E),
-      ];
-      for (var index = 0; index < numbers.length; index++) {
-        final sweep = math.max(0, numbers[index]) / total * 2 * math.pi;
-        canvas.drawArc(
-          Rect.fromCircle(
-            center: Offset(size.width / 2, size.height / 2),
-            radius: math.min(size.height, size.width) / 2 - 8,
-          ),
-          start,
-          sweep,
-          true,
-          Paint()..color = colors[index % colors.length],
-        );
-        start += sweep;
-      }
+    final total = numbers
+        .where((value) => value > 0)
+        .fold<double>(0, (a, b) => a + b);
+    if (total <= 0) return;
+    var start = -math.pi / 2;
+    final colors = [
+      const Color(0xFF3478C9),
+      const Color(0xFF5DB5A0),
+      const Color(0xFFE2A653),
+      const Color(0xFFAA8BCB),
+      const Color(0xFFD7839E),
+    ];
+    for (var index = 0; index < numbers.length; index++) {
+      final sweep = math.max(0, numbers[index]) / total * 2 * math.pi;
+      canvas.drawArc(
+        Rect.fromCircle(
+          center: Offset(size.width / 2, size.height / 2),
+          radius: math.min(size.height, size.width) / 2 - 8,
+        ),
+        start,
+        sweep,
+        true,
+        Paint()..color = colors[index % colors.length],
+      );
+      start += sweep;
     }
   }
 
   @override
   bool shouldRepaint(covariant _ChartPainter oldDelegate) =>
-      oldDelegate.rows != rows || oldDelegate.line != line;
+      oldDelegate.rows != rows;
 }
