@@ -262,7 +262,7 @@ class _DataSourceRunsViewState extends State<DataSourceRunsView> {
                       child: Text(
                         [
                           '${_number(run.rowsPerSecond!)} ${dsTr(fr, 'rows/s', 'lignes/s')}',
-                          '${_number(run.durationMs / 1000)} s',
+                          run.durationMs < 1000 ? '${run.durationMs} ms' : '${_number(run.durationMs / 1000)} s',
                           if ((run.maxLagSeconds ?? 0) > 0)
                             '${dsTr(fr, 'longest delay between fact and reception', 'écart maximal entre fait et réception')} ${_lag(run.maxLagSeconds!)}',
                         ].join(' · '),
