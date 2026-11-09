@@ -813,6 +813,8 @@ class CollectionsApi {
     final data = await auth.authenticatedRequest(
       'query(\$collectionId:String!,\$input:AnalysisInput!) { analyseCollection(collectionId:\$collectionId,input:\$input) { operation operationVersion groupBy secondaryGroupBy unit dimension skippedMissingCount slope explanation refreshedAt rows { group label rowKey columnKey value count sourcesHasMore sources { entryId value } } comparisonRows { group label rowKey columnKey value count sourcesHasMore sources { entryId value } } } }',
       {'collectionId': collectionId, 'input': input},
+      // A large analysis takes up to about 33 s on one million entries (T22).
+      timeout: const Duration(seconds: 60),
     );
     return data['analyseCollection'] as Map<String, dynamic>;
   }
