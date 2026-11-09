@@ -470,6 +470,7 @@ class AppStrings {
     'US dollar': 'Dollar américain',
     'British pound': 'Livre sterling',
     'Nigerian naira': 'Naira nigérian',
+    'CFA franc': 'Franc CFA',
     'Percent': 'Pourcentage',
     'Hours': 'Heures',
     'Minutes': 'Minutes',

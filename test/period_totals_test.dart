@@ -156,6 +156,23 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('shows the currency on every total', (tester) async {
+      const format = BrainyFormat(
+        id: 'f',
+        name: 'Bilan du jour',
+        color: '#EAF8FA',
+        fields: [
+          BrainyField(id: 'd', name: 'Date', kind: BrainyFieldKind.date),
+          BrainyField(id: 'a', name: 'Montant', kind: BrainyFieldKind.number, unit: 'FCFA'),
+        ],
+      );
+      await pump(tester, BrainyCollection(id: 'c', name: 'KT', fields: format.fields, formats: const [format], periodTotals: _config), () {});
+      expect(find.text('1\u202f500,5 FCFA'), findsOneWidget);
+      expect(find.text('700 FCFA'), findsOneWidget);
+      expect(find.text('250\u202f000 FCFA'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('refuses a value that is not an amount', (tester) async {
       var saved = 0;
       final auth = await pump(tester, _collection(totals: _config), () => saved++);

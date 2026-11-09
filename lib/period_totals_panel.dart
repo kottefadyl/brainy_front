@@ -186,7 +186,7 @@ class _PeriodTotalsPanelState extends State<PeriodTotalsPanel> {
         _amountField!.id: stored,
       }, formatId: _format!.id);
       if (!mounted) return;
-      final shown = formatAmount(stored, french: _fr);
+      final shown = '${formatAmount(stored, french: _fr)}$_unit';
       setState(() {
         _notice = _fr ? 'Enregistré : $shown' : 'Saved: $shown';
         _amount.clear();
@@ -206,10 +206,15 @@ class _PeriodTotalsPanelState extends State<PeriodTotalsPanel> {
     }
   }
 
-  String _shown(String? value) =>
-      value == null ? '…' : formatAmount(value, french: _fr);
+  String get _unit {
+    final unit = _amountField?.unit;
+    return unit == null || unit.isEmpty ? '' : ' $unit';
+  }
 
-  Widget _figures(BuildContext context, BrainyField amount) {
+  String _shown(String? value) =>
+      value == null ? '…' : '${formatAmount(value, french: _fr)}$_unit';
+
+  Widget _figures(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     const tabular = [FontFeature.tabularFigures()];
@@ -242,9 +247,6 @@ class _PeriodTotalsPanelState extends State<PeriodTotalsPanel> {
         ),
       ),
     );
-    final unit = amount.unit == null || amount.unit!.isEmpty
-        ? ''
-        : ' ${amount.unit}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -256,7 +258,7 @@ class _PeriodTotalsPanelState extends State<PeriodTotalsPanel> {
           ),
         ),
         Text(
-          '${_shown(_totals?.month)}$unit',
+          _shown(_totals?.month),
           style: text.headlineLarge?.copyWith(
             fontWeight: FontWeight.w700,
             fontFeatures: tabular,
@@ -374,7 +376,7 @@ class _PeriodTotalsPanelState extends State<PeriodTotalsPanel> {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final figures = _figures(context, amount);
+            final figures = _figures(context);
             final form = _form(context, date, amount);
             if (constraints.maxWidth < 600) {
               return Column(

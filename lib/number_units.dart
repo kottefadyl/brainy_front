@@ -27,6 +27,7 @@ const numberUnits = <NumberUnit>[
   NumberUnit('USD', 'US dollar', r'$', 'Money'),
   NumberUnit('GBP', 'British pound', '£', 'Money'),
   NumberUnit('NGN', 'Nigerian naira', '₦', 'Money'),
+  NumberUnit('FCFA', 'CFA franc', 'FCFA', 'Money'),
   NumberUnit('%', 'Percent', '%', 'Other'),
   NumberUnit('h', 'Hours', 'h', 'Other'),
   NumberUnit('min', 'Minutes', 'min', 'Other'),

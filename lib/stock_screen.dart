@@ -536,7 +536,7 @@ class _StockScreenState extends State<_StockScreen> {
             const SizedBox(height: 12),
             TextField(controller: priceSnapshot, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: fr ? 'Prix instantané' : 'Price snapshot')),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(isExpanded: true, initialValue: priceUnit, decoration: InputDecoration(labelText: fr ? 'Devise du prix' : 'Price currency'), items: ['', 'EUR', 'USD', 'GBP', 'NGN'].map((value) => DropdownMenuItem(value: value, child: Text(value.isEmpty ? '—' : value, maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() => priceUnit = value!)),
+            DropdownButtonFormField<String>(isExpanded: true, initialValue: priceUnit, decoration: InputDecoration(labelText: fr ? 'Devise du prix' : 'Price currency'), items: ['', 'EUR', 'USD', 'GBP', 'NGN', 'FCFA'].map((value) => DropdownMenuItem(value: value, child: Text(value.isEmpty ? '—' : value, maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() => priceUnit = value!)),
           ]),
           FilledButton.tonal(
             onPressed: busy ? null : previewManual,
