@@ -16,7 +16,7 @@ class CaptureApi extends CollectionsApi {
   @override
   Future<List<BrainyEntry>> duplicateLinks(String collectionId, String formatId, String fieldId, String url, {String? excludeEntryId}) async => [existing];
   @override
-  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
+  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {Map<String, Map<String, String>> measures = const {}, String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
     saved = values;
     return BrainyEntry(id: 'new', formatId: formatId, values: values, createdAt: DateTime.utc(2026, 10, 27), updatedAt: DateTime.utc(2026, 10, 27));
   }
@@ -92,7 +92,7 @@ class _FailingCaptureApi extends CaptureApi {
   @override
   Future<List<BrainyEntry>> duplicateLinks(String collectionId, String formatId, String fieldId, String url, {String? excludeEntryId}) async => const [];
   @override
-  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
+  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {Map<String, Map<String, String>> measures = const {}, String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
     throw StateError('Network unreachable');
   }
 }

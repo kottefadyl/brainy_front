@@ -12,7 +12,7 @@ class _ReplayApi extends CollectionsApi {
   String? failure;
   Map<String, String>? serverValues;
   @override
-  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
+  Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {Map<String, Map<String, String>> measures = const {}, String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
     keys.add(clientMutationId!);
     if (failure != null) throw AuthApiException(failure!);
     return BrainyEntry(id: entryId ?? 'server-id', values: serverValues ?? values, formatId: formatId, createdAt: DateTime.utc(2026), updatedAt: DateTime.utc(2026));

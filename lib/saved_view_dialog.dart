@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 
@@ -164,7 +165,7 @@ class _SavedViewDialogState extends State<_SavedViewDialog> {
         .where((format) => _formats.contains(format.id))
         .expand((format) => format.fields.map((field) => (format.name, field)))
         .toList();
-    return AlertDialog(
+    return AdaptiveFormDialog(
       title: Text(
         widget.existing == null
             ? (_fr ? 'Enregistrer une vue' : 'Save a view')
@@ -179,12 +180,13 @@ class _SavedViewDialogState extends State<_SavedViewDialog> {
             children: [
               TextField(
                 controller: _name,
-                maxLength: 80,
+                maxLength: 80, buildCounter: quietFormCounter,
                 decoration: InputDecoration(
                   labelText: _fr ? 'Nom de la vue' : 'View name',
                 ),
               ),
-              DropdownButtonFormField<String>(
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(isExpanded: true, 
                 initialValue: _layout,
                 decoration: InputDecoration(
                   labelText: _fr ? 'Présentation' : 'Layout',
@@ -192,23 +194,23 @@ class _SavedViewDialogState extends State<_SavedViewDialog> {
                 items: [
                   DropdownMenuItem(
                     value: 'LIST',
-                    child: Text(_fr ? 'Liste' : 'List'),
+                    child: Text(_fr ? 'Liste' : 'List', maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                   DropdownMenuItem(
                     value: 'TABLE',
-                    child: Text(_fr ? 'Tableau' : 'Table'),
+                    child: Text(_fr ? 'Tableau' : 'Table', maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                   DropdownMenuItem(
                     value: 'CARDS',
-                    child: Text(_fr ? 'Fiches' : 'Cards'),
+                    child: Text(_fr ? 'Fiches' : 'Cards', maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                   DropdownMenuItem(
                     value: 'TASKS',
-                    child: Text(_fr ? 'Tâches' : 'Tasks'),
+                    child: Text(_fr ? 'Tâches' : 'Tasks', maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                   DropdownMenuItem(
                     value: 'CALENDAR',
-                    child: Text(_fr ? 'Agenda' : 'Calendar'),
+                    child: Text(_fr ? 'Agenda' : 'Calendar', maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                 ],
                 onChanged: (value) => setState(() {
@@ -302,29 +304,29 @@ class _SavedViewDialogState extends State<_SavedViewDialog> {
                     }),
                   ),
               ],
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String>(isExpanded: true, 
                 initialValue: _sort,
                 decoration: InputDecoration(labelText: _fr ? 'Tri' : 'Sort'),
                 items: [
                   DropdownMenuItem(
                     value: 'NEWEST',
-                    child: Text(_fr ? 'Plus récent d’abord' : 'Newest first'),
+                    child: Text(_fr ? 'Plus récent d’abord' : 'Newest first', maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                   DropdownMenuItem(
                     value: 'OLDEST',
-                    child: Text(_fr ? 'Plus ancien d’abord' : 'Oldest first'),
+                    child: Text(_fr ? 'Plus ancien d’abord' : 'Oldest first', maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
-                  if (_layout != 'TASKS' && _layout != 'CALENDAR') DropdownMenuItem(value: 'MANUAL', child: Text(_fr ? 'Ordre saisi' : 'Entered order')),
+                  if (_layout != 'TASKS' && _layout != 'CALENDAR') DropdownMenuItem(value: 'MANUAL', child: Text(_fr ? 'Ordre saisi' : 'Entered order', maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ],
                 onChanged: (value) => setState(() => _sort = value ?? 'NEWEST'),
               ),
               if (_sort == 'MANUAL') for (final format in widget.collection.formats.where((item) => _formats.contains(item.id))) Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: DropdownButtonFormField<String>(
+                child: DropdownButtonFormField<String>(isExpanded: true, 
                   key: ValueKey('manual-${format.id}-${_manualOrderFieldIds.join(',')}'),
                   initialValue: format.fields.where((field) => _manualOrderFieldIds.contains(field.id)).firstOrNull?.id,
                   decoration: InputDecoration(labelText: '${_fr ? 'Champ d’ordre' : 'Order field'} · ${format.name}'),
-                  items: [for (final field in format.fields.where((item) => item.kind == BrainyFieldKind.number)) DropdownMenuItem(value: field.id, child: Text(field.name))],
+                  items: [for (final field in format.fields.where((item) => item.kind == BrainyFieldKind.number)) DropdownMenuItem(value: field.id, child: Text(field.name, maxLines: 1, overflow: TextOverflow.ellipsis))],
                   onChanged: (value) => setState(() { _manualOrderFieldIds = _manualOrderFieldIds.where((id) => !format.fields.any((field) => field.id == id)).toList(); if (value != null) _manualOrderFieldIds.add(value); }),
                 ),
               ),
@@ -373,9 +375,9 @@ class _SavedViewDialogState extends State<_SavedViewDialog> {
       isExpanded: true,
       decoration: InputDecoration(labelText: label),
       items: [
-        const DropdownMenuItem<String>(value: '', child: Text('—')),
+        const DropdownMenuItem<String>(value: '', child: Text('—', maxLines: 1, overflow: TextOverflow.ellipsis)),
         for (final item in options)
-          DropdownMenuItem(value: item.$2.id, child: Text(item.$2.name)),
+          DropdownMenuItem(value: item.$2.id, child: Text(item.$2.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
       ],
       onChanged: (next) => onChanged(next?.isEmpty == true ? null : next),
     );

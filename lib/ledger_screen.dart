@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'collections_api.dart';
 import 'ledger_api.dart';
 
@@ -61,7 +62,7 @@ class _LedgerScreenState extends State<_LedgerScreen> {
       if (item.value != '[redacted]' && !format.fields.any((field) => field.id == item.key && ['ATTACHMENT', 'OBJECT_REF'].contains(field.kind.wireName)))
         item.key: format.fields.any((field) => field.id == item.key && field.kind.wireName == 'NUMBER') ? opposite(item.value) : item.value};
     final controllers = {for (final item in draft.entries) item.key: TextEditingController(text: item.value)};
-    final accepted = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+    final accepted = await showDialog<bool>(context: context, builder: (context) => AdaptiveFormDialog(
       title: Text(tr('Counter-writing', 'Contre-écriture')),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(tr('Number fields must contain the opposite amount.', 'Les champs numériques doivent contenir le montant opposé.')),
@@ -78,12 +79,12 @@ class _LedgerScreenState extends State<_LedgerScreen> {
     final candidates = format.fields.where((field) => !['NUMBER', 'MEASURE'].contains(field.kind.wireName) && entry.values.containsKey(field.id) && entry.values[field.id] != '[redacted]').toList();
     final selected = <String>{};
     final reason = TextEditingController();
-    final accepted = await showDialog<bool>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
+    final accepted = await showDialog<bool>(context: context, builder: (context) => StatefulBuilder(builder: (context, update) => AdaptiveFormDialog(
       title: Text(tr('Mask fields', 'Masquer des champs')),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(tr('Selected values are erased; amounts remain and a trace is kept.', 'Les valeurs choisies sont effacées ; les montants restent et une trace est conservée.')),
         for (final field in candidates) CheckboxListTile(title: Text(field.name), value: selected.contains(field.id), onChanged: (value) => update(() { if (value == true) { selected.add(field.id); } else { selected.remove(field.id); } })),
-        TextField(controller: reason, maxLength: 500, onChanged: (_) => update(() {}), decoration: InputDecoration(labelText: tr('Reason', 'Motif'), border: const OutlineInputBorder())),
+        TextField(controller: reason, maxLength: 500, buildCounter: quietFormCounter, onChanged: (_) => update(() {}), decoration: InputDecoration(labelText: tr('Reason', 'Motif'), border: const OutlineInputBorder())),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('Cancel', 'Annuler'))), FilledButton(onPressed: selected.isEmpty || reason.text.trim().isEmpty ? null : () => Navigator.pop(context, true), child: Text(tr('Mask selected fields', 'Masquer les champs choisis')))],
     )));
@@ -99,7 +100,7 @@ class _LedgerScreenState extends State<_LedgerScreen> {
       body: SafeArea(child: ListView(padding: const EdgeInsets.all(16), children: [
         Text(tr('Writings are added in order. Corrections remain linked to the original.', 'Les écritures s’ajoutent dans l’ordre. Les corrections restent liées à l’originale.')),
         const SizedBox(height: 16),
-        DropdownButtonFormField<String>(key: ValueKey(formatId), initialValue: formatId, isExpanded: true, decoration: InputDecoration(labelText: tr('Data format', 'Format de données'), border: const OutlineInputBorder()), items: [for (final item in collection.formats) DropdownMenuItem(value: item.id, child: Text('${item.name}${item.appendOnly ? tr(' · register', ' · registre') : ''}'))], onChanged: busy ? null : (value) { if (value != null) { setState(() { formatId = value; fieldId = null; }); _load(); } }),
+        DropdownButtonFormField<String>(key: ValueKey(formatId), initialValue: formatId, isExpanded: true, decoration: InputDecoration(labelText: tr('Data format', 'Format de données'), border: const OutlineInputBorder()), items: [for (final item in collection.formats) DropdownMenuItem(value: item.id, child: Text('${item.name}${item.appendOnly ? tr(' · register', ' · registre') : ''}', maxLines: 1, overflow: TextOverflow.ellipsis))], onChanged: busy ? null : (value) { if (value != null) { setState(() { formatId = value; fieldId = null; }); _load(); } }),
         if (loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())) else if (!format.appendOnly) Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(tr('Turn on the register for an empty data format. This cannot be undone here.', 'Activez le registre pour un format de données vide. Cette action ne peut pas être annulée ici.')),
           const SizedBox(height: 12),
@@ -110,12 +111,14 @@ class _LedgerScreenState extends State<_LedgerScreen> {
           Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(tr('Integrity', 'Intégrité'), style: Theme.of(context).textTheme.titleLarge),
             Text(integrity?['valid'] == true ? tr('${integrity?['checked']} writings verified', '${integrity?['checked']} écritures vérifiées') : '${integrity?['problem'] ?? tr('Verification needed', 'Vérification nécessaire')}'),
-            Wrap(spacing: 8, children: [OutlinedButton(onPressed: busy ? null : () => _run(() async { integrity = await ledger.verify(collection.id, formatId); }), child: Text(tr('Verify integrity', 'Vérifier l’intégrité'))), OutlinedButton(onPressed: busy ? null : () => _run(() async { final proof = await ledger.proof(collection.id, formatId); await FilePicker.saveFile(fileName: 'brainy-register-$formatId.json', bytes: Uint8List.fromList(utf8.encode(proof))); }), child: Text(tr('Export proof', 'Exporter la preuve')))]),
+            Wrap(runSpacing: 8, spacing: 8, children: [OutlinedButton(onPressed: busy ? null : () => _run(() async { integrity = await ledger.verify(collection.id, formatId); }), child: Text(tr('Verify integrity', 'Vérifier l’intégrité'))), OutlinedButton(onPressed: busy ? null : () => _run(() async { final proof = await ledger.proof(collection.id, formatId); await FilePicker.saveFile(fileName: 'brainy-register-$formatId.json', bytes: Uint8List.fromList(utf8.encode(proof))); }), child: Text(tr('Export proof', 'Exporter la preuve')))]),
             Text(tr('Integrity evidence only; no accounting, medical or regulatory certification.', 'Preuve d’intégrité uniquement ; aucune certification comptable, médicale ou réglementaire.'), style: Theme.of(context).textTheme.bodySmall),
           ]))),
           if (isOwner && numberFields.isNotEmpty) Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(tr('Current balance', 'Solde courant'), style: Theme.of(context).textTheme.titleLarge),
-            DropdownButtonFormField<String>(key: ValueKey('balance-$formatId'), initialValue: fieldId, decoration: InputDecoration(labelText: tr('Number field', 'Champ numérique')), items: [for (final field in numberFields) DropdownMenuItem(value: field.id, child: Text(field.name))], onChanged: (value) => setState(() { fieldId = value; balance = null; })),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(isExpanded: true, key: ValueKey('balance-$formatId'), initialValue: fieldId, decoration: InputDecoration(labelText: tr('Number field', 'Champ numérique')), items: [for (final field in numberFields) DropdownMenuItem(value: field.id, child: Text(field.name, maxLines: 1, overflow: TextOverflow.ellipsis))], onChanged: (value) => setState(() { fieldId = value; balance = null; })),
+            const SizedBox(height: 12),
             OutlinedButton(onPressed: busy || fieldId == null ? null : () => _run(() async { balance = await ledger.balance(collection.id, formatId, fieldId!); }), child: Text(tr('Calculate', 'Calculer'))),
             if (balance != null) Text(balance!, style: Theme.of(context).textTheme.headlineSmall),
           ]))),
@@ -126,7 +129,7 @@ class _LedgerScreenState extends State<_LedgerScreen> {
             Text('#${entry.ledgerSequence} · ${MaterialLocalizations.of(context).formatMediumDate(entry.createdAt.toLocal())}', style: Theme.of(context).textTheme.titleMedium),
             if (entry.correctionOf != null) Text('${tr('Correction of', 'Correction de')} ${entry.correctionOf}'),
             for (final field in format.fields.where((item) => entry.values.containsKey(item.id))) Padding(padding: const EdgeInsets.only(top: 6), child: Text('${field.name}: ${entry.values[field.id] == '[redacted]' ? tr('[masked]', '[masqué]') : entry.values[field.id]}')),
-            Wrap(spacing: 8, children: [if (canEdit) TextButton(onPressed: busy ? null : () => _correct(entry), child: Text(tr('Counter-writing', 'Contre-écriture'))), if (isOwner) TextButton(onPressed: busy ? null : () => _mask(entry), child: Text(tr('Mask fields', 'Masquer des champs')))]),
+            Wrap(runSpacing: 8, spacing: 8, children: [if (canEdit) TextButton(onPressed: busy ? null : () => _correct(entry), child: Text(tr('Counter-writing', 'Contre-écriture'))), if (isOwner) TextButton(onPressed: busy ? null : () => _mask(entry), child: Text(tr('Mask fields', 'Masquer des champs')))]),
           ]))),
         ],
         if (error != null) Padding(padding: const EdgeInsets.all(12), child: Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),

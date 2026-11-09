@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'entry_editor_pickers.dart';
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 
@@ -374,7 +376,7 @@ class _RecurrenceDialogState extends State<_RecurrenceDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AdaptiveFormDialog(
     title: Text(_fr ? 'Récurrence du rendez-vous' : 'Event recurrence'),
     content: SizedBox(
       width: 420,
@@ -382,7 +384,7 @@ class _RecurrenceDialogState extends State<_RecurrenceDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DropdownButtonFormField<String>(
+            DropdownButtonFormField<String>(isExpanded: true, 
               initialValue: _frequency,
               decoration: InputDecoration(
                 labelText: _fr ? 'Répéter' : 'Repeat',
@@ -390,43 +392,47 @@ class _RecurrenceDialogState extends State<_RecurrenceDialog> {
               items: [
                 DropdownMenuItem(
                   value: 'DAILY',
-                  child: Text(_fr ? 'Chaque jour' : 'Daily'),
+                  child: Text(_fr ? 'Chaque jour' : 'Daily', maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
                 DropdownMenuItem(
                   value: 'WEEKLY',
-                  child: Text(_fr ? 'Chaque semaine' : 'Weekly'),
+                  child: Text(_fr ? 'Chaque semaine' : 'Weekly', maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
                 DropdownMenuItem(
                   value: 'MONTHLY',
-                  child: Text(_fr ? 'Chaque mois' : 'Monthly'),
+                  child: Text(_fr ? 'Chaque mois' : 'Monthly', maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
               ],
               onChanged: (value) =>
                   setState(() => _frequency = value ?? 'WEEKLY'),
             ),
-            DropdownButtonFormField<int>(
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(isExpanded: true, 
               initialValue: _interval,
               decoration: InputDecoration(
                 labelText: _fr ? 'Intervalle' : 'Interval',
               ),
               items: [
                 for (var i = 1; i <= 30; i++)
-                  DropdownMenuItem(value: i, child: Text('$i')),
+                  DropdownMenuItem(value: i, child: Text('$i', maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
               onChanged: (value) => setState(() => _interval = value ?? 1),
             ),
+            const SizedBox(height: 12),
             TextField(
               controller: _zone,
               decoration: InputDecoration(
                 labelText: _fr ? 'Fuseau horaire IANA' : 'IANA time zone',
               ),
             ),
-            TextField(
+            const SizedBox(height: 12),
+            LocalizedDateField(
               controller: _until,
-              decoration: InputDecoration(
-                labelText: _fr ? 'Jusqu’au (AAAA-MM-JJ)' : 'Until (YYYY-MM-DD)',
-              ),
+              kind: StoredDateKind.date,
+              label: _fr ? 'Jusqu’au' : 'Until',
+              onPick: () => pickEntryDate(context, _until),
             ),
+            const SizedBox(height: 12),
             Wrap(
               spacing: 5,
               children: [

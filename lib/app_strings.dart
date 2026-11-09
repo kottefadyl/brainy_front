@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'auth_api.dart';
+
 /// English is the source language. Every visible application label has a
 /// French counterpart; user-created names and values are kept as entered.
 class AppStrings {
@@ -96,7 +98,7 @@ class AppStrings {
     if (message.contains('Incorrect email or password')) {
       return text('Incorrect email or password');
     }
-    if (message.contains('already exists')) {
+    if (message.contains('account with this email already exists')) {
       return text('An account with this email already exists');
     }
     if (message.contains('Invalid or expired session') ||
@@ -130,9 +132,13 @@ class AppStrings {
         message.contains('Format name must be')) {
       return text('Name the data format.');
     }
-    if (message.contains('data formats') || message.contains('formats')) {
+    if (message.contains('at most 24 data formats') ||
+        message.contains('between 1 and 24 data formats')) {
       return text('A collection can have up to 24 data formats.');
     }
+    debugPrint('Brainy error: $message');
+    // A refusal from the API says what to fix, so it must not be hidden.
+    if (error is AuthApiException) return 'Une erreur est survenue : $message';
     return text('Something went wrong. Please try again.');
   }
 
@@ -163,7 +169,7 @@ class AppStrings {
     'Enter a valid email address': 'Saisissez une adresse e-mail valide',
     'Password': 'Mot de passe',
     'At least 8 characters': 'Au moins 8 caractères',
-    'Enter your password': 'Saisissez votre mot de passe',
+    'Enter your password': 'Votre mot de passe',
     'Hide password': 'Masquer le mot de passe',
     'Show password': 'Afficher le mot de passe',
     'Use at least 8 characters': 'Utilisez au moins 8 caractères',
@@ -225,6 +231,10 @@ class AppStrings {
     'Create collection': 'Créer la collection',
     'New entry': 'Nouvelle entrée',
     'Saved entries': 'Entrées enregistrées',
+    'Close': 'Fermer',
+    'The server sent an unexpected response.': 'Le serveur a envoyé une réponse inattendue.',
+    'Entries': 'Entrées',
+    'Data formats': 'Formats de données',
     'Search entries': 'Rechercher des entrées',
     'All data formats': 'Tous les formats de données',
     'Filter by field': 'Filtrer par champ',
@@ -341,7 +351,7 @@ class AppStrings {
     'Copied to clipboard': 'Entrée copiée dans le presse-papiers',
     'Rename': 'Renommer',
     'Delete collection': 'Supprimer la collection',
-    'Nothing written yet': 'Aucune note pour le moment',
+    'Nothing written yet': 'Aucune entrée pour le moment',
     'Add an entry using the fields in this collection.':
         'Ajoutez une entrée avec les champs de cette collection.',
     'Write an entry': 'Écrire une entrée',
@@ -472,16 +482,26 @@ class AppStrings {
 }
 
 class LanguageMenu extends StatelessWidget {
-  const LanguageMenu({super.key, this.onChanged, this.onDark = false});
+  const LanguageMenu({
+    super.key,
+    this.onChanged,
+    this.onDark = false,
+    this.fullName = false,
+  });
 
   final ValueChanged<String>? onChanged;
   final bool onDark;
+
+  /// Shows "English" rather than "EN", as on the web's desktop bar.
+  final bool fullName;
 
   @override
   Widget build(BuildContext context) {
     final code = Localizations.localeOf(context).languageCode;
     final color = onDark
         ? Colors.white
+        : fullName
+        ? Theme.of(context).colorScheme.onSurface
         : Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFFD6E4FA)
         : const Color(0xFF24456F);
@@ -500,11 +520,13 @@ class LanguageMenu extends StatelessWidget {
             Icon(Icons.language_rounded, size: 17, color: color),
             const SizedBox(width: 5),
             Text(
-              code.toUpperCase(),
+              fullName
+                  ? (code == 'fr' ? 'Français' : 'English')
+                  : code.toUpperCase(),
               style: TextStyle(
                 color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
+                fontSize: fullName ? 14 : 12,
+                fontWeight: fullName ? FontWeight.w600 : FontWeight.w800,
               ),
             ),
             Icon(Icons.expand_more_rounded, size: 16, color: color),

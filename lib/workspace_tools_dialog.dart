@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'background_jobs_panel.dart';
 import 'collections_api.dart';
@@ -37,7 +38,7 @@ class WorkspaceToolsDialog extends StatelessWidget {
     final fr = AppStrings.of(context).isFrench;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Dialog(
+    return AdaptiveFormShell(
       backgroundColor: isDark ? BrainyColors.darkSurface : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
@@ -47,11 +48,11 @@ class WorkspaceToolsDialog extends StatelessWidget {
       ),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 680),
+        constraints: isPhoneForm(context) ? const BoxConstraints() : const BoxConstraints(maxWidth: 720, maxHeight: 680),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: isPhoneForm(context) ? MainAxisSize.max : MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(

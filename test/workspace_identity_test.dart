@@ -77,8 +77,6 @@ void main() {
                         onCopy: (_) {},
                         onLink: (_) {},
                         onReview: (_) {},
-                        onRename: () {},
-                        onDelete: () {},
                       ),
                     ],
                   ),

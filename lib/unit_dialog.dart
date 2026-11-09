@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 import 'number_units.dart';
@@ -194,7 +195,7 @@ class _UnitDialogState extends State<UnitDialog> {
       fontWeight: FontWeight.w700,
       color: dark ? const Color(0xFFEEF0F2) : const Color(0xFF252B36),
     );
-    return AlertDialog(
+    return AdaptiveFormDialog(
       backgroundColor: dark ? const Color(0xFF1C1F23) : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       title: Text(_t('Units and conversions')),
@@ -276,7 +277,7 @@ class _UnitDialogState extends State<UnitDialog> {
                     items: [
                       DropdownMenuItem(
                         value: null,
-                        child: Text(_t('No base unit')),
+                        child: Text(_t('No base unit'), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       for (final unit in baseOptions)
                         DropdownMenuItem(
@@ -318,7 +319,7 @@ class _UnitDialogState extends State<UnitDialog> {
                       items: [
                         DropdownMenuItem(
                           value: null,
-                          child: Text(_t('Any item')),
+                          child: Text(_t('Any item'), maxLines: 1, overflow: TextOverflow.ellipsis),
                         ),
                         for (final format in _collection.formats)
                           DropdownMenuItem(
@@ -423,7 +424,7 @@ class _UnitDialogState extends State<UnitDialog> {
                 onPressed: _pickDate,
                 icon: const Icon(Icons.calendar_today_outlined, size: 17),
                 label: Text(
-                  '${_t('As of')}: ${_date.day}/${_date.month}/${_date.year}',
+                  '${_t('As of')}${AppStrings.of(context).isFrench ? ' : ' : ': '}${MaterialLocalizations.of(context).formatCompactDate(_date)}',
                 ),
               ),
               const SizedBox(height: 8),

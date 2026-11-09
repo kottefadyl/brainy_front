@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 
@@ -82,7 +83,7 @@ class _LinkedFormatDialogState extends State<_LinkedFormatDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AdaptiveFormDialog(
     title: Text(
       _fr
           ? 'Mise à jour du format de données lié'

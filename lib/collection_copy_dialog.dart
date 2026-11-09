@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 
@@ -132,7 +133,7 @@ class _CopyToCollectionDialogState extends State<_CopyToCollectionDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AdaptiveFormDialog(
     title: Text(
       widget.link
           ? (_fr ? 'Lier un format de données' : 'Link a data format')
@@ -157,13 +158,14 @@ class _CopyToCollectionDialogState extends State<_CopyToCollectionDialog> {
               ),
               items: [
                 for (final target in _targets)
-                  DropdownMenuItem(value: target.id, child: Text(target.name)),
+                  DropdownMenuItem(value: target.id, child: Text(target.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
               onChanged: (value) {
                 setState(() => _targetId = value);
                 _loadPreview();
               },
             ),
+            if (widget.formatId != null && !widget.link) const SizedBox(height: 12),
             if (widget.formatId != null && !widget.link)
               CheckboxListTile(
                 value: _withEntries,

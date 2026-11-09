@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 
@@ -62,12 +63,12 @@ class _ShareDialogState extends State<_ShareDialog> {
     final titleId = widget.format.fields.firstWhere((field) => field.kind == BrainyFieldKind.title).id;
     final target = _targets.where((item) => item.id == _targetId).firstOrNull;
     final conflict = target?.sharedObjects.any((grant) => grant['objectId'] == widget.objectId && grant['revokedAt'] == null) ?? false;
-    return AlertDialog(
+    return AdaptiveFormDialog(
       title: Text(_fr ? 'Partager un objet par lien' : 'Share an object by link'),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(widget.source.name),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(initialValue: _targetId, isExpanded: true, decoration: InputDecoration(labelText: _fr ? 'Collection cible' : 'Target collection'), items: [for (final item in _targets) DropdownMenuItem(value: item.id, child: Text(item.name))], onChanged: (value) => setState(() => _targetId = value)),
+        DropdownButtonFormField<String>(initialValue: _targetId, isExpanded: true, decoration: InputDecoration(labelText: _fr ? 'Collection cible' : 'Target collection'), items: [for (final item in _targets) DropdownMenuItem(value: item.id, child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis))], onChanged: (value) => setState(() => _targetId = value)),
         const SizedBox(height: 12),
         Text(_fr ? 'Caractéristiques autorisées' : 'Allowed properties', style: Theme.of(context).textTheme.titleSmall),
         for (final field in widget.format.fields)
@@ -79,8 +80,8 @@ class _ShareDialogState extends State<_ShareDialog> {
               contentPadding: EdgeInsets.zero,
               onChanged: field.id == titleId ? null : (value) => setState(() { if (value == true) { _properties.add(field.id); } else { _properties.remove(field.id); } }),
             ),
-        CheckboxListTile(value: _includeSensitive, title: Text(_fr ? 'Inclure explicitement les caractéristiques protégées' : 'Explicitly include protected properties'), onChanged: _busy ? null : (value) => setState(() => _includeSensitive = value ?? false)),
-        DropdownButtonFormField<String>(initialValue: _mode, decoration: InputDecoration(labelText: _fr ? 'Valeurs accessibles' : 'Accessible values'), items: [DropdownMenuItem(value: 'CURRENT', child: Text(_fr ? 'Actuelles jusqu’à révocation' : 'Current until revoked')), DropdownMenuItem(value: 'SNAPSHOT', child: Text(_fr ? 'Figées au partage' : 'Snapshot when shared'))], onChanged: (value) => setState(() => _mode = value ?? 'CURRENT')),
+        CheckboxListTile(contentPadding: EdgeInsets.zero, value: _includeSensitive, title: Text(_fr ? 'Inclure explicitement les caractéristiques protégées' : 'Explicitly include protected properties'), onChanged: _busy ? null : (value) => setState(() => _includeSensitive = value ?? false)),
+        DropdownButtonFormField<String>(isExpanded: true, initialValue: _mode, decoration: InputDecoration(labelText: _fr ? 'Valeurs accessibles' : 'Accessible values'), items: [DropdownMenuItem(value: 'CURRENT', child: Text(_fr ? 'Actuelles jusqu’à révocation' : 'Current until revoked', maxLines: 1, overflow: TextOverflow.ellipsis)), DropdownMenuItem(value: 'SNAPSHOT', child: Text(_fr ? 'Figées au partage' : 'Snapshot when shared', maxLines: 1, overflow: TextOverflow.ellipsis))], onChanged: (value) => setState(() => _mode = value ?? 'CURRENT')),
         Text(_fr ? '$_relationCount relation(s) et les mouvements de stock restent dans la collection source.' : '$_relationCount relations and stock movements remain in the source collection.'),
         if (conflict) Text(_fr ? 'Cet objet est déjà lié à cette collection.' : 'This object is already linked to this collection.', style: const TextStyle(color: Colors.red)),
         if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),

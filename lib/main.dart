@@ -175,7 +175,7 @@ class _BrainyAppState extends State<BrainyApp> {
               onSignOut: _signOut,
               onEditProfile: () => setState(() => _editingProfile = true),
               onLanguageChanged: _changeLanguage,
-              themeButton: AppThemeButton(onPressed: _toggleTheme),
+              themeButton: AppThemeButton(onPressed: _toggleTheme, labelOnWide: true),
             ),
     );
   }

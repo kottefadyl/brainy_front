@@ -6,9 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'brand_assets.dart';
 import 'design_tokens.dart';
+import 'adaptive_form.dart';
+import 'measure_field_input.dart';
+import 'workspace_collection_header.dart';
+import 'workspace_collection_tabs.dart';
 import 'workspace_navigation.dart';
+import 'workspace_top_bar.dart';
 import 'workspace_format_cards.dart';
 import 'workspace_entry_row.dart';
 
@@ -106,6 +110,9 @@ class WorkspaceScreen extends StatefulWidget {
 }
 
 class _WorkspaceScreenState extends State<WorkspaceScreen> {
+  WorkspaceCollectionTab _collectionTab = WorkspaceCollectionTab.entries;
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
   void _mutate(VoidCallback change) => setState(change);
   bool get _dark => Theme.of(context).brightness == Brightness.dark;
   Color get _panel => _dark ? BrainyColors.darkSurface : BrainyColors.lightSurface;
@@ -486,6 +493,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       ),
     );
     if (!mounted || saved == null || _selectedId != collection.id) return;
+    if (entry == null) _collectionTab = WorkspaceCollectionTab.entries;
     if (saved.offlinePending) {
       setState(() { _entries = [saved, ..._entries.where((item) => item.id != saved.id)]; _error = _copy.isFrench ? 'Entrée conservée sur cet appareil, en attente de synchronisation' : 'Entry kept on this device, waiting to sync'; });
     } else { await _loadEntries(); }
@@ -573,12 +581,12 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     final controller = TextEditingController(text: collection.name);
     final name = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AdaptiveFormDialog(
         title: Text(_t('Rename collection')),
         content: TextField(
           controller: controller,
           autofocus: true,
-          maxLength: 80,
+          maxLength: 80, buildCounter: quietFormCounter,
           decoration: InputDecoration(labelText: _t('Collection name')),
           onSubmitted: (value) => Navigator.pop(context, value),
         ),
@@ -684,7 +692,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, update) => AlertDialog(
+        builder: (dialogContext, update) => AdaptiveFormDialog(
           backgroundColor: _dark
               ? const Color(0xFF1C1F23)
               : const Color(0xFFF7FAFF),
@@ -1111,21 +1119,29 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: _dark ? BrainyColors.darkCanvas : BrainyColors.lightCanvas,
+      endDrawer: screenWidth >= 860
+          ? null
+          : Drawer(
+              width: screenWidth * .88 > 340 ? 340 : screenWidth * .88,
+              shape: const RoundedRectangleBorder(),
+              backgroundColor: _dark ? BrainyColors.darkSidebar : const Color(0xFF0B55DA),
+              child: SafeArea(child: _sidebar(inDrawer: true)),
+            ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             final wide = constraints.maxWidth >= 860;
             return Row(
               children: [
-                if (wide) SizedBox(width: 292, child: _sidebar()),
+                if (wide) SizedBox(width: 280, child: _sidebar()),
                 Expanded(
                   child: Column(
                     children: [
                       _header(wide),
-                      if (!wide && _collections.isNotEmpty)
-                        _mobileCollectionPicker(),
                       Expanded(child: _content()),
                     ],
                   ),
@@ -1138,107 +1154,39 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     );
   }
 
-  Widget _header(bool wide) => Container(
-    height: 72,
-    padding: EdgeInsets.symmetric(horizontal: wide ? 36 : 18),
-    decoration: BoxDecoration(
-      color: wide ? _panel : _dark ? BrainyColors.darkSidebar : BrainyColors.lightSidebar,
-      border: Border(bottom: BorderSide(color: _panelBorder)),
-    ),
-    child: Row(
-      children: [
-        if (!wide) ...[
-          const BrainyMark(size: 28),
-          if (MediaQuery.sizeOf(context).width >= 350) ...[
-            const SizedBox(width: 8),
-            Text(
-              'brainy',
-              style: TextStyle(
-                color: wide ? _panelInk : BrainyNavigationColors.ink(_dark),
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-          const Spacer(),
-        ] else ...[
-          Expanded(
-            child: Text(
-              _t('Your workspace'),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: wide ? _panelInk : BrainyNavigationColors.ink(_dark),
-                fontSize: 21,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          if (MediaQuery.sizeOf(context).width > 1060)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Text(
-                widget.user.name,
-                style: TextStyle(color: _panelMuted),
-              ),
-            ),
-        ],
-        LanguageMenu(onChanged: widget.onLanguageChanged, onDark: !wide),
-        if (MediaQuery.sizeOf(context).width >= 430)
-          IconButton(tooltip: _copy.isFrench ? 'Capture rapide' : 'Quick capture', onPressed: _collections.isEmpty ? null : () => _showQuickCapture(), icon: Icon(Icons.add_link_rounded, color: wide ? _actionAccent : BrainyNavigationColors.ink(_dark))),
-        if (widget.themeButton != null) Theme(data: Theme.of(context).copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: wide ? _actionAccent : BrainyNavigationColors.ink(_dark))), child: widget.themeButton!),
-        if (MediaQuery.sizeOf(context).width >= 430)
-          IconButton(
-            tooltip: _t('Import and export'),
-            onPressed: _openTransfer,
-            icon: Icon(Icons.import_export_rounded, color: wide ? _actionAccent : BrainyNavigationColors.ink(_dark)),
-          ),
-        PopupMenuButton<String>(
-          tooltip: _t('Account'),
-          icon: CircleAvatar(
-            backgroundColor: _dark
-                ? const Color(0xFF35353A)
-                : const Color(0xFFE6F1FC),
-            child: Icon(Icons.person_outline, color: _actionAccent),
-          ),
-          onSelected: (value) {
-            if (value == 'signout') widget.onSignOut();
-            if (value == 'profile') widget.onEditProfile?.call();
-            if (value == 'quickcapture') _showQuickCapture();
-            if (value == 'transfer') _openTransfer();
-            if (value == 'workspaceTools') {
-              showWorkspaceToolsDialog(
-                context,
-                api: _api,
-                collections: _collections,
-                onRestored: () => _load(),
-              );
-            }
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem(enabled: false, child: Text(widget.user.email)),
-            if (MediaQuery.sizeOf(context).width < 430 && _collections.isNotEmpty)
-              PopupMenuItem(value: 'quickcapture', child: Text(_copy.isFrench ? 'Capture rapide' : 'Quick capture')),
-            if (MediaQuery.sizeOf(context).width < 430)
-              PopupMenuItem(value: 'transfer', child: Text(_t('Import and export'))),
-            if (widget.onEditProfile != null)
-              PopupMenuItem(value: 'profile', child: Text(_t('Edit profile'))),
-            PopupMenuItem(value: 'signout', child: Text(_t('Sign out'))),
-          ],
-        ),
-      ],
-    ),
+  Widget _topBar() => WorkspaceTopBar(
+    selectedName: _selected?.name,
+    languageControl: LanguageMenu(onChanged: widget.onLanguageChanged, fullName: true),
+    themeControl: widget.themeButton,
+    onCapture: _collections.isEmpty ? null : () => _showQuickCapture(),
+    onRefresh: _load,
   );
 
-  Widget _sidebar() => WorkspaceNavigation(
-    collections: _collections, selectedId: _selectedId,
-    onSelect: _select, onCreate: _createCollection,
+  Widget _header(bool wide) => wide ? _topBar() : WorkspaceMobileBar(
+    languageControl: LanguageMenu(onChanged: widget.onLanguageChanged, onDark: true),
+    themeControl: widget.themeButton == null ? null : Theme(data: Theme.of(context).copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: BrainyNavigationColors.ink(_dark))), child: widget.themeButton!),
+    onCapture: _collections.isEmpty ? null : () => _showQuickCapture(),
+    onOpenCollections: () => _scaffoldKey.currentState?.openEndDrawer(),
   );
 
-  Widget _mobileCollectionPicker() => WorkspaceMobileCollections(
-    collections: _collections, selectedId: _selectedId, onSelect: _select,
-    onCreate: _createCollection, onManual: _createCollectionManually, onTransfer: _openTransfer,
-  );
+  Widget _sidebar({bool inDrawer = false}) {
+    void run(VoidCallback action) {
+      if (inDrawer) _scaffoldKey.currentState?.closeEndDrawer();
+      action();
+    }
+
+    return WorkspaceNavigation(
+      collections: _collections, selectedId: _selectedId,
+      userName: widget.user.name, userEmail: widget.user.email,
+      onSelect: (collection) => run(() => _select(collection)),
+      onCreate: () => run(_createCollection),
+      onManual: () => run(_createCollectionManually),
+      onTransfer: () => run(_openTransfer),
+      onTools: () => run(() => showWorkspaceToolsDialog(context, api: _api, collections: _collections, onRestored: () => _load())),
+      onSignOut: () => run(() => widget.onSignOut()),
+      onEditProfile: widget.onEditProfile == null ? null : () => run(widget.onEditProfile!),
+    );
+  }
 
   Widget _content() {
     if (_loading) return const Center(child: CircularProgressIndicator());
@@ -1266,6 +1214,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     }
     final collection = _selected;
     if (collection == null) return const SizedBox.shrink();
+    final showEntries = _collectionTab == WorkspaceCollectionTab.entries;
+    final showFormats = _collectionTab == WorkspaceCollectionTab.formats;
+    final showTools = _collectionTab == WorkspaceCollectionTab.tools;
     return RefreshIndicator(
       onRefresh: _loadEntries,
       child: ListView(
@@ -1282,30 +1233,24 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 children: [
                   _overviewBanner(collection),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _t('Saved entries'),
-                          maxLines: 2,
-                          style: TextStyle(
-                            color: _panelInk,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '${_entries.length}${_pageCursor != null ? '+' : ''}',
-                        style: TextStyle(color: _panelMuted, fontSize: 13),
-                      ),
-                    ],
+                  const SizedBox(height: 12),
+                  WorkspaceCollectionTabs(
+                    value: _collectionTab,
+                    onChanged: (tab) => setState(() => _collectionTab = tab),
+                  ),
+                  const SizedBox(height: 20),
+                  if (showEntries) ...[
+                  WorkspaceEntriesHeading(
+                    count: _entries.length,
+                    partial: _pageCursor != null,
+                    onQuickEntry: _showQuickEntry,
                   ),
                   const SizedBox(height: 14),
                   _savedViewBar(collection),
-                  if (_selectedView == null) _entrySearchTools(collection),
+                  if (_selectedView == null) ...[
+                    const SizedBox(height: 10),
+                    _entrySearchTools(collection),
+                  ],
                   const SizedBox(height: 14),
                   if (_error != null)
                     Padding(
@@ -1384,7 +1329,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Wrap(
+                        child: Wrap(runSpacing: 8, 
                           spacing: 8,
                           children: [
                             if (_previousPages.isNotEmpty)
@@ -1403,9 +1348,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         ),
                       ),
                     ),
-                  const SizedBox(height: 30),
-                  _collectionFormat(collection),
-                  const SizedBox(height: 18),
+                  ],
+                  if (showFormats) ...[
+                    _collectionFormat(collection),
+                  ],
+                  if (showTools) ...[
                   CollectionToolsHub(
                     collection: collection,
                     userId: widget.user.id,
@@ -1439,6 +1386,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       if (await showDataSourcesScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) await _load();
                     },
                   ),
+                  ],
                   const SizedBox(height: 28),
                 ],
               ),
@@ -1449,15 +1397,20 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     );
   }
 
+  double _filterWidth(double desktop) =>
+      MediaQuery.sizeOf(context).width < 600 ? double.infinity : desktop;
+
   Widget _savedViewBar(BrainyCollection collection) {
     final view = _selectedView;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final phone = screenWidth < 600;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         SizedBox(
-          width: 210,
+          width: phone ? screenWidth - 32 - 64 : 210,
           child: DropdownButtonFormField<String>(
             key: ValueKey('view-${collection.id}-$_selectedViewId'),
             initialValue: _selectedViewId ?? '',
@@ -1467,11 +1420,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
               border: const OutlineInputBorder(),
             ),
             items: [
-              DropdownMenuItem(value: '', child: Text(_t('Default list'))),
+              DropdownMenuItem(value: '', child: Text(_t('Default list'), maxLines: 1, overflow: TextOverflow.ellipsis)),
               for (final item in collection.savedViews)
                 DropdownMenuItem(
                   value: item['id'] as String,
-                  child: Text(item['name'] as String),
+                  child: Text(item['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
             ],
             onChanged: (value) {
@@ -1482,11 +1435,19 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             },
           ),
         ),
-        OutlinedButton.icon(
-          onPressed: () => _editSavedView(collection),
-          icon: const Icon(Icons.add, size: 18),
-          label: Text(_t('Save a view')),
-        ),
+        if (phone)
+          IconButton.outlined(
+            tooltip: _t('Save a view'),
+            onPressed: () => _editSavedView(collection),
+            style: IconButton.styleFrom(minimumSize: const Size(56, 56)),
+            icon: const Icon(Icons.add),
+          )
+        else
+          OutlinedButton.icon(
+            onPressed: () => _editSavedView(collection),
+            icon: const Icon(Icons.add, size: 18),
+            label: Text(_t('Save a view')),
+          ),
         if (view != null)
           OutlinedButton(
             onPressed: () => _editSavedView(collection, view),
@@ -1766,7 +1727,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         runSpacing: 10,
         children: [
           SizedBox(
-            width: 240,
+            width: _filterWidth(240),
             child: TextField(
               controller: _searchController,
               onChanged: (_) => _scheduleEntries(),
@@ -1779,7 +1740,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             ),
           ),
           SizedBox(
-            width: 185,
+            width: _filterWidth(185),
             child: DropdownButtonFormField<String>(
               key: ValueKey('format-$_selectedId-$_filterFormatId'),
               isExpanded: true,
@@ -1817,7 +1778,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           ),
           if (format != null)
             SizedBox(
-              width: 180,
+              width: _filterWidth(180),
               child: DropdownButtonFormField<String>(
                 key: ValueKey('field-$_filterFormatId-$_filterFieldId'),
                 isExpanded: true,
@@ -1854,7 +1815,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             ),
           if (field != null)
             SizedBox(
-              width: 150,
+              width: _filterWidth(150),
               child: DropdownButtonFormField<String>(
                 key: ValueKey('operator-$_filterFieldId-$_filterOperator'),
                 isExpanded: true,
@@ -1865,18 +1826,18 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   border: const OutlineInputBorder(),
                 ),
                 items: [
-                  DropdownMenuItem(value: 'EQ', child: Text(_t('Equals'))),
+                  DropdownMenuItem(value: 'EQ', child: Text(_t('Equals'), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   if (contains)
                     DropdownMenuItem(
                       value: 'CONTAINS',
-                      child: Text(_t('Contains')),
+                      child: Text(_t('Contains'), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                   if (comparable) ...[
                     DropdownMenuItem(
                       value: 'GT',
-                      child: Text(_t('Greater than')),
+                      child: Text(_t('Greater than'), maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
-                    DropdownMenuItem(value: 'LT', child: Text(_t('Less than'))),
+                    DropdownMenuItem(value: 'LT', child: Text(_t('Less than'), maxLines: 1, overflow: TextOverflow.ellipsis)),
                   ],
                 ],
                 onChanged: (value) {
@@ -1903,7 +1864,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         border: const OutlineInputBorder(),
                       ),
                       items: [
-                        const DropdownMenuItem(value: '', child: Text('—')),
+                        const DropdownMenuItem(value: '', child: Text('—', maxLines: 1, overflow: TextOverflow.ellipsis)),
                         for (final option
                             in field.kind == BrainyFieldKind.boolean
                                 ? ['true', 'false']
@@ -1915,8 +1876,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                                   ? _t('Yes')
                                   : option == 'false'
                                   ? _t('No')
-                                  : option,
-                            ),
+                                  : option, maxLines: 1, overflow: TextOverflow.ellipsis),
                           ),
                       ],
                       onChanged: (value) {
@@ -1939,166 +1899,16 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     );
   }
 
-  Widget _overviewBanner(BrainyCollection collection) => Container(
-    width: double.infinity,
-    padding: EdgeInsets.all(MediaQuery.sizeOf(context).width < 760 ? 20 : 28),
-    decoration: BoxDecoration(
-      color: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(
-        color: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
-      ),
-    ),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 760;
-        final heroOutlineStyle = OutlinedButton.styleFrom(
-          foregroundColor: BrainyNavigationColors.ink(_dark),
-          backgroundColor: Colors.transparent,
-          side: BorderSide(
-            color: BrainyNavigationColors.border(_dark),
-          ),
-        );
-        final action = FilledButton.icon(
-          onPressed: () => _editEntry(),
-          icon: const Icon(Icons.add_rounded, size: 20),
-          label: Text(_t('New entry')),
-          style: FilledButton.styleFrom(
-            backgroundColor: BrainyNavigationColors.ink(_dark),
-            foregroundColor: _dark ? BrainyColors.darkHero : BrainyColors.lightHero,
-            minimumSize: const Size(0, 48),
-          ),
-        );
-        final quickAction = OutlinedButton.icon(
-          onPressed: _showQuickEntry,
-          icon: const Icon(Icons.bolt_rounded, size: 18),
-          label: Text(_copy.isFrench ? 'Saisie rapide' : 'Quick entry'),
-          style: heroOutlineStyle,
-        );
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: BrainyNavigationColors.ink(_dark).withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(
-                    Icons.folder_copy_outlined,
-                    color: BrainyNavigationColors.ink(_dark),
-                    size: 27,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _t('Collection').toUpperCase(),
-                        style: TextStyle(
-                          color: BrainyNavigationColors.ink(_dark),
-                          fontSize: 13,
-                          letterSpacing: 1.4,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        collection.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: BrainyNavigationColors.ink(_dark),
-                          fontSize: 27,
-                          fontWeight: FontWeight.w800,
-                          height: 1.12,
-                          letterSpacing: -0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        _t('Save information in your own data format.'),
-                        style: TextStyle(
-                          color: BrainyNavigationColors.ink(_dark),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!compact) ...[
-                  const SizedBox(width: 14),
-                  OutlinedButton.icon(
-                    onPressed: () => _showInsights(collection),
-                    icon: const Icon(Icons.auto_graph_rounded, size: 18),
-                    label: Text(_copy.isFrench ? 'Calculs' : 'Insights'),
-                    style: heroOutlineStyle,
-                  ),
-                  const SizedBox(width: 8),
-                  quickAction,
-                  const SizedBox(width: 8),
-                  action,
-                ],
-              ],
-            ),
-            if (compact) ...[
-              const SizedBox(height: 18),
-              SizedBox(width: double.infinity, child: action),
-              const SizedBox(height: 8),
-              SizedBox(width: double.infinity, child: quickAction),
-            ],
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 9,
-              runSpacing: 9,
-              children: [
-                _statBadge(
-                  Icons.grid_view_rounded,
-                  '${collection.formats.length} ${_t(collection.formats.length == 1 ? 'data format' : 'data formats')}',
-                ),
-                _statBadge(
-                  Icons.notes_rounded,
-                  '${_entries.length} ${_t(_entries.length == 1 ? 'entry' : 'entries')} ${_copy.isFrench ? 'sur cette page' : 'on this page'}',
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    ),
-  );
-
-  Widget _statBadge(IconData icon, String label) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-    decoration: BoxDecoration(
-      color: BrainyNavigationColors.ink(_dark).withValues(alpha: .12),
-      borderRadius: BorderRadius.circular(9),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: BrainyNavigationColors.ink(_dark), size: 15),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: BrainyNavigationColors.ink(_dark),
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-          ),
-        ),
-      ],
-    ),
+  Widget _overviewBanner(BrainyCollection collection) => WorkspaceCollectionHeader(
+    name: collection.name,
+    entryCount: _entries.length,
+    partialEntryCount: _pageCursor != null,
+    formatCount: collection.formats.length,
+    onNewEntry: () => _editEntry(),
+    onInsights: () => _showInsights(collection),
+    onRename: _renameCollection,
+    onDelete: _deleteCollection,
+    onPackages: _openPackages,
   );
 
   Widget _collectionFormat(BrainyCollection collection) => WorkspaceFormatCards(
@@ -2110,7 +1920,6 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     onCopy: (format) async { if (await showCopyToCollection(context, api: _api, source: collection, formatId: format.id)) await _load(); },
     onLink: (format) async { if (await showCopyToCollection(context, api: _api, source: collection, formatId: format.id, link: true)) await _load(); },
     onReview: (format) async { if (await showLinkedFormatUpdate(context, api: _api, collection: collection, format: format)) await _load(); },
-    onRename: _renameCollection, onDelete: _deleteCollection, onPackages: _openPackages,
   );
 
   Widget _message(
@@ -2567,14 +2376,14 @@ class _CollectionEditorState extends State<_CollectionEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => Dialog(
+  Widget build(BuildContext context) => AdaptiveFormShell(
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 560, maxHeight: 700),
+      constraints: isPhoneForm(context) ? const BoxConstraints() : const BoxConstraints(maxWidth: 560, maxHeight: 700),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isPhoneForm(context) ? 18 : 24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: isPhoneForm(context) ? MainAxisSize.max : MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -2605,13 +2414,14 @@ class _CollectionEditorState extends State<_CollectionEditor> {
             const SizedBox(height: 22),
             Expanded(
               child: ListView(
+                padding: const EdgeInsets.only(top: 8),
                 keyboardDismissBehavior:
                     ScrollViewKeyboardDismissBehavior.onDrag,
                 children: [
                   if (widget.collection == null)
                     TextField(
                       controller: _name,
-                      maxLength: 80,
+                      maxLength: 80, buildCounter: quietFormCounter,
                       autofocus: true,
                       decoration: InputDecoration(
                         labelText: _t('Collection name'),
@@ -2619,9 +2429,10 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                         border: const OutlineInputBorder(),
                       ),
                     ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: _formatName,
-                    maxLength: 80,
+                    maxLength: 80, buildCounter: quietFormCounter,
                     autofocus: widget.collection != null,
                     decoration: InputDecoration(
                       labelText: _t('Data format name'),
@@ -2684,8 +2495,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                   child: Opacity(
                                     opacity: used ? 0.35 : 1,
                                     child: Container(
-                                      width: 30,
-                                      height: 30,
+                                      width: isPhoneForm(context) ? 42 : 30,
+                                      height: isPhoneForm(context) ? 42 : 30,
                                       decoration: BoxDecoration(
                                         color: _pastelColor(color),
                                         borderRadius: BorderRadius.circular(10),
@@ -2726,8 +2537,15 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                   ),
                   const SizedBox(height: 10),
                   for (var index = 0; index < _fields.length; index++)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: isPhoneForm(context) ? const EdgeInsets.fromLTRB(12, 14, 12, 4) : EdgeInsets.zero,
+                      decoration: isPhoneForm(context)
+                          ? BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                            )
+                          : null,
                       child: LayoutBuilder(
                         builder: (context, constraints) {
                           final narrow = constraints.maxWidth < 420;
@@ -2739,7 +2557,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                   false);
                           final name = TextField(
                             controller: _fields[index].controller,
-                            maxLength: 80,
+                            maxLength: 80, buildCounter: quietFormCounter,
                             decoration: InputDecoration(
                               labelText: '${_t('Field')} ${index + 1}',
                               counterText: '',
@@ -2770,7 +2588,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                                 )))))
                                   DropdownMenuItem(
                                     value: type,
-                                    child: Text(_t(type.label)),
+                                    child: Text(_t(type.label), maxLines: 1, overflow: TextOverflow.ellipsis),
                                   ),
                             ],
                             onChanged: protected
@@ -2794,13 +2612,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                               ? Column(
                                   children: [
                                     name,
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Expanded(child: kind),
-                                        remove,
-                                      ],
-                                    ),
+                                    const SizedBox(height: 12),
+                                    kind,
                                   ],
                                 )
                               : Row(
@@ -2849,6 +2662,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                       size: 18,
                                     ),
                                   ),
+                                  if (narrow) remove,
                                 ],
                               ),
                               if (field.kind == BrainyFieldKind.select ||
@@ -2863,11 +2677,12 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                     border: const OutlineInputBorder(),
                                   ),
                                 ),
+                              if (field.kind == BrainyFieldKind.code && widget.collection != null) const SizedBox(height: 12),
                               if (field.kind == BrainyFieldKind.code && widget.collection != null)
-                                DropdownButtonFormField<String>(
+                                DropdownButtonFormField<String>(isExpanded: true, 
                                   initialValue: field.codeListId,
                                   decoration: InputDecoration(labelText: _copyText('Liste de codes locale', 'Local code list'), border: const OutlineInputBorder()),
-                                  items: [for (final list in widget.collection!.codeLists) DropdownMenuItem(value: list['id'] as String, child: Text(list['name'] as String))],
+                                  items: [for (final list in widget.collection!.codeLists) DropdownMenuItem(value: list['id'] as String, child: Text(list['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis))],
                                   onChanged: protected ? null : (value) => setState(() => field.codeListId = value),
                                 ),
                               if (field.kind == BrainyFieldKind.objectRef) ...[
@@ -2888,7 +2703,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                       if (model.objectModel)
                                         DropdownMenuItem(
                                           value: model.id,
-                                          child: Text(model.name),
+                                          child: Text(model.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                                         ),
                                     for (final grant in {
                                       for (final item
@@ -2901,8 +2716,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                         value:
                                             grant['sourceFormatId'] as String,
                                         child: Text(
-                                          '${grant['sourceName']} · ${grant['objectName']}',
-                                        ),
+                                          '${grant['sourceName']} · ${grant['objectName']}', maxLines: 1, overflow: TextOverflow.ellipsis),
                                       ),
                                   ],
                                   onChanged: protected
@@ -2914,7 +2728,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                 ),
                                 TextField(
                                   controller: field.variableController,
-                                  maxLength: 40,
+                                  maxLength: 40, buildCounter: quietFormCounter,
                                   decoration: InputDecoration(
                                     labelText: _copyText(
                                       'Variable d’objet (facultatif)',
@@ -2937,7 +2751,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                           () => field.multiple = value,
                                         ),
                                 ),
-                                DropdownButtonFormField<String>(
+                                DropdownButtonFormField<String>(isExpanded: true, 
                                   initialValue: field.referenceMode,
                                   decoration: InputDecoration(
                                     labelText: _copyText(
@@ -2952,8 +2766,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                         _copyText(
                                           'Figées à l’enregistrement',
                                           'Snapshot when saved',
-                                        ),
-                                      ),
+                                        ), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     ),
                                     DropdownMenuItem(
                                       value: 'CURRENT',
@@ -2961,8 +2774,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                         _copyText(
                                           'Valeurs actuelles',
                                           'Current values',
-                                        ),
-                                      ),
+                                        ), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     ),
                                   ],
                                   onChanged: protected
@@ -2989,11 +2801,11 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                   items: [
                                     DropdownMenuItem(
                                       value: '',
-                                      child: Text(_t('No unit')),
+                                      child: Text(_t('No unit'), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     ),
                                     DropdownMenuItem(
                                       value: 'custom',
-                                      child: Text(_t('Custom unit')),
+                                      child: Text(_t('Custom unit'), maxLines: 1, overflow: TextOverflow.ellipsis),
                                     ),
                                     for (final option in numberUnits)
                                       DropdownMenuItem(
@@ -3028,7 +2840,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                   TextField(
                                     controller: field.customUnit,
                                     enabled: !protected,
-                                    maxLength: 24,
+                                    maxLength: 24, buildCounter: quietFormCounter,
                                     decoration: InputDecoration(
                                       labelText: _t('Custom unit'),
                                       hintText: _t('Enter a unit'),
@@ -3073,6 +2885,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                 ),
               ),
             const SizedBox(height: 12),
+            if (isPhoneForm(context)) const Divider(height: 20),
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 8,
@@ -3123,6 +2936,7 @@ class _EntryEditor extends StatefulWidget {
 }
 
 class _EntryEditorState extends State<_EntryEditor> {
+  late final Map<String, Map<String, String>> _measures = {...?widget.entry?.measures};
   String _t(String value) => AppStrings.of(context).text(value);
   AppStrings get _copy => AppStrings.of(context);
   late String _selectedFormatId;
@@ -3246,7 +3060,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     final result = await showDialog<List<String>>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
+        builder: (context, update) => AdaptiveFormDialog(
           title: Text(_copy.isFrench ? 'Choisir des objets' : 'Choose objects'),
           content: SizedBox(
             width: 450,
@@ -3351,16 +3165,24 @@ class _EntryEditorState extends State<_EntryEditor> {
   }
 
   Future<void> _save() async {
+    final measures = {
+      for (final field in _activeFormat.fields)
+        if (field.kind == BrainyFieldKind.measure && _measures[field.id] != null)
+          field.id: _measures[field.id]!,
+    };
     final values = {
       for (final field in _activeFormat.fields)
-        field.id: field.kind == BrainyFieldKind.number
+        field.id: measures[field.id]?['status'] == 'ABSENT'
+            ? ''
+            : field.kind == BrainyFieldKind.number || field.kind == BrainyFieldKind.measure
             ? normalizeFieldNumber(_controllers[field.id]!.text)
             : field.kind == BrainyFieldKind.multiSelect &&
                   _controllers[field.id]!.text == '[]'
             ? ''
             : _controllers[field.id]!.text.trim(),
     };
-    if (values.values.every((value) => value.isEmpty)) {
+    if (values.values.every((value) => value.isEmpty) &&
+        !measures.values.any((details) => details['status'] == 'ABSENT')) {
       setState(() => _error = _t('Write something before saving.'));
       return;
     }
@@ -3438,13 +3260,15 @@ class _EntryEditorState extends State<_EntryEditor> {
         formatId: _selectedFormatId,
         attachments: _attachments,
         largeFiles: _largeFiles,
+        measures: measures,
         clientMutationId: mutationId,
         expectedUpdatedAt: widget.entry?.updatedAt,
       );
       if (mounted) Navigator.pop(context, saved);
     } catch (error) {
       final networkFailure = error is AuthApiException && (error.message.contains('Could not reach') || error.message.contains('temporarily unavailable'));
-      if (networkFailure && _attachments.isEmpty && _largeFiles.isEmpty && !_activeFormat.fields.any((field) => field.kind == BrainyFieldKind.objectRef && (values[field.id]?.isNotEmpty ?? false))) {
+      final plainMeasures = measures.values.every((details) => details.length == 1 && details['status'] == 'MEASURED');
+      if (networkFailure && plainMeasures && _attachments.isEmpty && _largeFiles.isEmpty && !_activeFormat.fields.any((field) => field.kind == BrainyFieldKind.objectRef && (values[field.id]?.isNotEmpty ?? false))) {
         try {
           await queue.enqueue({'id': mutationId, 'collectionId': widget.collection.id, if (widget.entry != null) 'entryId': widget.entry!.id, 'formatId': _selectedFormatId, 'values': values, if (widget.entry != null) 'expectedUpdatedAt': widget.entry!.updatedAt.toUtc().toIso8601String(), 'createdAt': DateTime.now().toUtc().toIso8601String(), 'status': 'pending'});
           if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry?.id ?? 'offline:$mutationId', values: values, formatId: _selectedFormatId, createdAt: widget.entry?.createdAt ?? DateTime.now(), updatedAt: DateTime.now(), offlinePending: true));
@@ -3528,15 +3352,14 @@ class _EntryEditorState extends State<_EntryEditor> {
             border: const OutlineInputBorder(),
           ),
           items: [
-            DropdownMenuItem(value: '', child: Text(_t('Choose a value'))),
+            DropdownMenuItem(value: '', child: Text(_t('Choose a value'), maxLines: 1, overflow: TextOverflow.ellipsis)),
             for (final option in options)
               DropdownMenuItem(
                 value: option,
                 child: Text(
                   kind == BrainyFieldKind.boolean
                       ? _t(option == 'true' ? 'Yes' : 'No')
-                      : option,
-                ),
+                      : option, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
           ],
           onChanged: (selected) =>
@@ -3585,16 +3408,51 @@ class _EntryEditorState extends State<_EntryEditor> {
         ),
       );
     }
+    if (kind == BrainyFieldKind.measure) {
+      return MeasureFieldInput(
+        key: ValueKey('measure-${field.id}'),
+        label: field.name,
+        unit: numberUnit(field.unit)?.symbol ?? field.unit,
+        controller: _controllers[field.id]!,
+        french: _copy.isFrench,
+        initial: _measures[field.id],
+        onChanged: (details) => setState(() => _measures[field.id] = details),
+      );
+    }
+    if (kind == BrainyFieldKind.date || kind == BrainyFieldKind.time || kind == BrainyFieldKind.datetime) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: LocalizedDateField(
+          controller: _controllers[field.id]!,
+          kind: kind == BrainyFieldKind.date
+              ? StoredDateKind.date
+              : kind == BrainyFieldKind.time
+              ? StoredDateKind.time
+              : StoredDateKind.dateTime,
+          label: field.name,
+          onPick: () => kind == BrainyFieldKind.date
+              ? _pickDate(field)
+              : kind == BrainyFieldKind.time
+              ? _pickTime(field)
+              : _pickDateTime(field),
+        ),
+      );
+    }
     final symbol = numberUnit(field.unit)?.symbol ?? field.unit;
     final currency = ['EUR', 'USD', 'GBP', 'NGN'].contains(field.unit);
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
         controller: _controllers[field.id],
-        maxLines: kind == BrainyFieldKind.longText
-            ? 8
-            : kind == BrainyFieldKind.text
+        minLines: kind == BrainyFieldKind.longText
             ? 4
+            : kind == BrainyFieldKind.text
+            ? 2
+            : 1,
+        maxLines: kind == BrainyFieldKind.longText
+            ? 10
+            : kind == BrainyFieldKind.text
+            ? 6
             : 1,
         maxLength: kind == BrainyFieldKind.character
             ? 2
@@ -3602,31 +3460,26 @@ class _EntryEditorState extends State<_EntryEditor> {
                   ? 50000
                   : kind == BrainyFieldKind.text
                   ? 10000
-                  : 500),
-        keyboardType: kind == BrainyFieldKind.number
+                  : 500), buildCounter: quietFormCounter,
+        keyboardType: kind == BrainyFieldKind.duration
+            ? TextInputType.datetime
+            : kind == BrainyFieldKind.number
             ? const TextInputType.numberWithOptions(decimal: true, signed: true)
             : kind == BrainyFieldKind.link
             ? TextInputType.url
             : TextInputType.text,
-        readOnly:
-            kind == BrainyFieldKind.date ||
-            kind == BrainyFieldKind.time ||
-            kind == BrainyFieldKind.datetime,
-        onTap: kind == BrainyFieldKind.date
-            ? () => _pickDate(field)
-            : kind == BrainyFieldKind.time
-            ? () => _pickTime(field)
-            : kind == BrainyFieldKind.datetime
-            ? () => _pickDateTime(field)
-            : null,
         decoration: InputDecoration(
           labelText: field.name,
           helperText: kind == BrainyFieldKind.character
               ? _t('One character')
               : kind == BrainyFieldKind.link
               ? 'https://example.com'
+              : kind == BrainyFieldKind.duration
+              ? (_copy.isFrench ? 'Heures:minutes' : 'Hours:minutes')
               : null,
-          hintText: kind == BrainyFieldKind.number
+          hintText: kind == BrainyFieldKind.duration
+              ? '1:30'
+              : kind == BrainyFieldKind.number
               ? _t(_copy.isFrench ? 'Number example French' : 'Number example')
               : null,
           prefixText:
@@ -3636,22 +3489,6 @@ class _EntryEditorState extends State<_EntryEditor> {
           suffixText: kind == BrainyFieldKind.number && !currency
               ? symbol
               : null,
-          suffixIcon: kind == BrainyFieldKind.date
-              ? IconButton(
-                  onPressed: () => _pickDate(field),
-                  icon: const Icon(Icons.calendar_today_outlined),
-                )
-              : kind == BrainyFieldKind.time
-              ? IconButton(
-                  onPressed: () => _pickTime(field),
-                  icon: const Icon(Icons.schedule_outlined),
-                )
-              : kind == BrainyFieldKind.datetime
-              ? IconButton(
-                  onPressed: () => _pickDateTime(field),
-                  icon: const Icon(Icons.event_outlined),
-                )
-              : null,
           border: const OutlineInputBorder(),
         ),
       ),
@@ -3659,14 +3496,14 @@ class _EntryEditorState extends State<_EntryEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => Dialog(
+  Widget build(BuildContext context) => AdaptiveFormShell(
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 580, maxHeight: 700),
+      constraints: isPhoneForm(context) ? const BoxConstraints() : const BoxConstraints(maxWidth: 580, maxHeight: 700),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isPhoneForm(context) ? 18 : 24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: isPhoneForm(context) ? MainAxisSize.max : MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -3751,8 +3588,10 @@ class _EntryEditorState extends State<_EntryEditor> {
               ),
             const SizedBox(height: 16),
             Flexible(
+              fit: isPhoneForm(context) ? FlexFit.tight : FlexFit.loose,
               child: ListView(
                 shrinkWrap: true,
+                padding: const EdgeInsets.only(top: 8),
                 children: [
                   for (final field in _activeFormat.fields) _field(field),
                 ],
@@ -3763,6 +3602,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(_error!, style: const TextStyle(color: Colors.red)),
               ),
+            if (isPhoneForm(context)) const Divider(height: 20),
             Wrap(
               alignment: WrapAlignment.end,
               spacing: 8,

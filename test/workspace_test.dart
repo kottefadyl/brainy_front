@@ -569,6 +569,8 @@ void main() {
       await tester.tap(find.text('Create collection').last);
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('Data formats').first);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Add data format'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Add data format'));
@@ -603,6 +605,8 @@ void main() {
 
       expect(api.entries.single['formatId'], 'format-1');
       expect(find.text('A second shape of thought'), findsOneWidget);
+      await tester.tap(find.text('Data formats').first);
+      await tester.pumpAndSettle();
       final recolor = find.byTooltip('Data format actions').last;
       await tester.ensureVisible(recolor);
       await tester.pumpAndSettle();
@@ -665,6 +669,8 @@ void main() {
     await tester.tap(find.text('Save entry'));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Data formats').first);
+    await tester.pumpAndSettle();
     final editButton = find.byTooltip('Data format actions').first;
     await tester.ensureVisible(editButton);
     await tester.pumpAndSettle();
@@ -705,6 +711,8 @@ void main() {
     expect(format['name'], 'Journal notes');
     expect((format['fields'] as List<dynamic>).length, 2);
     expect((format['fields'] as List<dynamic>).first['id'], 'field-0-0');
+    await tester.tap(find.text('Entries').first);
+    await tester.pumpAndSettle();
     expect(find.text('First note'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 import 'relation_panel.dart';
@@ -45,11 +46,12 @@ class _EntryLinksDialogState extends State<_EntryLinksDialog> {
   Widget build(BuildContext context) {
     final fr = AppStrings.of(context).isFrench;
     final candidates = entries.where((entry) => entry.id != widget.entry.id && title(entry).toLowerCase().contains(search.text.toLowerCase())).take(80).toList();
-    return AlertDialog(title: Text(fr ? 'Liens entre entrées' : 'Entry links'), content: SizedBox(width: 600, height: 470, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return AdaptiveFormDialog(title: Text(fr ? 'Liens entre entrées' : 'Entry links'), content: SizedBox(width: 600, height: isPhoneForm(context) ? double.infinity : 470, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(fr ? 'Reliez deux entrées de cette collection sans créer d’objet. Les liens retirés restent restaurables.' : 'Link two entries in this collection without creating an object. Removed links can be restored.'), const SizedBox(height: 12),
       TextField(controller: search, onChanged: (_) => setState(() {}), decoration: InputDecoration(labelText: fr ? 'Rechercher une entrée' : 'Find an entry', border: const OutlineInputBorder())), const SizedBox(height: 8),
-      DropdownButtonFormField<String>(key: ValueKey('target-$target-${search.text}'), initialValue: candidates.any((item) => item.id == target) ? target : null, isExpanded: true, decoration: InputDecoration(labelText: fr ? 'Entrée cible' : 'Target entry', border: const OutlineInputBorder()), items: [for (final item in candidates) DropdownMenuItem(value: item.id, child: Text(title(item)))], onChanged: (value) => setState(() => target = value)), const SizedBox(height: 8),
-      TextField(controller: label, maxLength: 120, decoration: InputDecoration(labelText: fr ? 'Libellé facultatif' : 'Optional label', border: const OutlineInputBorder())),
+      DropdownButtonFormField<String>(key: ValueKey('target-$target-${search.text}'), initialValue: candidates.any((item) => item.id == target) ? target : null, isExpanded: true, decoration: InputDecoration(labelText: fr ? 'Entrée cible' : 'Target entry', border: const OutlineInputBorder()), items: [for (final item in candidates) DropdownMenuItem(value: item.id, child: Text(title(item), maxLines: 1, overflow: TextOverflow.ellipsis))], onChanged: (value) => setState(() => target = value)), const SizedBox(height: 8),
+      TextField(controller: label, maxLength: 120, buildCounter: quietFormCounter, decoration: InputDecoration(labelText: fr ? 'Libellé facultatif' : 'Optional label', border: const OutlineInputBorder())),
+      const SizedBox(height: 12),
       FilledButton(onPressed: target == null || busy ? null : () async { setState(() { busy = true; error = null; }); try { await widget.api.createEntryLink(widget.collection.id, widget.entry.id, target!, label.text.trim()); target = null; label.clear(); await load(); } catch (cause) { if (mounted) setState(() => error = cause.toString()); } finally { if (mounted) setState(() => busy = false); } }, child: Text(fr ? 'Créer le lien' : 'Create link')),
       const Divider(height: 32), Text(fr ? 'Liens de cette entrée' : 'Entry links', style: Theme.of(context).textTheme.titleMedium),
       for (final link in links) ListTile(title: Text(entries.where((item) => item.id == (link['fromEntryId'] == widget.entry.id ? link['toEntryId'] : link['fromEntryId'])).map(title).firstOrNull ?? '—'), subtitle: Text(link['label'] as String? ?? ''), onTap: link['deletedAt'] != null ? null : () { final linked = entries.where((item) => item.id == (link['fromEntryId'] == widget.entry.id ? link['toEntryId'] : link['fromEntryId'])).firstOrNull; if (linked != null) Navigator.pop(context, linked); }, trailing: TextButton(onPressed: () async { try { await widget.api.setEntryLinkActive(widget.collection.id, link['id'] as String, link['deletedAt'] != null); await load(); } catch (cause) { if (mounted) setState(() => error = cause.toString()); } }, child: Text(link['deletedAt'] == null ? fr ? 'Retirer' : 'Remove' : fr ? 'Restaurer' : 'Restore'))),

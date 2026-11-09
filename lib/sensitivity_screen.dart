@@ -45,9 +45,9 @@ class _SensitivityScreenState extends State<_SensitivityScreen> {
         isExpanded: true,
         decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
         items: [
-          DropdownMenuItem(value: 'ORDINARY', child: Text(t('Ordinaire', 'Ordinary'))),
-          DropdownMenuItem(value: 'PERSONAL', child: Text(t('Personnel', 'Personal'))),
-          DropdownMenuItem(value: 'SENSITIVE', child: Text(t('Sensible', 'Sensitive'))),
+          DropdownMenuItem(value: 'ORDINARY', child: Text(t('Ordinaire', 'Ordinary'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          DropdownMenuItem(value: 'PERSONAL', child: Text(t('Personnel', 'Personal'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+          DropdownMenuItem(value: 'SENSITIVE', child: Text(t('Sensible', 'Sensitive'), maxLines: 1, overflow: TextOverflow.ellipsis)),
         ],
         onChanged: busy ? null : (next) { if (next != null && next != value) onChanged(next); },
       );

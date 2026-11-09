@@ -226,7 +226,7 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
           ),
           const SizedBox(height: 8),
           if (selected != null) ...[
-            DropdownButtonFormField<String>(
+            DropdownButtonFormField<String>(isExpanded: true, 
               key: ValueKey('jobs-collection-${selected.id}'),
               initialValue: selected.id,
               decoration: InputDecoration(
@@ -234,7 +234,7 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
               ),
               items: [
                 for (final item in widget.collections)
-                  DropdownMenuItem(value: item.id, child: Text(item.name)),
+                  DropdownMenuItem(value: item.id, child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
               onChanged: (value) {
                 setState(() {
@@ -278,7 +278,7 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
                 child: Text(fr ? 'Lancer l’import' : 'Start import'),
               ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
+            DropdownButtonFormField<String>(isExpanded: true, 
               key: ValueKey('jobs-format-${selected.id}'),
               initialValue: chosenFormatId,
               decoration: InputDecoration(
@@ -288,7 +288,7 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
               ),
               items: [
                 for (final item in selected.formats)
-                  DropdownMenuItem(value: item.id, child: Text(item.name)),
+                  DropdownMenuItem(value: item.id, child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
               onChanged: (value) => setState(() => formatId = value),
             ),
@@ -370,7 +370,7 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
                             ),
                         ],
                       ),
-                    Wrap(
+                    Wrap(runSpacing: 8, 
                       spacing: 8,
                       children: [
                         if (job['state'] == 'QUEUED' ||

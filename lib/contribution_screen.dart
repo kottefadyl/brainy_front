@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'adaptive_form.dart';
 import 'collections_api.dart';
 import 'contribution_api.dart';
 
@@ -225,7 +226,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
     };
     final apply = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AdaptiveFormDialog(
         title: Text(t('Corriger la réponse', 'Correct submission')),
         content: SizedBox(
           width: 420,
@@ -298,7 +299,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
     final controller = TextEditingController();
     final apply = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AdaptiveFormDialog(
         title: Text(t('Rejeter la réponse', 'Reject submission')),
         content: TextField(
           controller: controller,
@@ -408,7 +409,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
                           ),
                         )
                       else
-                        DropdownButtonFormField<String>(
+                        DropdownButtonFormField<String>(isExpanded: true, 
                           initialValue: formatId,
                           decoration: InputDecoration(
                             labelText: t('Format de données', 'Data format'),
@@ -417,7 +418,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
                               .map(
                                 (item) => DropdownMenuItem(
                                   value: item.id,
-                                  child: Text(item.name),
+                                  child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                                 ),
                               )
                               .toList(),
@@ -442,7 +443,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
                       ),
                       TextFormField(
                         controller: _titleEn,
-                        maxLength: 2000,
+                        maxLength: 2000, buildCounter: quietFormCounter,
                         decoration: const InputDecoration(
                           labelText: 'Information (English)',
                         ),
@@ -450,9 +451,10 @@ class _ContributionScreenState extends State<ContributionScreen> {
                             ? null
                             : t('Requis', 'Required'),
                       ),
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller: _titleFr,
-                        maxLength: 2000,
+                        maxLength: 2000, buildCounter: quietFormCounter,
                         decoration: const InputDecoration(
                           labelText: 'Information (français)',
                         ),
@@ -460,9 +462,10 @@ class _ContributionScreenState extends State<ContributionScreen> {
                             ? null
                             : t('Requis', 'Required'),
                       ),
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller: _consentEn,
-                        maxLength: 2000,
+                        maxLength: 2000, buildCounter: quietFormCounter,
                         minLines: 2,
                         maxLines: 4,
                         decoration: const InputDecoration(
@@ -472,9 +475,10 @@ class _ContributionScreenState extends State<ContributionScreen> {
                             ? null
                             : t('Requis', 'Required'),
                       ),
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller: _consentFr,
-                        maxLength: 2000,
+                        maxLength: 2000, buildCounter: quietFormCounter,
                         minLines: 2,
                         maxLines: 4,
                         decoration: const InputDecoration(
@@ -484,6 +488,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
                             ? null
                             : t('Requis', 'Required'),
                       ),
+                      const SizedBox(height: 12),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(
@@ -621,7 +626,7 @@ class _ContributionScreenState extends State<ContributionScreen> {
                           ),
                       if (row['status'] == 'PENDING' ||
                           row['status'] == 'ACCEPTING')
-                        Wrap(
+                        Wrap(runSpacing: 8, 
                           spacing: 8,
                           children: [
                             FilledButton(

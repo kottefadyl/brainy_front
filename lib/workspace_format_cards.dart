@@ -20,15 +20,11 @@ class WorkspaceFormatCards extends StatelessWidget {
     required this.onCopy,
     required this.onLink,
     required this.onReview,
-    required this.onRename,
-    required this.onDelete,
-    this.onPackages,
   });
   final BrainyCollection collection;
   final Map<String, int> entryCounts;
   final bool partialCounts;
-  final VoidCallback onAdd, onRename, onDelete;
-  final VoidCallback? onPackages;
+  final VoidCallback onAdd;
   final ValueChanged<BrainyFormat> onAddEntry,
       onEdit,
       onColor,
@@ -58,34 +54,6 @@ class WorkspaceFormatCards extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: copy.text('Collection actions'),
-              onSelected: (action) => switch (action) {
-                'rename' => onRename(),
-                'packages' => onPackages?.call(),
-                _ => onDelete(),
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'rename',
-                  child: Text(copy.text('Rename')),
-                ),
-                if (onPackages != null)
-                  PopupMenuItem(
-                    value: 'packages',
-                    child: Text(copy.isFrench ? 'Paquets de domaine' : 'Domain packages'),
-                  ),
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Text(
-                    copy.text('Delete collection'),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              ],
             ),
           ],
         ),
@@ -334,7 +302,7 @@ class _FormatCardState extends State<_FormatCard> {
                             ? Color.lerp(BrainyColors.darkControl, marker, .2)!
                             : BrainyColors.lightControl,
                       ),
-                      textStyle: const TextStyle(
+                      textStyle: const TextStyle(fontFamily: 'Inter', 
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),

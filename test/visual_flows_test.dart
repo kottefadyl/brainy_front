@@ -298,8 +298,8 @@ void main() {
       );
       await tester.tap(find.text('Open insights'));
       await tester.pumpAndSettle();
-      expect(find.text('Create or edit a formula'), findsOneWidget);
-      expect(find.text('Calculation name'), findsNothing);
+      expect(find.text('Saved formulas'), findsOneWidget);
+      expect(find.text('Formula'), findsNothing);
       await tester.ensureVisible(find.text('Quick chart'));
       await tester.tap(find.text('Quick chart'));
       await tester.pumpAndSettle();
@@ -419,8 +419,8 @@ void main() {
     await tester.ensureVisible(formulas);
     await tester.tap(formulas);
     await tester.pumpAndSettle();
-    expect(find.text('Advanced formula'), findsNWidgets(2));
-    expect(find.byTooltip('Edit'), findsOneWidget);
+    expect(find.text('Advanced formula (read-only)'), findsOneWidget);
+    expect(find.byTooltip('Edit'), findsNWidgets(2));
     expect(find.byTooltip('Delete'), findsNWidgets(3));
     expect(tester.takeException(), isNull);
   });

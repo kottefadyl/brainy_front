@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'adaptive_form.dart';
 import 'collections_api.dart';
 
 Future<BrainyEntry?> showQuickEntrySheet(BuildContext context, {required CollectionsApi api, required BrainyCollection collection, required String userId, required bool french}) => showDialog<BrainyEntry>(context: context, barrierDismissible: false, builder: (_) => _QuickEntryDialog(api: api, collection: collection, userId: userId, french: french));
@@ -86,12 +87,13 @@ class _QuickEntryDialogState extends State<_QuickEntryDialog> {
     final controller = values[field.id]!;
     final suggestions = recent.map((entry) => entry.values[field.id]).whereType<String>().where((item) => item.isNotEmpty).toSet().take(3).toList();
     final input = field.kind == BrainyFieldKind.select || field.kind == BrainyFieldKind.boolean
-      ? DropdownButtonFormField<String>(key: ValueKey('${field.id}:${controller.text}'), initialValue: controller.text.isEmpty ? null : controller.text, decoration: InputDecoration(labelText: field.name), items: (field.kind == BrainyFieldKind.boolean ? ['true', 'false'] : field.options).map((item) => DropdownMenuItem(value: item, child: Text(item == 'true' ? fr ? 'Oui' : 'Yes' : item == 'false' ? fr ? 'Non' : 'No' : item))).toList(), onChanged: (value) => controller.text = value ?? '')
+      ? DropdownButtonFormField<String>(isExpanded: true, key: ValueKey('${field.id}:${controller.text}'), initialValue: controller.text.isEmpty ? null : controller.text, hint: Text(fr ? 'Choisissez une valeur' : 'Choose a value', maxLines: 1, overflow: TextOverflow.ellipsis), decoration: InputDecoration(labelText: field.name), items: (field.kind == BrainyFieldKind.boolean ? ['true', 'false'] : field.options).map((item) => DropdownMenuItem(value: item, child: Text(item == 'true' ? fr ? 'Oui' : 'Yes' : item == 'false' ? fr ? 'Non' : 'No' : item, maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => controller.text = value ?? '')
+      : [BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind) ? LocalizedDateField(controller: controller, kind: field.kind == BrainyFieldKind.date ? StoredDateKind.date : StoredDateKind.dateTime, label: field.name, enabled: !datesToday.contains(field.id), hint: datesToday.contains(field.id) ? localizedStoredDate(context, _today(field), field.kind == BrainyFieldKind.date ? StoredDateKind.date : StoredDateKind.dateTime) : null, onPick: () => _pickDate(field))
       : TextField(controller: controller, enabled: !datesToday.contains(field.id), readOnly: [BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind), onTap: [BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind) ? () => _pickDate(field) : null, keyboardType: field.kind == BrainyFieldKind.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text, maxLines: field.kind == BrainyFieldKind.longText ? 3 : 1, decoration: InputDecoration(labelText: field.name, hintText: datesToday.contains(field.id) ? _today(field) : null, suffixIcon: [BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind) ? const Icon(Icons.calendar_today_outlined) : null));
     return Padding(padding: const EdgeInsets.only(bottom: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [input, if (suggestions.isNotEmpty && [BrainyFieldKind.text, BrainyFieldKind.title, BrainyFieldKind.number].contains(field.kind)) Padding(padding: const EdgeInsets.only(top: 5), child: Wrap(spacing: 5, runSpacing: 4, children: suggestions.map((item) => ActionChip(label: Text(item, overflow: TextOverflow.ellipsis), onPressed: () { controller.text = item; setState(() {}); })).toList())), if ([BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind)) CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, value: datesToday.contains(field.id), title: Text(fr ? 'Date du jour' : 'Today'), onChanged: (value) => setState(() { value == true ? datesToday.add(field.id) : datesToday.remove(field.id); }))]));
   }
   @override
-  Widget build(BuildContext context) => AlertDialog(
+  Widget build(BuildContext context) => AdaptiveFormDialog(
     title: Text(fr ? 'Saisie rapide' : 'Quick entry'),
     content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(fr ? 'Remplissez au moins un champ.' : 'Fill in at least one field.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),

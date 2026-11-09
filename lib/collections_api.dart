@@ -431,6 +431,7 @@ class BrainyEntry {
     required this.values,
     required this.createdAt,
     required this.updatedAt,
+    this.measures = const {},
     this.formatId,
     this.correctionOf,
     this.ledgerHash,
@@ -447,6 +448,9 @@ class BrainyEntry {
   });
   final String id;
   final Map<String, String> values;
+
+  /// Status and details of measure fields, by field id.
+  final Map<String, Map<String, String>> measures;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? formatId;
@@ -471,6 +475,15 @@ class BrainyEntry {
       for (final item in json['values'] as List<dynamic>)
         (item as Map<String, dynamic>)['fieldId'] as String:
             item['value'] as String,
+    },
+    measures: {
+      for (final item in json['values'] as List<dynamic>)
+        if ((item as Map<String, dynamic>)['measureValue'] is Map)
+          item['fieldId'] as String: {
+            for (final detail in (item['measureValue'] as Map).entries)
+              if (detail.value is String && (detail.value as String).isNotEmpty)
+                detail.key as String: detail.value as String,
+          },
     },
     createdAt: DateTime.parse(json['createdAt'] as String),
     updatedAt: DateTime.parse(json['updatedAt'] as String),
@@ -556,7 +569,7 @@ class CollectionsApi {
   static const _collectionFields =
       'id ownerId name minAggregateSize fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds }';
   static const _entryFields =
-      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
+      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
 
   static String get workflowCollectionFields => _collectionFields;
   static String get workflowEntryFields => _entryFields;
@@ -752,6 +765,32 @@ class CollectionsApi {
     return BrainyCollection.fromJson(
       data['saveCollectionFormula'] as Map<String, dynamic>,
     );
+  }
+
+  /// Checks a formula: its result type, unit and dimension.
+  Future<Map<String, dynamic>> inferFormula(
+    String collectionId,
+    String formatId,
+    String expression,
+  ) async {
+    final data = await auth.authenticatedRequest(
+      'query(\$collectionId:String!,\$formatId:String!,\$expression:String!) { inferCollectionFormula(collectionId:\$collectionId,formatId:\$formatId,expression:\$expression) { type unit dimension unitOpen } }',
+      {'collectionId': collectionId, 'formatId': formatId, 'expression': expression},
+    );
+    return data['inferCollectionFormula'] as Map<String, dynamic>;
+  }
+
+  /// Calculates a formula on a sample entry, or null when there is none.
+  Future<Map<String, dynamic>?> previewFormula(
+    String collectionId,
+    String formatId,
+    String expression,
+  ) async {
+    final data = await auth.authenticatedRequest(
+      'query(\$collectionId:String!,\$formatId:String!,\$expression:String!) { previewCollectionFormula(collectionId:\$collectionId,formatId:\$formatId,expression:\$expression) { entryId entryLabel value unit dimension missing } }',
+      {'collectionId': collectionId, 'formatId': formatId, 'expression': expression},
+    );
+    return data['previewCollectionFormula'] as Map<String, dynamic>?;
   }
 
   Future<BrainyCollection> deleteFormula(
@@ -1702,6 +1741,7 @@ class CollectionsApi {
     String? formatId,
     Map<String, Uint8List> attachments = const {},
     Map<String, String> largeFiles = const {},
+    Map<String, Map<String, String>> measures = const {},
     String? clientMutationId,
     DateTime? expectedUpdatedAt,
   }) async {
@@ -1717,10 +1757,16 @@ class CollectionsApi {
           'expectedUpdatedAt': expectedUpdatedAt?.toUtc().toIso8601String(),
           'values': [
             for (final item in values.entries)
-              if (item.value.trim().isNotEmpty &&
+              if ((item.value.trim().isNotEmpty ||
+                      measures[item.key]?['status'] == 'ABSENT') &&
                   !attachments.containsKey(item.key) &&
                   !largeFiles.containsKey(item.key))
-                {'fieldId': item.key, 'value': item.value.trim()},
+                {
+                  'fieldId': item.key,
+                  'value': item.value.trim(),
+                  if (measures[item.key] != null)
+                    'measureValue': measures[item.key],
+                },
             for (final item in largeFiles.entries)
               if (values[item.key]?.trim().isNotEmpty ?? false)
                 {

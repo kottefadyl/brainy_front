@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'collections_api.dart';
 import 'domain_package_api.dart';
 
@@ -548,7 +549,7 @@ class _DomainPackagesState extends State<_DomainPackages>
           width: 300,
           child: TextField(
             controller: collectionName,
-            maxLength: 80,
+            maxLength: 80, buildCounter: quietFormCounter,
             decoration: InputDecoration(
               labelText: t('Collection name', 'Nom de la collection'),
               border: const OutlineInputBorder(),

@@ -1,6 +1,7 @@
 // T32 — create or edit a data source: which file columns fill which fields of one data format.
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'collections_api.dart';
 import 'data_format_colors.dart';
 import 'data_source_api.dart';
@@ -202,7 +203,7 @@ class _DataSourceFormPageState extends State<DataSourceFormPage> {
           children: [
             TextField(
               controller: _name,
-              maxLength: 80,
+              maxLength: 80, buildCounter: quietFormCounter,
               decoration: InputDecoration(labelText: dsTr(fr, 'Name', 'Nom')),
               onChanged: (_) => setState(() {}),
             ),
@@ -251,7 +252,7 @@ class _DataSourceFormPageState extends State<DataSourceFormPage> {
             const SizedBox(height: 16),
             TextField(
               controller: _recordId,
-              maxLength: 100,
+              maxLength: 100, buildCounter: quietFormCounter,
               decoration: InputDecoration(
                 labelText: dsTr(
                   fr,
@@ -297,7 +298,7 @@ class _DataSourceFormPageState extends State<DataSourceFormPage> {
                   children: [
                     TextField(
                       controller: _columns[field.id],
-                      maxLength: 100,
+                      maxLength: 100, buildCounter: quietFormCounter,
                       decoration: InputDecoration(
                         labelText: field.name,
                         helperText: [
@@ -315,10 +316,10 @@ class _DataSourceFormPageState extends State<DataSourceFormPage> {
                             field.kind.wireName == 'MEASURE') &&
                         _columns[field.id]!.text.trim().isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(left: 16, top: 4),
+                        padding: const EdgeInsets.only(left: 16, top: 12),
                         child: TextField(
                           controller: _units[field.id],
-                          maxLength: 100,
+                          maxLength: 100, buildCounter: quietFormCounter,
                           decoration: InputDecoration(
                             labelText: dsTr(
                               fr,
@@ -345,7 +346,7 @@ class _DataSourceFormPageState extends State<DataSourceFormPage> {
               children: [
                 TextField(
                   controller: _observedAt,
-                  maxLength: 100,
+                  maxLength: 100, buildCounter: quietFormCounter,
                   decoration: InputDecoration(
                     labelText: dsTr(
                       fr,
@@ -365,7 +366,7 @@ class _DataSourceFormPageState extends State<DataSourceFormPage> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _quality,
-                    maxLength: 100,
+                    maxLength: 100, buildCounter: quietFormCounter,
                     decoration: InputDecoration(
                       labelText: dsTr(
                         fr,
@@ -378,7 +379,7 @@ class _DataSourceFormPageState extends State<DataSourceFormPage> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _status,
-                    maxLength: 100,
+                    maxLength: 100, buildCounter: quietFormCounter,
                     decoration: InputDecoration(
                       labelText: dsTr(
                         fr,

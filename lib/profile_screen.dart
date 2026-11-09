@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'auth_api.dart';
 import 'brand_assets.dart';
@@ -125,7 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     int lines = 1,
   }) => TextField(
     controller: controller,
-    maxLength: maxLength,
+    maxLength: maxLength, buildCounter: quietFormCounter,
     maxLines: lines,
     decoration: InputDecoration(
       labelText: optional ? '$label · ${_t('Optional')}' : label,

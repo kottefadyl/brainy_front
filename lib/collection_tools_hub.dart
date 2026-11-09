@@ -58,7 +58,13 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
   Color get _accentColor =>
       widget.isDark ? BrainyColors.darkAccent : const Color(0xFF2E6FD8);
   Color get _cardBgColor =>
-      widget.isDark ? const Color(0xFF29292C) : const Color(0xFFF8FAFC);
+      widget.isDark ? BrainyColors.darkElevated : Colors.white;
+  static const _lightTints = [Color(0xFFEEF3FE), Color(0xFFE9F7EF), Color(0xFFFDEEEE)];
+  static const _lightInks = [Color(0xFF1F4FD8), Color(0xFF157F3B), Color(0xFFB42318)];
+  static const _darkTints = [Color(0x245B8CFF), Color(0x2134D27B), Color(0x21FF5A5F)];
+  static const _darkInks = [Color(0xFF8CB0FF), Color(0xFF5EDC8C), Color(0xFFFF8A8F)];
+  Color _toolTint(int group) => (widget.isDark ? _darkTints : _lightTints)[group];
+  Color _toolInk(int group) => (widget.isDark ? _darkInks : _lightInks)[group];
   Color get _cardBorderColor =>
       widget.isDark ? BrainyColors.darkLine : const Color(0xFFE5E9F0);
 
@@ -120,8 +126,8 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                             Flexible(
                               child: Text(
                                 fr
-                                    ? 'Outils et options de la collection'
-                                    : 'Collection tools & options',
+                                    ? 'Outils & options avancées'
+                                    : 'Advanced collection tools',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -139,7 +145,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                               ),
                               decoration: BoxDecoration(
                                 color: widget.isDark
-                                    ? const Color(0xFF37373B)
+                                    ? BrainyColors.darkAccentSoft
                                     : const Color(0xFFE8EEF8),
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -157,8 +163,8 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                         const SizedBox(height: 2),
                         Text(
                           fr
-                              ? 'Calculs, stock, unités, modèles, workflow et gouvernance'
-                              : 'Calculations, stock, units, models, workflow, and governance',
+                              ? 'Statistiques, stocks, cartes, nomenclatures, flux et registre'
+                              : 'Analytics, stocks, maps, code lists, workflows, and ledger',
                           style: TextStyle(
                             fontSize: 12,
                             color: _mutedColor,
@@ -201,7 +207,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                     children: [
                       // Groupe 1 : Analyse & Métier
                       _sectionTitle(
-                        fr ? 'Analyse & Métier' : 'Analysis & Operations',
+                        fr ? 'Analyse & Métier' : 'Analytics & Operations',
                       ),
                       const SizedBox(height: 10),
                       Wrap(
@@ -209,27 +215,30 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                         runSpacing: 10,
                         children: [
                           _toolCard(
+                            0,
                             cardWidth,
                             Icons.auto_graph_rounded,
                             fr ? 'Calculs et graphiques' : 'Calculations and charts',
-                            fr ? 'Explorez vos données' : 'Explore your data',
+                            fr ? 'Explorer et analyser vos données' : 'Explore and visualize your data',
                             widget.onInsights,
                             featured: true,
                           ),
                           _toolCard(
+                            0,
                             cardWidth,
                             Icons.inventory_2_outlined,
                             'Stock',
                             fr
-                                ? 'Positions et mouvements'
-                                : 'Positions and movements',
+                                ? 'Positions et mouvements validés'
+                                : 'Positions and confirmed movements',
                             widget.onStock,
                           ),
                           _toolCard(
+                            0,
                             cardWidth,
                             Icons.map_outlined,
                             fr ? 'Carte' : 'Map',
-                            fr ? 'Positions et zones' : 'Positions and zones',
+                            fr ? 'Positions GPS et zones' : 'GPS positions and zones',
                             widget.onMap,
                           ),
                         ],
@@ -246,6 +255,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                         runSpacing: 10,
                         children: [
                           _toolCard(
+                            1,
                             cardWidth,
                             Icons.straighten_rounded,
                             fr ? 'Unités et mesures' : 'Units and measures',
@@ -253,6 +263,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                             widget.onUnits,
                           ),
                           _toolCard(
+                            1,
                             cardWidth,
                             Icons.category_outlined,
                             fr ? 'Objets' : 'Objects',
@@ -260,10 +271,11 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                             widget.onObjects,
                           ),
                           _toolCard(
+                            1,
                             cardWidth,
                             Icons.account_tree_outlined,
                             fr ? 'Classifications' : 'Classifications',
-                            fr ? 'Listes de codes locales' : 'Local code lists',
+                            fr ? 'Nomenclatures et listes de codes' : 'Controlled code lists',
                             widget.onClassifications,
                           ),
                         ],
@@ -280,41 +292,45 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                         runSpacing: 10,
                         children: [
                           _toolCard(
+                            2,
                             cardWidth,
                             Icons.fact_check_outlined,
                             fr ? 'États et validations' : 'States and approvals',
-                            fr ? 'Assignations et échéances' : 'Assignments and due dates',
+                            fr ? 'Assignations, échéances et historique' : 'Assignments, due dates and history',
                             widget.onWorkflow,
                           ),
                           if (canSend)
                             _toolCard(
+                              2,
                               cardWidth,
                               Icons.dataset_linked_outlined,
                               fr ? 'Sources de données' : 'Data sources',
-                              fr ? 'Fichiers et systèmes externes' : 'Files and external systems',
+                              fr ? 'Fichiers et systèmes externes, rejets expliqués' : 'Files and external systems, explained rejections',
                               widget.onDataSources!,
                             ),
                           if (isOwner)
                             _toolCard(
+                              2,
                               cardWidth,
                               Icons.publish_outlined,
                               fr ? 'Contributions publiques' : 'Public contributions',
-                              fr ? 'Liens et réponses à valider' : 'Links and submissions',
+                              fr ? 'Liens et réponses en quarantaine' : 'Links and submissions in quarantine',
                               widget.onContributions,
                             ),
                           _toolCard(
+                            2,
                             cardWidth,
                             Icons.receipt_long_outlined,
                             fr ? 'Registre' : 'Register',
-                            fr ? 'Écritures et intégrité' : 'Writings and integrity',
+                            fr ? 'Écritures, intégrité et corrections' : 'Writings, integrity and corrections',
                             widget.onLedger,
                           ),
-                          if (isOwner)
-                            _toolCard(
+                          _toolCard(
+                              2,
                               cardWidth,
                               Icons.shield_outlined,
                               fr ? 'Confidentialité' : 'Privacy',
-                              fr ? 'Champs et seuil d’agrégat' : 'Protected fields & privacy',
+                              fr ? 'Niveaux et seuils d’analyse' : 'Levels and analysis limits',
                               widget.onSensitivity,
                             ),
                         ],
@@ -346,7 +362,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
         child: Container(
           height: 1,
           color: widget.isDark
-              ? const Color(0xFF49494F)
+              ? BrainyColors.darkLine
               : const Color(0xFFEDF2F7),
         ),
       ),
@@ -354,6 +370,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
   );
 
   Widget _toolCard(
+    int group,
     double width,
     IconData icon,
     String title,
@@ -364,13 +381,13 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
     width: width,
     child: Material(
       color: featured
-          ? (widget.isDark ? const Color(0xFF302D36) : const Color(0xFFF1F6FD))
+          ? (widget.isDark ? BrainyColors.darkElevated : const Color(0xFFF1F6FD))
           : _cardBgColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
           color: featured
-              ? (widget.isDark ? const Color(0xFF625B72) : const Color(0xFFBCD5F5))
+              ? (widget.isDark ? BrainyColors.darkLineStrong : const Color(0xFFBCD5F5))
               : _cardBorderColor,
         ),
       ),
@@ -382,19 +399,13 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: featured
-                      ? (widget.isDark ? BrainyColors.darkAccentSoft : const Color(0xFFDFECFB))
-                      : (widget.isDark ? const Color(0xFF343438) : const Color(0xFFE9EEF5)),
-                  borderRadius: BorderRadius.circular(9),
+                  color: _toolTint(group),
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: Icon(
-                  icon,
-                  color: featured ? _accentColor : _inkColor,
-                  size: 20,
-                ),
+                child: Icon(icon, color: _toolInk(group), size: 21),
               ),
               const SizedBox(width: 12),
               Expanded(

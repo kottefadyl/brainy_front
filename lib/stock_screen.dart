@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import 'entry_editor_pickers.dart';
+import 'adaptive_form.dart';
 import 'collections_api.dart';
 import 'ledger_api.dart';
 
@@ -311,10 +313,17 @@ class _StockScreenState extends State<_StockScreen> {
     finally { if (mounted) setState(() => busy = false); }
   }
 
-  Widget ruleField(String label, String? value, List<BrainyField> fields, void Function(String?) changed) => DropdownButtonFormField<String>(
+  String _effectLabel(String value, bool fr) => switch (value) {
+    'IN' => fr ? 'Entrée' : 'In',
+    'OUT' => fr ? 'Sortie' : 'Out',
+    'TRANSFER' => fr ? 'Transfert' : 'Transfer',
+    _ => 'Correction',
+  };
+
+  Widget ruleField(String label, String? value, List<BrainyField> fields, void Function(String?) changed) => DropdownButtonFormField<String>(isExpanded: true, 
     initialValue: value,
     decoration: InputDecoration(labelText: label),
-    items: [const DropdownMenuItem<String>(value: null, child: Text('—')), ...fields.map((field) => DropdownMenuItem(value: field.id, child: Text(field.name)))],
+    items: [const DropdownMenuItem<String>(value: null, child: Text('—', maxLines: 1, overflow: TextOverflow.ellipsis)), ...fields.map((field) => DropdownMenuItem(value: field.id, child: Text(field.name, maxLines: 1, overflow: TextOverflow.ellipsis)))],
     onChanged: changed,
   );
 
@@ -391,16 +400,27 @@ class _StockScreenState extends State<_StockScreen> {
           ),
           ExpansionTile(title: Text(fr ? 'Configurer l’effet d’un format de données' : 'Configure a data format effect'), childrenPadding: const EdgeInsets.all(12), children: [
             Text(fr ? 'Associez un objet, une quantité et un effet. Chaque entrée demande une validation.' : 'Map an object, quantity and effect. Each entry requires confirmation.'),
+            const SizedBox(height: 12),
             TextField(controller: ruleName, onChanged: (_) => setState(() {}), decoration: InputDecoration(labelText: fr ? 'Nom de la règle' : 'Rule name')),
-            DropdownButtonFormField<String>(initialValue: ruleFormatId, decoration: InputDecoration(labelText: fr ? 'Format de données' : 'Data format'), items: [const DropdownMenuItem<String>(value: null, child: Text('—')), ...collection.formats.where((item) => !item.objectModel).map((item) => DropdownMenuItem(value: item.id, child: Text(item.name)))], onChanged: (value) => setState(() { ruleFormatId = value; ruleProductId = null; ruleQuantityId = null; ruleDateId = null; ruleFromId = null; ruleToId = null; ruleLotId = null; ruleReasonId = null; })),
-            DropdownButtonFormField<String>(initialValue: ruleKind, decoration: InputDecoration(labelText: fr ? 'Effet' : 'Effect'), items: const ['IN', 'OUT', 'TRANSFER', 'CORRECTION'].map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(), onChanged: (value) => setState(() => ruleKind = value!)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(isExpanded: true, initialValue: ruleFormatId, decoration: InputDecoration(labelText: fr ? 'Format de données' : 'Data format'), items: [const DropdownMenuItem<String>(value: null, child: Text('—', maxLines: 1, overflow: TextOverflow.ellipsis)), ...collection.formats.where((item) => !item.objectModel).map((item) => DropdownMenuItem(value: item.id, child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis)))], onChanged: (value) => setState(() { ruleFormatId = value; ruleProductId = null; ruleQuantityId = null; ruleDateId = null; ruleFromId = null; ruleToId = null; ruleLotId = null; ruleReasonId = null; })),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(isExpanded: true, initialValue: ruleKind, decoration: InputDecoration(labelText: fr ? 'Effet' : 'Effect'), items: const ['IN', 'OUT', 'TRANSFER', 'CORRECTION'].map((value) => DropdownMenuItem(value: value, child: Text(_effectLabel(value, fr), maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() => ruleKind = value!)),
+            const SizedBox(height: 12),
             ruleField(fr ? 'Objet' : 'Object', ruleProductId, ruleFields.where((field) => field.kind == BrainyFieldKind.objectRef && !field.multiple && collection.formats.any((item) => item.id == field.targetObjectFormatId && item.objectModel)).toList(), (value) => setState(() => ruleProductId = value)),
+            const SizedBox(height: 12),
             ruleField(fr ? 'Quantité' : 'Quantity', ruleQuantityId, ruleFields.where((field) => field.kind == BrainyFieldKind.number).toList(), (value) => setState(() => ruleQuantityId = value)),
+            const SizedBox(height: 12),
             ruleField(fr ? 'Date du fait' : 'Occurred at', ruleDateId, ruleFields.where((field) => field.kind == BrainyFieldKind.date || field.kind == BrainyFieldKind.datetime).toList(), (value) => setState(() => ruleDateId = value)),
+            const SizedBox(height: 12),
             ruleField(fr ? 'Lieu source' : 'From location', ruleFromId, ruleFields.where((field) => field.kind == BrainyFieldKind.text || field.kind == BrainyFieldKind.select).toList(), (value) => setState(() => ruleFromId = value)),
+            const SizedBox(height: 12),
             ruleField(fr ? 'Lieu destination' : 'To location', ruleToId, ruleFields.where((field) => field.kind == BrainyFieldKind.text || field.kind == BrainyFieldKind.select).toList(), (value) => setState(() => ruleToId = value)),
+            const SizedBox(height: 12),
             ruleField(fr ? 'Lot' : 'Lot', ruleLotId, ruleFields.where((field) => field.kind == BrainyFieldKind.text || field.kind == BrainyFieldKind.select).toList(), (value) => setState(() => ruleLotId = value)),
+            const SizedBox(height: 12),
             ruleField(fr ? 'Motif' : 'Reason', ruleReasonId, ruleFields.where((field) => [BrainyFieldKind.title, BrainyFieldKind.text, BrainyFieldKind.longText].contains(field.kind)).toList(), (value) => setState(() => ruleReasonId = value)),
+            const SizedBox(height: 12),
             FilledButton.tonal(onPressed: busy || ruleName.text.trim().isEmpty || ruleFormatId == null || ruleProductId == null || ruleQuantityId == null || (ruleKind == 'TRANSFER' && (ruleFromId == null || ruleToId == null)) ? null : saveRule, child: Text(fr ? 'Enregistrer la règle' : 'Save rule')),
             for (final rule in collection.stockRules) ListTile(title: Text('${rule['name']} · ${rule['kind']}'), trailing: IconButton(icon: const Icon(Icons.delete_outline), tooltip: fr ? 'Supprimer' : 'Delete', onPressed: busy ? null : () async { try { final updated = await widget.api.deleteStockRule(collection.id, rule['id'] as String); if (mounted) setState(() => collection = updated); } catch (cause) { if (mounted) setState(() => error = '$cause'); } })),
           ]),
@@ -432,14 +452,15 @@ class _StockScreenState extends State<_StockScreen> {
             fr ? 'Nouveau mouvement' : 'New movement',
             style: Theme.of(context).textTheme.titleLarge,
           ),
-          DropdownButtonFormField<String>(
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(isExpanded: true, 
             initialValue: productId,
             decoration: InputDecoration(labelText: fr ? 'Produit' : 'Product'),
             items: products
                 .map(
                   (entry) => DropdownMenuItem(
                     value: entry.id,
-                    child: Text(name(entry)),
+                    child: Text(name(entry), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                 )
                 .toList(),
@@ -449,12 +470,13 @@ class _StockScreenState extends State<_StockScreen> {
               stockIntegrity = null;
             }),
           ),
-          DropdownButtonFormField<String>(
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(isExpanded: true, 
             initialValue: kind,
             decoration: InputDecoration(labelText: fr ? 'Effet' : 'Effect'),
             items: const ['IN', 'OUT', 'TRANSFER', 'CORRECTION']
                 .map(
-                  (value) => DropdownMenuItem(value: value, child: Text(value)),
+                  (value) => DropdownMenuItem(value: value, child: Text(_effectLabel(value, fr), maxLines: 1, overflow: TextOverflow.ellipsis)),
                 )
                 .toList(),
             onChanged: (value) => setState(() {
@@ -462,6 +484,7 @@ class _StockScreenState extends State<_StockScreen> {
               preview = null;
             }),
           ),
+          const SizedBox(height: 12),
           TextField(
             controller: quantity,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -469,31 +492,38 @@ class _StockScreenState extends State<_StockScreen> {
               labelText: fr ? 'Quantité' : 'Quantity',
             ),
           ),
+          const SizedBox(height: 12),
           TextField(
             controller: from,
             decoration: InputDecoration(
               labelText: fr ? 'Lieu source' : 'From location',
             ),
           ),
+          const SizedBox(height: 12),
           TextField(
             controller: to,
             decoration: InputDecoration(
               labelText: fr ? 'Lieu destination' : 'To location',
             ),
           ),
+          const SizedBox(height: 12),
           TextField(
             controller: lot,
             decoration: InputDecoration(labelText: fr ? 'Lot' : 'Lot'),
           ),
+          const SizedBox(height: 12),
           TextField(
             controller: reason,
             decoration: InputDecoration(labelText: fr ? 'Motif' : 'Reason'),
           ),
           ExpansionTile(title: Text(fr ? 'Date du fait, conditionnement et prix' : 'Occurred at, package and price'), childrenPadding: const EdgeInsets.all(12), children: [
-            TextField(controller: occurredAt, decoration: InputDecoration(labelText: fr ? 'Date du fait · AAAA-MM-JJThh:mm' : 'Occurred at · YYYY-MM-DDThh:mm')),
+            LocalizedDateField(controller: occurredAt, kind: StoredDateKind.dateTime, clearable: false, label: fr ? 'Date du fait' : 'Occurred at', onPick: () => pickEntryDateTime(context, occurredAt)),
+            const SizedBox(height: 12),
             TextField(controller: packageFactor, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: fr ? 'Unités par conditionnement' : 'Units per package')),
+            const SizedBox(height: 12),
             TextField(controller: priceSnapshot, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: fr ? 'Prix instantané' : 'Price snapshot')),
-            DropdownButtonFormField<String>(initialValue: priceUnit, decoration: InputDecoration(labelText: fr ? 'Devise du prix' : 'Price currency'), items: ['', 'EUR', 'USD', 'GBP', 'NGN'].map((value) => DropdownMenuItem(value: value, child: Text(value.isEmpty ? '—' : value))).toList(), onChanged: (value) => setState(() => priceUnit = value!)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(isExpanded: true, initialValue: priceUnit, decoration: InputDecoration(labelText: fr ? 'Devise du prix' : 'Price currency'), items: ['', 'EUR', 'USD', 'GBP', 'NGN'].map((value) => DropdownMenuItem(value: value, child: Text(value.isEmpty ? '—' : value, maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() => priceUnit = value!)),
           ]),
           FilledButton.tonal(
             onPressed: busy ? null : previewManual,
@@ -502,10 +532,11 @@ class _StockScreenState extends State<_StockScreen> {
           if (preview != null && draft?['kind'] != 'RETURN') effect(preview!, confirmManual),
           const SizedBox(height: 16),
           Text(fr ? 'Retour de vente' : 'Sale return', style: Theme.of(context).textTheme.titleLarge),
-          DropdownButtonFormField<String>(
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(isExpanded: true, 
             initialValue: reversalOf,
             decoration: InputDecoration(labelText: fr ? 'Sortie d’origine' : 'Original outgoing'),
-            items: movements.where((item) => item['kind'] == 'OUT').map((item) => DropdownMenuItem(value: item['id'] as String, child: Text('${item['productName']} · ${item['baseQuantity']}'))).toList(),
+            items: movements.where((item) => item['kind'] == 'OUT').map((item) => DropdownMenuItem(value: item['id'] as String, child: Text('${item['productName']} · ${item['baseQuantity']}', maxLines: 1, overflow: TextOverflow.ellipsis))).toList(),
             onChanged: (value) => setState(() { reversalOf = value; preview = null; }),
           ),
           Text(fr ? 'Utilisez la quantité ci-dessus ; le lieu et le lot d’origine sont repris.' : 'Use the quantity above; the original location and lot are reused.'),
@@ -516,8 +547,11 @@ class _StockScreenState extends State<_StockScreen> {
           SwitchListTile(title: Text(fr ? 'Autoriser un solde négatif' : 'Allow negative balance'), value: allowNegative, onChanged: busy ? null : (value) async { setState(() => busy = true); try { final updated = await widget.api.setStockNegativePolicy(collection.id, value); if (mounted) setState(() => allowNegative = updated.allowNegativeStock); } catch (cause) { if (mounted) setState(() => error = '$cause'); } finally { if (mounted) setState(() => busy = false); } }),
           const SizedBox(height: 16),
           Text(fr ? 'Rapport quotidien (UTC)' : 'Daily report (UTC)', style: Theme.of(context).textTheme.titleLarge),
-          TextField(controller: reportFrom, decoration: InputDecoration(labelText: fr ? 'Du · AAAA-MM-JJ' : 'From · YYYY-MM-DD')),
-          TextField(controller: reportTo, decoration: InputDecoration(labelText: fr ? 'Au · AAAA-MM-JJ' : 'To · YYYY-MM-DD')),
+          const SizedBox(height: 12),
+          LocalizedDateField(controller: reportFrom, kind: StoredDateKind.date, clearable: false, label: fr ? 'Du' : 'From', onPick: () => pickEntryDate(context, reportFrom)),
+          const SizedBox(height: 12),
+          LocalizedDateField(controller: reportTo, kind: StoredDateKind.date, clearable: false, label: fr ? 'Au' : 'To', onPick: () => pickEntryDate(context, reportTo)),
+          const SizedBox(height: 12),
           FilledButton.tonal(onPressed: busy || productId == null ? null : loadReport, child: Text(fr ? 'Afficher' : 'Show')),
           if (report != null) for (final row in report!) ListTile(title: Text('${row['date']} · ${row['opening']} + ${row['incoming']} − ${row['outgoing']} = ${row['closing']}'), subtitle: Text((row['movements'] as List<dynamic>).cast<Map<String, dynamic>>().map((item) => '${item['kind']} ${item['baseQuantity']}').join(' · '))),
           const SizedBox(height: 16),

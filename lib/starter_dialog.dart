@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 
@@ -81,7 +82,7 @@ class _StarterDialogState extends State<_StarterDialog> {
   Widget build(BuildContext context) {
     final fr = AppStrings.of(context).isFrench;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return AlertDialog(
+    return AdaptiveFormDialog(
       title: Text(fr ? 'Créer une collection' : 'Create a collection'),
       content: SizedBox(
         width: 740,
@@ -110,7 +111,7 @@ class _StarterDialogState extends State<_StarterDialog> {
               const SizedBox(height: 20),
               TextField(
                 controller: name,
-                maxLength: 80,
+                maxLength: 80, buildCounter: quietFormCounter,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
                   labelText: fr ? 'Nom de la collection' : 'Collection name',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 import 'push_registration.dart';
@@ -163,7 +164,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
   @override
   Widget build(BuildContext context) {
     final selected = _fields.where((field) => field.id == _fieldId).firstOrNull;
-    return AlertDialog(
+    return AdaptiveFormDialog(
       title: Text(t('Rappels', 'Reminders')),
       content: SizedBox(
         width: 470,
@@ -224,7 +225,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                         ),
                       )
                     else ...[
-                      DropdownButtonFormField<String>(
+                      DropdownButtonFormField<String>(isExpanded: true, 
                         initialValue: _fieldId,
                         decoration: InputDecoration(
                           labelText: t('Champ de date', 'Date field'),
@@ -233,7 +234,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                           for (final field in _fields)
                             DropdownMenuItem(
                               value: field.id,
-                              child: Text(field.name),
+                              child: Text(field.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                             ),
                         ],
                         onChanged: _busy
@@ -259,7 +260,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                           ),
                         ),
                       const SizedBox(height: 10),
-                      DropdownButtonFormField<int>(
+                      DropdownButtonFormField<int>(isExpanded: true, 
                         initialValue: [0, 5, 15, 30, 60, 1440].contains(_advance)
                             ? _advance
                             : null,
@@ -275,8 +276,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                                     ? t('À l’heure', 'At the time')
                                     : minutes == 1440
                                     ? t('Un jour avant', 'One day before')
-                                    : '$minutes min',
-                              ),
+                                    : '$minutes min', maxLines: 1, overflow: TextOverflow.ellipsis),
                             ),
                         ],
                         onChanged: _busy

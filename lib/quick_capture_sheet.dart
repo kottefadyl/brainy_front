@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'adaptive_form.dart';
 import 'collections_api.dart';
 
 class QuickCaptureBridge {
@@ -97,16 +98,20 @@ class _QuickCaptureDialogState extends State<_QuickCaptureDialog> {
     } catch (cause) { if (mounted) setState(() => error = fr ? 'Enregistrement impossible : $cause. Le contenu est conservé.' : 'Could not save: $cause. Your content is kept.'); }
     finally { if (mounted) setState(() => busy = false); }
   }
-  @override Widget build(BuildContext context) => AlertDialog(
+  @override Widget build(BuildContext context) => AdaptiveFormDialog(
     title: Text(fr ? 'Capture rapide' : 'Quick capture'),
     content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      DropdownButtonFormField<String>(initialValue: collection.id, decoration: InputDecoration(labelText: fr ? 'Collection' : 'Collection'), items: widget.collections.map((item) => DropdownMenuItem(value: item.id, child: Text(item.name))).toList(), onChanged: (value) { if (value == null) return; setState(() { collection = widget.collections.firstWhere((item) => item.id == value); formatId = null; checked = false; duplicates = []; }); storage.write(key: preferenceKey, value: value); }),
+      DropdownButtonFormField<String>(isExpanded: true, initialValue: collection.id, decoration: InputDecoration(labelText: fr ? 'Collection' : 'Collection'), items: widget.collections.map((item) => DropdownMenuItem(value: item.id, child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) { if (value == null) return; setState(() { collection = widget.collections.firstWhere((item) => item.id == value); formatId = null; checked = false; duplicates = []; }); storage.write(key: preferenceKey, value: value); }),
       const SizedBox(height: 12),
-      DropdownButtonFormField<String>(key: ValueKey(collection.id), initialValue: format?.id, decoration: InputDecoration(labelText: fr ? 'Format de données' : 'Data format'), items: formats.map((item) => DropdownMenuItem(value: item.id, child: Text(item.name))).toList(), onChanged: (value) => setState(() { formatId = value; checked = false; duplicates = []; })),
+      DropdownButtonFormField<String>(isExpanded: true, key: ValueKey(collection.id), initialValue: format?.id, decoration: InputDecoration(labelText: fr ? 'Format de données' : 'Data format'), items: formats.map((item) => DropdownMenuItem(value: item.id, child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() { formatId = value; checked = false; duplicates = []; })),
+      const SizedBox(height: 12),
       TextField(controller: title, decoration: InputDecoration(labelText: fr ? 'Titre' : 'Title')),
+      const SizedBox(height: 12),
       TextField(controller: content, maxLines: 3, onChanged: (_) => setState(() { checked = false; duplicates = []; }), decoration: InputDecoration(labelText: fr ? 'Lien ou texte' : 'Link or text')),
+      const SizedBox(height: 12),
       TextButton(onPressed: _paste, child: Text(fr ? 'Coller le presse-papiers' : 'Paste clipboard')),
       TextField(controller: note, maxLines: 2, decoration: InputDecoration(labelText: fr ? 'Note de contexte' : 'Context note')),
+      const SizedBox(height: 12),
       TextButton(onPressed: _pick, child: Text(fileName ?? (fr ? 'Choisir une image ou un fichier' : 'Choose an image or file'))),
       if (duplicates.isNotEmpty) Text(fr ? 'Ce lien existe déjà.' : 'This link already exists.'),
       if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),

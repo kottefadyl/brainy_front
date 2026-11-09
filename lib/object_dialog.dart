@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 import 'collection_copy_dialog.dart';
@@ -292,10 +293,10 @@ class _ObjectDialogState extends State<ObjectDialog> {
             ].contains(field.kind))
               (format: format, field: field),
     ];
-    return Dialog(
+    return AdaptiveFormShell(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 820, maxHeight: 820),
+        constraints: isPhoneForm(context) ? const BoxConstraints() : const BoxConstraints(maxWidth: 820, maxHeight: 820),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: ListView(
@@ -359,11 +360,12 @@ class _ObjectDialogState extends State<ObjectDialog> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _templateName,
-                    maxLength: 80,
+                    maxLength: 80, buildCounter: quietFormCounter,
                     decoration: InputDecoration(
                       labelText: _t('Data format name'),
                     ),
                   ),
+                  const SizedBox(height: 12),
                   OutlinedButton(
                     onPressed:
                         _busy ||
@@ -400,6 +402,7 @@ class _ObjectDialogState extends State<ObjectDialog> {
                     ],
                     onChanged: (value) => setState(() => _existingId = value),
                   ),
+                  const SizedBox(height: 12),
                   OutlinedButton(
                     onPressed: _busy || _existingId == null
                         ? null
@@ -522,7 +525,7 @@ class _ObjectDialogState extends State<ObjectDialog> {
                           ),
                     ],
                   ),
-                Wrap(
+                Wrap(runSpacing: 8, 
                   spacing: 8,
                   children: [
                     OutlinedButton(

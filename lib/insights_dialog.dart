@@ -1,12 +1,13 @@
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'analysis_chart.dart';
 import 'code_tree.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
+import 'formula_editor_panel.dart';
 
 Future<BrainyCollection?> showInsightsDialog(
   BuildContext context,
@@ -141,77 +142,6 @@ class _InsightsDialogState extends State<_InsightsDialog> {
     super.dispose();
   }
 
-  Future<void> saveFormula() async {
-    if (name.text.trim().isEmpty ||
-        (formulaKind == 'arithmetic'
-            ? left == null || (right == null && constant.text.trim().isEmpty)
-            : formulaFromFieldId == null || formulaToFieldId == null)) {
-      return;
-    }
-    setState(() {
-      busy = true;
-      error = null;
-    });
-    try {
-      final tree = formulaKind == 'dateDifference'
-          ? <String, dynamic>{
-              'kind': 'dateDifference',
-              'fromFieldId': formulaFromFieldId,
-              'toFieldId': formulaToFieldId,
-              'unit': formulaDateUnit,
-            }
-          : <String, dynamic>{
-              'kind': 'operation',
-              'operator': operator,
-              'args': [
-                sources.firstWhere((item) => item.id == left).expression,
-                right == null
-                    ? {
-                        'kind': 'number',
-                        'value': constant.text.trim().replaceAll(',', '.'),
-                      }
-                    : sources.firstWhere((item) => item.id == right).expression,
-              ],
-            };
-      final expression = jsonEncode(
-        roundDigits == null
-            ? tree
-            : {
-                'kind': 'round',
-                'digits': int.parse(roundDigits!),
-                'mode': roundMode,
-                'value': tree,
-              },
-      );
-      final updated = await widget.api.saveFormula(
-        collection.id,
-        name.text.trim(),
-        format.id,
-        expression,
-        formulaId: editingFormulaId,
-        expectedVersion: editingVersion,
-      );
-      if (mounted) {
-        setState(() {
-          collection = updated;
-          name.clear();
-          constant.clear();
-          left = null;
-          right = null;
-          formulaFromFieldId = null;
-          formulaToFieldId = null;
-          roundDigits = null;
-          editingFormulaId = null;
-          editingVersion = null;
-        });
-      }
-    } catch (cause) {
-      if (mounted) setState(() => error = cause.toString());
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
-  }
-
   List<DropdownMenuItem<int>> groupLevelItems(bool fr) {
     final fieldId = groupFieldId ?? format.fields.where((item) => item.kind == BrainyFieldKind.code).firstOrNull?.id;
     final listId = format.fields.where((item) => item.id == fieldId).firstOrNull?.codeListId;
@@ -222,82 +152,6 @@ class _InsightsDialogState extends State<_InsightsDialog> {
         DropdownMenuItem(value: level, child: Text(level == 0 ? (fr ? 'Racine' : 'Root') : (fr ? 'Niveau ${level + 1}' : 'Level ${level + 1}'))),
       DropdownMenuItem(value: exactCodeDepth, child: Text(fr ? 'Code précis' : 'Exact code')),
     ];
-  }
-
-  String? _sourceId(dynamic node) {
-    if (node is! Map<String, dynamic>) return null;
-    for (final source in sources) {
-      if (jsonEncode(source.expression) == jsonEncode(node)) return source.id;
-    }
-    return null;
-  }
-
-  /// Whether the simple editor can show this formula without losing any of it.
-  bool isSimpleFormula(Map<String, dynamic> formula) {
-    try {
-      final stored =
-          jsonDecode(formula['expression'] as String) as Map<String, dynamic>;
-      final tree = stored['kind'] == 'round'
-          ? stored['value'] as Map<String, dynamic>
-          : stored;
-      if (tree['kind'] == 'dateDifference') return true;
-      if (tree['kind'] != 'operation') return false;
-      final args = tree['args'] as List<dynamic>;
-      if (args.length != 2 || _sourceId(args[0]) == null) return false;
-      return _sourceId(args[1]) != null ||
-          (args[1] as Map<String, dynamic>)['kind'] == 'number';
-    } catch (_) {
-      return false;
-    }
-  }
-
-  void editFormula(Map<String, dynamic> formula) {
-    try {
-      if (!isSimpleFormula(formula)) {
-        throw const FormatException('Unsupported formula shape');
-      }
-      final stored =
-          jsonDecode(formula['expression'] as String) as Map<String, dynamic>;
-      final tree = stored['kind'] == 'round'
-          ? stored['value'] as Map<String, dynamic>
-          : stored;
-      final args = tree['kind'] == 'operation'
-          ? (tree['args'] as List<dynamic>)
-          : <dynamic>[];
-      final first = args.length == 2 ? _sourceId(args[0]) : null;
-      final second = args.length == 2 ? _sourceId(args[1]) : null;
-      setState(() {
-        error = null;
-        editingFormulaId = formula['id'] as String;
-        editingVersion = formula['version'] as int;
-        name.text = formula['name'] as String;
-        roundDigits = stored['kind'] == 'round' ? '${stored['digits']}' : null;
-        roundMode = stored['kind'] == 'round'
-            ? stored['mode'] as String
-            : 'HALF_UP';
-        formulaKind = tree['kind'] == 'dateDifference'
-            ? 'dateDifference'
-            : 'arithmetic';
-        if (formulaKind == 'dateDifference') {
-          formulaFromFieldId = tree['fromFieldId'] as String;
-          formulaToFieldId = tree['toFieldId'] as String;
-          formulaDateUnit = tree['unit'] as String;
-        } else {
-          operator = tree['operator'] as String;
-          left = first;
-          right = second;
-          constant.text = second == null
-              ? (args[1] as Map<String, dynamic>)['value'] as String
-              : '';
-        }
-      });
-    } catch (_) {
-      setState(
-        () => error = AppStrings.of(context).isFrench
-            ? 'Cette formule ne peut pas être modifiée visuellement.'
-            : 'This formula cannot be edited visually.',
-      );
-    }
   }
 
   Map<String, dynamic> analysisInput() {
@@ -560,7 +414,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
       }
     },
     icon: const Icon(Icons.event),
-    label: Text('$label: ${value ?? '—'}'),
+    label: Text('$label${AppStrings.of(context).isFrench ? ' :' : ':'} ${value == null ? '—' : localizedStoredDate(context, value, StoredDateKind.date)}'),
   );
 
   @override
@@ -718,268 +572,22 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                   ),
                   const SizedBox(height: 22),
                   ExpansionTile(
-                    title: Text(
-                      fr
-                          ? 'Créer ou modifier une formule'
-                          : 'Create or edit a formula',
-                    ),
+                    title: Text(fr ? 'Formules enregistrées' : 'Saved formulas'),
                     leading: const Icon(Icons.calculate_outlined),
                     childrenPadding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 8,
                     ),
                     children: [
-                      TextField(
-                        controller: name,
-                        decoration: InputDecoration(
-                          labelText: fr ? 'Nom du calcul' : 'Calculation name',
-                          border: const OutlineInputBorder(),
-                        ),
+                      FormulaEditorPanel(
+                        key: ValueKey(format.id),
+                        api: widget.api,
+                        collection: collection,
+                        format: format,
+                        french: fr,
+                        onCollectionChanged: (updated) =>
+                            setState(() => collection = updated),
                       ),
-                      const SizedBox(height: 8),
-                      select(
-                        fr ? 'Type de calcul' : 'Calculation type',
-                        formulaKind,
-                        options(
-                          ['arithmetic', 'dateDifference'],
-                          labels: {
-                            'arithmetic': fr ? 'Arithmétique' : 'Arithmetic',
-                            'dateDifference': fr
-                                ? 'Écart entre deux dates'
-                                : 'Difference between dates',
-                          },
-                        ),
-                        (value) => setState(() => formulaKind = value!),
-                      ),
-                      const SizedBox(height: 8),
-                      if (formulaKind == 'arithmetic') ...[
-                        select(fr ? 'Première valeur' : 'First value', left, [
-                          for (final source in sources)
-                            DropdownMenuItem(
-                              value: source.id,
-                              child: Text(source.label),
-                            ),
-                        ], (value) => setState(() => left = value)),
-                        const SizedBox(height: 8),
-                        select(
-                          fr ? 'Opération' : 'Operation',
-                          operator,
-                          options(
-                            ['MULTIPLY', 'ADD', 'SUBTRACT', 'DIVIDE'],
-                            labels: {
-                              'MULTIPLY': '×',
-                              'ADD': '+',
-                              'SUBTRACT': '−',
-                              'DIVIDE': '÷',
-                            },
-                          ),
-                          (value) => setState(() => operator = value!),
-                        ),
-                        const SizedBox(height: 8),
-                        select(
-                          fr ? 'Deuxième valeur' : 'Second value',
-                          right,
-                          [
-                            DropdownMenuItem(
-                              value: '',
-                              child: Text(fr ? 'Nombre fixe' : 'Fixed number'),
-                            ),
-                            for (final source in sources)
-                              DropdownMenuItem(
-                                value: source.id,
-                                child: Text(source.label),
-                              ),
-                          ],
-                          (value) => setState(
-                            () => right = value?.isEmpty == true ? null : value,
-                          ),
-                        ),
-                        if (right == null) ...[
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: constant,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: InputDecoration(
-                              labelText: fr ? 'Nombre fixe' : 'Fixed number',
-                              border: const OutlineInputBorder(),
-                            ),
-                          ),
-                        ],
-                      ] else ...[
-                        select(
-                          fr ? 'Date de début' : 'Start date',
-                          formulaFromFieldId,
-                          [
-                            for (final field in dates)
-                              DropdownMenuItem(
-                                value: field.id,
-                                child: Text(field.name),
-                              ),
-                          ],
-                          (value) => setState(() {
-                            formulaFromFieldId = value;
-                            formulaToFieldId = null;
-                          }),
-                        ),
-                        const SizedBox(height: 8),
-                        select(
-                          fr ? 'Date de fin' : 'End date',
-                          formulaToFieldId,
-                          [
-                            for (final field in dates.where(
-                              (item) =>
-                                  item.kind ==
-                                  dates
-                                      .where(
-                                        (candidate) =>
-                                            candidate.id == formulaFromFieldId,
-                                      )
-                                      .firstOrNull
-                                      ?.kind,
-                            ))
-                              DropdownMenuItem(
-                                value: field.id,
-                                child: Text(field.name),
-                              ),
-                          ],
-                          (value) => setState(() => formulaToFieldId = value),
-                        ),
-                        const SizedBox(height: 8),
-                        select(
-                          fr ? 'Unité' : 'Unit',
-                          formulaDateUnit,
-                          options(
-                            ['d', 'h'],
-                            labels: {
-                              'd': fr ? 'Jours' : 'Days',
-                              'h': fr ? 'Heures' : 'Hours',
-                            },
-                          ),
-                          (value) => setState(() => formulaDateUnit = value!),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      select(
-                        fr ? 'Décimales du résultat' : 'Result decimal places',
-                        roundDigits,
-                        [
-                          DropdownMenuItem(
-                            value: '',
-                            child: Text(fr ? 'Aucun arrondi' : 'No rounding'),
-                          ),
-                          ...options(['0', '1', '2', '3', '4', '5', '6']),
-                        ],
-                        (value) => setState(
-                          () => roundDigits = value?.isEmpty == true
-                              ? null
-                              : value,
-                        ),
-                      ),
-                      if (roundDigits != null) ...[
-                        const SizedBox(height: 8),
-                        select(
-                          fr ? 'Règle d’arrondi' : 'Rounding rule',
-                          roundMode,
-                          options(
-                            ['HALF_UP', 'HALF_EVEN'],
-                            labels: {
-                              'HALF_UP': fr ? 'Moitié vers le haut' : 'Half up',
-                              'HALF_EVEN': fr
-                                  ? 'Moitié vers le pair'
-                                  : 'Half even',
-                            },
-                          ),
-                          (value) => setState(() => roundMode = value!),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      FilledButton(
-                        onPressed: busy ? null : saveFormula,
-                        child: Text(
-                          editingFormulaId == null
-                              ? (fr ? 'Enregistrer la formule' : 'Save formula')
-                              : (fr
-                                    ? 'Mettre à jour la formule'
-                                    : 'Update formula'),
-                        ),
-                      ),
-                      if (editingFormulaId != null)
-                        TextButton(
-                          onPressed: () => setState(() {
-                            editingFormulaId = null;
-                            editingVersion = null;
-                            name.clear();
-                            constant.clear();
-                            left = null;
-                            right = null;
-                          }),
-                          child: Text(
-                            fr ? 'Annuler la modification' : 'Cancel editing',
-                          ),
-                        ),
-                      for (final formula in formulas)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(formula['name'] as String),
-                                  if (!isSimpleFormula(formula))
-                                    Tooltip(
-                                      message: fr
-                                          ? 'Cette formule utilise des conditions, des dates, du texte ou des objets liés. Modifiez-la depuis le web.'
-                                          : 'This formula uses conditions, dates, text or linked objects. Edit it on the web.',
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          child: Text(
-                                            fr ? 'Formule avancée' : 'Advanced formula',
-                                            style: TextStyle(
-                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            if (isSimpleFormula(formula))
-                              IconButton(
-                                tooltip: fr ? 'Modifier' : 'Edit',
-                                onPressed: () => editFormula(formula),
-                                icon: const Icon(Icons.edit_outlined),
-                              ),
-                            IconButton(
-                              tooltip: fr ? 'Supprimer' : 'Delete',
-                              onPressed: () async {
-                                try {
-                                  final updated = await widget.api
-                                      .deleteFormula(
-                                        collection.id,
-                                        formula['id'] as String,
-                                      );
-                                  if (mounted) {
-                                    setState(() => collection = updated);
-                                  }
-                                } catch (cause) {
-                                  if (mounted) {
-                                    setState(() => error = cause.toString());
-                                  }
-                                }
-                              },
-                              icon: const Icon(Icons.delete_outline),
-                            ),
-                          ],
-                        ),
                     ],
                   ),
                   const Divider(height: 32),
@@ -1127,7 +735,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                       ],
                       (value) => setState(() => groupFieldId = value),
                     ),
-                    if (groupBy == 'CATEGORY' && format.fields.any((field) => field.id == (groupFieldId ?? groups.firstOrNull?.id) && field.kind == BrainyFieldKind.code)) DropdownButtonFormField<int>(initialValue: groupDepth, decoration: InputDecoration(labelText: fr ? 'Niveau de regroupement' : 'Grouping level'), items: groupLevelItems(fr), onChanged: (value) => setState(() => groupDepth = value ?? 2)),
+                    if (groupBy == 'CATEGORY' && format.fields.any((field) => field.id == (groupFieldId ?? groups.firstOrNull?.id) && field.kind == BrainyFieldKind.code)) DropdownButtonFormField<int>(isExpanded: true, initialValue: groupDepth, decoration: InputDecoration(labelText: fr ? 'Niveau de regroupement' : 'Grouping level'), items: groupLevelItems(fr), onChanged: (value) => setState(() => groupDepth = value ?? 2)),
                   ],
                   if (groupBy == 'ZONE') ...[
                     const SizedBox(height: 8),
@@ -1452,17 +1060,23 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                     onPressed: busy ? null : analyse,
                     child: Text(fr ? 'Calculer' : 'Calculate'),
                   ),
-                  Wrap(spacing: 8, children: [
+                  const SizedBox(height: 8),
+                  Wrap(runSpacing: 8, spacing: 8, children: [
                     OutlinedButton(onPressed: busy ? null : () => queueAnalysis('RECALCULATE'), child: Text(fr ? 'Recalculer en arrière-plan' : 'Recalculate in background')),
                     OutlinedButton(onPressed: busy ? null : () => queueAnalysis('CHART'), child: Text(fr ? 'Préparer un graphique' : 'Prepare chart')),
                   ]),
                   const Divider(height: 36),
                   Text(fr ? 'Prévision limitée' : 'Limited forecast', style: Theme.of(context).textTheme.titleMedium),
                   Text(fr ? 'Une tendance issue des périodes choisies, distincte des faits. Aucun conseil médical.' : 'A trend from the chosen periods, separate from facts. No medical advice.'),
+                  const SizedBox(height: 12),
                   select(fr ? 'Méthode' : 'Method', forecastMethod, options(['MEAN', 'LINEAR'], labels: {'MEAN': fr ? 'Moyenne' : 'Mean', 'LINEAR': fr ? 'Tendance linéaire' : 'Linear trend'}), (value) => setState(() => forecastMethod = value!)),
+                  const SizedBox(height: 12),
                   select(fr ? 'Période' : 'Frequency', forecastFrequency, options(['DAY', 'MONTH'], labels: {'DAY': fr ? 'Jour' : 'Day', 'MONTH': fr ? 'Mois' : 'Month'}), (value) => setState(() => forecastFrequency = value!)),
-                  DropdownButtonFormField<int>(initialValue: forecastHorizon, decoration: InputDecoration(labelText: fr ? 'Horizon' : 'Horizon'), items: [1, 2, 3, 6, 12].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(), onChanged: (value) => setState(() => forecastHorizon = value!)),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(isExpanded: true, initialValue: forecastHorizon, decoration: InputDecoration(labelText: fr ? 'Horizon' : 'Horizon'), items: [1, 2, 3, 6, 12].map((value) => DropdownMenuItem(value: value, child: Text('$value', maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => setState(() => forecastHorizon = value!)),
+                  const SizedBox(height: 12),
                   FilledButton.tonal(onPressed: busy || measure == null || measure!.startsWith('formula:') || dateFieldId == null ? null : runForecast, child: Text(fr ? 'Estimer' : 'Estimate')),
+                  const SizedBox(height: 8),
                   OutlinedButton(onPressed: busy || measure == null || measure!.startsWith('formula:') || dateFieldId == null ? null : queueForecast, child: Text(fr ? 'Estimer en arrière-plan' : 'Estimate in background')),
                   if (backgroundNotice != null) Text(backgroundNotice!),
                   if (forecastResult != null) Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

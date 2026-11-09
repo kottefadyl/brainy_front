@@ -5,7 +5,7 @@ import 'design_tokens.dart';
 abstract final class BrainyTheme {
   static final light = ThemeData(
     useMaterial3: true,
-    fontFamily: 'Roboto',
+    fontFamily: 'Inter',
     colorScheme: ColorScheme.fromSeed(
       seedColor: BrainyColors.blue,
       primary: BrainyColors.blue,
@@ -22,7 +22,7 @@ abstract final class BrainyTheme {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFF2463CE),
+        backgroundColor: BrainyColors.blue,
         foregroundColor: const Color(0xFFFFFFFF),
         minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -31,26 +31,30 @@ abstract final class BrainyTheme {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 48),
-        side: const BorderSide(color: Color(0xFF778293)),
+        side: const BorderSide(color: BrainyColors.lightControl),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
-    inputDecorationTheme: const InputDecorationTheme(
+    inputDecorationTheme: InputDecorationTheme(
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      alignLabelWithHint: true,
+      helperMaxLines: 2,
+      errorMaxLines: 3,
       filled: true,
       fillColor: Color(0xFFFFFFFF),
-      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      labelStyle: TextStyle(color: Color(0xFF545E6D)),
-      floatingLabelStyle: TextStyle(color: Color(0xFF2463CE)),
-      border: OutlineInputBorder(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      labelStyle: const TextStyle(color: BrainyColors.lightMuted),
+      floatingLabelStyle: WidgetStateTextStyle.resolveWith((states) => TextStyle(color: states.contains(WidgetState.error) ? const Color(0xFFB42332) : states.contains(WidgetState.focused) ? BrainyColors.blue : BrainyColors.lightMuted, fontWeight: FontWeight.w500)),
+      border: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(10)),
       ),
-      enabledBorder: OutlineInputBorder(
+      enabledBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(10)),
-        borderSide: BorderSide(color: Color(0xFF778293)),
+        borderSide: BorderSide(color: BrainyColors.lightControl),
       ),
-      focusedBorder: OutlineInputBorder(
+      focusedBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(10)),
-        borderSide: BorderSide(color: Color(0xFF2463CE), width: 2),
+        borderSide: BorderSide(color: BrainyColors.blue, width: 2),
       ),
     ),
     cardTheme: CardThemeData(
@@ -60,7 +64,7 @@ abstract final class BrainyTheme {
   );
   static final dark = ThemeData(
     useMaterial3: true,
-    fontFamily: 'Roboto',
+    fontFamily: 'Inter',
     colorScheme: ColorScheme.fromSeed(
       seedColor: BrainyColors.darkAccent,
       brightness: Brightness.dark,
@@ -78,8 +82,8 @@ abstract final class BrainyTheme {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: BrainyColors.darkAccent,
-        foregroundColor: BrainyColors.darkOnAccent,
+        backgroundColor: BrainyColors.darkPrimary,
+        foregroundColor: const Color(0xFFFFFFFF),
         minimumSize: const Size(0, 48),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
@@ -91,20 +95,24 @@ abstract final class BrainyTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     ),
-    inputDecorationTheme: const InputDecorationTheme(
+    inputDecorationTheme: InputDecorationTheme(
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      alignLabelWithHint: true,
+      helperMaxLines: 2,
+      errorMaxLines: 3,
       filled: true,
       fillColor: BrainyColors.darkSurface,
-      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      labelStyle: TextStyle(color: BrainyColors.darkMuted),
-      floatingLabelStyle: TextStyle(color: BrainyColors.darkAccent),
-      border: OutlineInputBorder(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      labelStyle: const TextStyle(color: BrainyColors.darkMuted),
+      floatingLabelStyle: WidgetStateTextStyle.resolveWith((states) => TextStyle(color: states.contains(WidgetState.error) ? const Color(0xFFFFADB5) : states.contains(WidgetState.focused) ? BrainyColors.darkAccent : BrainyColors.darkMuted, fontWeight: FontWeight.w500)),
+      border: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(10)),
       ),
-      enabledBorder: OutlineInputBorder(
+      enabledBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(10)),
         borderSide: BorderSide(color: BrainyColors.darkControl),
       ),
-      focusedBorder: OutlineInputBorder(
+      focusedBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(10)),
         borderSide: BorderSide(color: BrainyColors.darkAccent, width: 2),
       ),

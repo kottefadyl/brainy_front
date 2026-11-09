@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'adaptive_form.dart';
 import 'collections_api.dart';
 import 'workflow_api.dart';
 
@@ -155,20 +156,20 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
     final selected = await showDialog<String>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, update) => AlertDialog(
+        builder: (ctx, update) => AdaptiveFormDialog(
           title: Text(t('Ajouter un format de données', 'Add a data format')),
-          content: DropdownButtonFormField<String>(
+          content: DropdownButtonFormField<String>(isExpanded: true, 
             initialValue: template,
             decoration: InputDecoration(labelText: t('Modèle', 'Model')),
             items: [
-              DropdownMenuItem(value: 'TASK', child: Text(t('Tâche', 'Task'))),
+              DropdownMenuItem(value: 'TASK', child: Text(t('Tâche', 'Task'), maxLines: 1, overflow: TextOverflow.ellipsis)),
               DropdownMenuItem(
                 value: 'APPROVAL',
-                child: Text(t('Demande à valider', 'Approval request')),
+                child: Text(t('Demande à valider', 'Approval request'), maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
               DropdownMenuItem(
                 value: 'CASE',
-                child: Text(t('Dossier suivi', 'Tracked case')),
+                child: Text(t('Dossier suivi', 'Tracked case'), maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ],
             onChanged: (value) => update(() => template = value ?? 'TASK'),
@@ -248,7 +249,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
           final states = choices
               .firstWhere((field) => field.id == fieldId)
               .options;
-          return AlertDialog(
+          return AdaptiveFormDialog(
             title: Text(t('Flux d’états', 'State flow')),
             content: SizedBox(
               width: 520,
@@ -263,7 +264,8 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                         'Transitions protect the state field from direct edits.',
                       ),
                     ),
-                    DropdownButtonFormField<String>(
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(isExpanded: true, 
                       initialValue: fieldId,
                       decoration: InputDecoration(
                         labelText: t('Champ d’état', 'State field'),
@@ -272,7 +274,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                         for (final field in choices)
                           DropdownMenuItem(
                             value: field.id,
-                            child: Text(field.name),
+                            child: Text(field.name, maxLines: 1, overflow: TextOverflow.ellipsis),
                           ),
                       ],
                       onChanged: (value) => update(() {
@@ -307,7 +309,8 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                         requirements = [];
                       }),
                     ),
-                    DropdownButtonFormField<String>(
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(isExpanded: true, 
                       key: ValueKey('initial-$fieldId'),
                       initialValue: initial,
                       decoration: InputDecoration(
@@ -315,7 +318,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                       ),
                       items: [
                         for (final state in states)
-                          DropdownMenuItem(value: state, child: Text(state)),
+                          DropdownMenuItem(value: state, child: Text(state, maxLines: 1, overflow: TextOverflow.ellipsis)),
                       ],
                       onChanged: (value) => update(() => initial = value!),
                     ),
@@ -503,27 +506,28 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
     final input = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, update) => AlertDialog(
+        builder: (ctx, update) => AdaptiveFormDialog(
           title: Text(t('Assignation et échéance', 'Assignment and due date')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String>(isExpanded: true, 
                 initialValue: assignee,
                 decoration: InputDecoration(labelText: t('Compte', 'Account')),
                 items: [
                   DropdownMenuItem(
                     value: '',
-                    child: Text(t('Non assigné', 'Unassigned')),
+                    child: Text(t('Non assigné', 'Unassigned'), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
                   for (final person in people.entries)
                     DropdownMenuItem(
                       value: person.key,
-                      child: Text(person.value),
+                      child: Text(person.value, maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                 ],
                 onChanged: (value) => update(() => assignee = value ?? ''),
               ),
+              const SizedBox(height: 12),
               TextButton.icon(
                 onPressed: () async {
                   final picked = await showDatePicker(
@@ -561,7 +565,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                   onPressed: () => update(() => due = null),
                   child: Text(t('Retirer l’échéance', 'Remove due date')),
                 ),
-              DropdownButtonFormField<int>(
+              DropdownButtonFormField<int>(isExpanded: true, 
                 initialValue: minutes,
                 decoration: InputDecoration(
                   labelText: t('Rappel avant échéance', 'Reminder before due'),
@@ -570,7 +574,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                     .map(
                       (value) => DropdownMenuItem(
                         value: value,
-                        child: Text('$value min'),
+                        child: Text('$value min', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                     )
                     .toList(),
@@ -639,7 +643,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
         childrenPadding: const EdgeInsets.all(12),
         children: [
           if (transitions.isNotEmpty)
-            Wrap(
+            Wrap(runSpacing: 8, 
               spacing: 8,
               children: [
                 for (final item in transitions)
@@ -726,7 +730,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                 ),
               ),
             if (collection.formats.isNotEmpty)
-              DropdownButtonFormField<String>(
+              DropdownButtonFormField<String>(isExpanded: true, 
                 key: ValueKey(formatId),
                 initialValue: formatId,
                 decoration: InputDecoration(
@@ -734,7 +738,7 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
                 ),
                 items: [
                   for (final item in collection.formats)
-                    DropdownMenuItem(value: item.id, child: Text(item.name)),
+                    DropdownMenuItem(value: item.id, child: Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ],
                 onChanged: (value) {
                   setState(() {
