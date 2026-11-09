@@ -681,7 +681,11 @@ class _WorkflowScreenState extends State<WorkflowScreen> {
           for (final event in history.cast<Map<String, dynamic>>())
             ListTile(
               dense: true,
-              title: Text('${event['from']} → ${event['to']}'),
+              title: Text(
+                '${event['kind']}'.endsWith('ASSIGNMENT')
+                    ? t('Assignation mise à jour', 'Assignment updated')
+                    : '${event['from']} → ${event['to']}',
+              ),
               subtitle: Text(
                 '${dateLabel(event['at'] as String?)} · ${event['actorUserId'] == collection.ownerId ? t('Propriétaire', 'Owner') : collection.members.where((member) => member.userId == event['actorUserId']).firstOrNull?.name ?? event['actorUserId']}',
               ),

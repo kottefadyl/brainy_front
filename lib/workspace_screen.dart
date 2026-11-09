@@ -1543,7 +1543,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                           ),
                           if (entry.values[dueId] != null)
                             Text(
-                              '${_t('Due date')}: ${entry.values[dueId]}',
+                              '${_t('Due date')}: ${displayStoredDate(entry.values[dueId]!, AppStrings.of(context))}',
                               style: const TextStyle(
                                 color: _muted,
                                 fontSize: 12,
@@ -1613,7 +1613,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                           .formatMediumDate(entry.createdAt.toLocal()),
                     ),
                   ),
-                  for (final id in ids) DataCell(Text(entry.values[id] ?? '—')),
+                  for (final id in ids)
+                    DataCell(
+                      Text(
+                        switch ((fields.where((field) => field.id == id).firstOrNull, entry.values[id])) {
+                          (final BrainyField field, final String value) => displayEntryValue(field, value, AppStrings.of(context), snapshot: entry.unitSnapshots[id], collection: collection),
+                          (_, final value) => value ?? '—',
+                        },
+                      ),
+                    ),
                   DataCell(
                     TextButton(
                       onPressed: () => _editEntry(entry),

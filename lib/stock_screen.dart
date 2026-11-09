@@ -317,8 +317,19 @@ class _StockScreenState extends State<_StockScreen> {
     'IN' => fr ? 'Entrée' : 'In',
     'OUT' => fr ? 'Sortie' : 'Out',
     'TRANSFER' => fr ? 'Transfert' : 'Transfer',
+    'RETURN' => fr ? 'Retour' : 'Return',
     _ => 'Correction',
   };
+
+  String _reasonLabel(String reason, bool fr) => !fr
+      ? reason
+      : switch (reason) {
+          'Stock would become negative' => 'Le stock deviendrait négatif',
+          'The sale movement was not found' => 'La sortie d’origine est introuvable',
+          'Return to the sale location and lot' => 'Le retour doit reprendre le lieu et le lot de la sortie',
+          'Return quantity exceeds the sale' => 'La quantité retournée dépasse la sortie',
+          _ => reason,
+        };
 
   Widget ruleField(String label, String? value, List<BrainyField> fields, void Function(String?) changed) => DropdownButtonFormField<String>(isExpanded: true, 
     initialValue: value,
@@ -334,7 +345,7 @@ class _StockScreenState extends State<_StockScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${value['productName']} · ${value['kind']} · ${value['baseQuantity']}',
+            '${value['productName']} · ${_effectLabel('${value['kind']}', fr)} · ${value['baseQuantity']}',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           Text(
@@ -345,7 +356,7 @@ class _StockScreenState extends State<_StockScreen> {
           ),
           if (value['reason'] != null)
             Text(
-              '${value['reason']}',
+              _reasonLabel('${value['reason']}', fr),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           FilledButton(
@@ -422,7 +433,7 @@ class _StockScreenState extends State<_StockScreen> {
             ruleField(fr ? 'Motif' : 'Reason', ruleReasonId, ruleFields.where((field) => [BrainyFieldKind.title, BrainyFieldKind.text, BrainyFieldKind.longText].contains(field.kind)).toList(), (value) => setState(() => ruleReasonId = value)),
             const SizedBox(height: 12),
             FilledButton.tonal(onPressed: busy || ruleName.text.trim().isEmpty || ruleFormatId == null || ruleProductId == null || ruleQuantityId == null || (ruleKind == 'TRANSFER' && (ruleFromId == null || ruleToId == null)) ? null : saveRule, child: Text(fr ? 'Enregistrer la règle' : 'Save rule')),
-            for (final rule in collection.stockRules) ListTile(title: Text('${rule['name']} · ${rule['kind']}'), trailing: IconButton(icon: const Icon(Icons.delete_outline), tooltip: fr ? 'Supprimer' : 'Delete', onPressed: busy ? null : () async { try { final updated = await widget.api.deleteStockRule(collection.id, rule['id'] as String); if (mounted) setState(() => collection = updated); } catch (cause) { if (mounted) setState(() => error = '$cause'); } })),
+            for (final rule in collection.stockRules) ListTile(title: Text('${rule['name']} · ${_effectLabel('${rule['kind']}', fr)}'), trailing: IconButton(icon: const Icon(Icons.delete_outline), tooltip: fr ? 'Supprimer' : 'Delete', onPressed: busy ? null : () async { try { final updated = await widget.api.deleteStockRule(collection.id, rule['id'] as String); if (mounted) setState(() => collection = updated); } catch (cause) { if (mounted) setState(() => error = '$cause'); } })),
           ]),
           if (error != null)
             Text(
@@ -553,7 +564,7 @@ class _StockScreenState extends State<_StockScreen> {
           LocalizedDateField(controller: reportTo, kind: StoredDateKind.date, clearable: false, label: fr ? 'Au' : 'To', onPick: () => pickEntryDate(context, reportTo)),
           const SizedBox(height: 12),
           FilledButton.tonal(onPressed: busy || productId == null ? null : loadReport, child: Text(fr ? 'Afficher' : 'Show')),
-          if (report != null) for (final row in report!) ListTile(title: Text('${row['date']} · ${row['opening']} + ${row['incoming']} − ${row['outgoing']} = ${row['closing']}'), subtitle: Text((row['movements'] as List<dynamic>).cast<Map<String, dynamic>>().map((item) => '${item['kind']} ${item['baseQuantity']}').join(' · '))),
+          if (report != null) for (final row in report!) ListTile(title: Text('${row['date']} · ${row['opening']} + ${row['incoming']} − ${row['outgoing']} = ${row['closing']}'), subtitle: Text((row['movements'] as List<dynamic>).cast<Map<String, dynamic>>().map((item) => '${_effectLabel('${item['kind']}', fr)} ${item['baseQuantity']}').join(' · '))),
           const SizedBox(height: 16),
           if (rules.isNotEmpty)
             Text(
@@ -594,7 +605,7 @@ class _StockScreenState extends State<_StockScreen> {
           for (final movement in movements)
             ListTile(
               title: Text(
-                '${movement['productName']} · ${movement['kind']} · ${movement['baseQuantity']}',
+                '${movement['productName']} · ${_effectLabel('${movement['kind']}', fr)} · ${movement['baseQuantity']}',
               ),
               subtitle: Text(
                 '${movement['occurredAt'].toString().substring(0, 10)} · ${movement['fromLocation']} → ${movement['toLocation']}',

@@ -48,6 +48,31 @@ String entryClipboardText(
   return lines.join('\n');
 }
 
+const _monthsFr = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const _monthsEn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+String _dayLabel(int year, int month, int day, AppStrings copy) => copy.isFrench
+    ? '$day ${_monthsFr[month - 1]} $year'
+    : '${_monthsEn[month - 1]} $day, $year';
+
+/// Shows a stored `YYYY-MM-DD` date in the app language, as the web client does.
+String displayStoredDate(String value, AppStrings copy) {
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
+  final month = int.tryParse(match?[2] ?? '') ?? 0;
+  if (match == null || month < 1 || month > 12) return value;
+  return _dayLabel(int.parse(match[1]!), month, int.parse(match[3]!), copy);
+}
+
+String _displayStoredDateTime(String value, AppStrings copy) {
+  final parsed = DateTime.tryParse(value)?.toLocal();
+  if (parsed == null) return value;
+  final minutes = parsed.minute.toString().padLeft(2, '0');
+  final time = copy.isFrench
+      ? '${parsed.hour.toString().padLeft(2, '0')}:$minutes'
+      : '${parsed.hour % 12 == 0 ? 12 : parsed.hour % 12}:$minutes ${parsed.hour < 12 ? 'AM' : 'PM'}';
+  return '${_dayLabel(parsed.year, parsed.month, parsed.day, copy)}, $time';
+}
+
 String displayEntryValue(
   BrainyField field,
   String value,
@@ -75,6 +100,8 @@ String displayEntryValue(
     }
     return formatFieldNumber(value, field.unit, copy);
   }
+  if (field.kind == BrainyFieldKind.date) return displayStoredDate(value, copy);
+  if (field.kind == BrainyFieldKind.datetime) return _displayStoredDateTime(value, copy);
   if (field.kind == BrainyFieldKind.boolean) {
     return copy.text(value == 'true' ? 'Yes' : 'No');
   }
