@@ -48,6 +48,7 @@ import 'entry_editor_pickers.dart';
 import 'entry_object_ref_field.dart';
 import 'offline_entry_queue.dart';
 import 'offline_sync_panel.dart';
+import 'period_totals_panel.dart';
 import 'collection_tools_hub.dart';
 import 'workspace_tools_dialog.dart';
 import 'quick_capture_sheet.dart';
@@ -1232,6 +1233,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _overviewBanner(collection),
+                  if (collection.periodTotals != null) PeriodTotalsPanel(key: ValueKey(collection.id), api: _api, collection: collection, entries: _entries, french: _copy.isFrench, onSaved: () { _loadEntries(); }),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
                   const SizedBox(height: 12),
                   WorkspaceCollectionTabs(
@@ -1991,12 +1993,12 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     final visible = format.fields.where((field) => entry.values[field.id]?.trim().isNotEmpty ?? false);
     final titleField = visible.where((field) => field.kind == BrainyFieldKind.title).firstOrNull;
     final firstField = visible.firstOrNull;
-    final previewField = visible.where((field) => field.id != titleField?.id && field.kind != BrainyFieldKind.attachment && field.kind != BrainyFieldKind.objectRef).firstOrNull;
+    final previewField = visible.where((field) => field.id != (titleField ?? firstField)?.id && field.kind != BrainyFieldKind.attachment && field.kind != BrainyFieldKind.objectRef).firstOrNull;
     final title = titleField != null ? entry.values[titleField.id]! : firstField != null ? displayEntryValue(firstField, entry.values[firstField.id]!, _copy, snapshot: entry.unitSnapshots[firstField.id], collection: collection) : _displayFormatName(context, format);
     return WorkspaceEntryRow(
       key: ValueKey(entry.id), color: format.color, title: title,
       formatName: _displayFormatName(context, format), appendOnly: format.appendOnly,
-      preview: titleField != null && previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
+      preview: previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
       created: _formatTimestamp(entry.createdAt, compact: true),
       edited: entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2))) ? _formatTimestamp(entry.updatedAt, compact: true) : null,
       onDetails: () => _showEntryDetails(collection, entry),
