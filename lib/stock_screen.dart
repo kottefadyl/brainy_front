@@ -321,6 +321,8 @@ class _StockScreenState extends State<_StockScreen> {
     _ => 'Correction',
   };
 
+  String _quantity(Object? value, bool fr) => fr ? '$value'.replaceAll('.', ',') : '$value';
+
   String _reasonLabel(String reason, bool fr) => !fr
       ? reason
       : switch (reason) {
@@ -345,14 +347,14 @@ class _StockScreenState extends State<_StockScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '${value['productName']} · ${_effectLabel('${value['kind']}', fr)} · ${value['baseQuantity']}',
+            '${value['productName']} · ${_effectLabel('${value['kind']}', fr)} · ${_quantity(value['baseQuantity'], fr)}',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           Text(
-            '${fr ? 'Source' : 'From'}: ${value['beforeFrom']} → ${value['afterFrom']}',
+            '${fr ? 'Source' : 'From'}: ${_quantity(value['beforeFrom'], fr)} → ${_quantity(value['afterFrom'], fr)}',
           ),
           Text(
-            '${fr ? 'Destination' : 'To'}: ${value['beforeTo']} → ${value['afterTo']}',
+            '${fr ? 'Destination' : 'To'}: ${_quantity(value['beforeTo'], fr)} → ${_quantity(value['afterTo'], fr)}',
           ),
           if (value['reason'] != null)
             Text(
@@ -452,7 +454,7 @@ class _StockScreenState extends State<_StockScreen> {
           for (final item in positions)
             Card(
               child: ListTile(
-                title: Text('${item['productName']} · ${item['quantity']}'),
+                title: Text('${item['productName']} · ${_quantity(item['quantity'], fr)}'),
                 subtitle: Text(
                   '${item['location'] == '' ? (fr ? 'Lieu par défaut' : 'Default location') : item['location']}${item['lot'] == '' ? '' : ' · ${item['lot']}'}',
                 ),
@@ -547,7 +549,7 @@ class _StockScreenState extends State<_StockScreen> {
           DropdownButtonFormField<String>(isExpanded: true, 
             initialValue: reversalOf,
             decoration: InputDecoration(labelText: fr ? 'Sortie d’origine' : 'Original outgoing'),
-            items: movements.where((item) => item['kind'] == 'OUT').map((item) => DropdownMenuItem(value: item['id'] as String, child: Text('${item['productName']} · ${item['baseQuantity']}', maxLines: 1, overflow: TextOverflow.ellipsis))).toList(),
+            items: movements.where((item) => item['kind'] == 'OUT').map((item) => DropdownMenuItem(value: item['id'] as String, child: Text('${item['productName']} · ${_quantity(item['baseQuantity'], fr)}', maxLines: 1, overflow: TextOverflow.ellipsis))).toList(),
             onChanged: (value) => setState(() { reversalOf = value; preview = null; }),
           ),
           Text(fr ? 'Utilisez la quantité ci-dessus ; le lieu et le lot d’origine sont repris.' : 'Use the quantity above; the original location and lot are reused.'),
@@ -564,7 +566,7 @@ class _StockScreenState extends State<_StockScreen> {
           LocalizedDateField(controller: reportTo, kind: StoredDateKind.date, clearable: false, label: fr ? 'Au' : 'To', onPick: () => pickEntryDate(context, reportTo)),
           const SizedBox(height: 12),
           FilledButton.tonal(onPressed: busy || productId == null ? null : loadReport, child: Text(fr ? 'Afficher' : 'Show')),
-          if (report != null) for (final row in report!) ListTile(title: Text('${row['date']} · ${row['opening']} + ${row['incoming']} − ${row['outgoing']} = ${row['closing']}'), subtitle: Text((row['movements'] as List<dynamic>).cast<Map<String, dynamic>>().map((item) => '${_effectLabel('${item['kind']}', fr)} ${item['baseQuantity']}').join(' · '))),
+          if (report != null) for (final row in report!) ListTile(title: Text('${row['date']} · ${_quantity(row['opening'], fr)} + ${_quantity(row['incoming'], fr)} − ${_quantity(row['outgoing'], fr)} = ${_quantity(row['closing'], fr)}'), subtitle: Text((row['movements'] as List<dynamic>).cast<Map<String, dynamic>>().map((item) => '${_effectLabel('${item['kind']}', fr)} ${_quantity(item['baseQuantity'], fr)}').join(' · '))),
           const SizedBox(height: 16),
           if (rules.isNotEmpty)
             Text(
@@ -605,7 +607,7 @@ class _StockScreenState extends State<_StockScreen> {
           for (final movement in movements)
             ListTile(
               title: Text(
-                '${movement['productName']} · ${_effectLabel('${movement['kind']}', fr)} · ${movement['baseQuantity']}',
+                '${movement['productName']} · ${_effectLabel('${movement['kind']}', fr)} · ${_quantity(movement['baseQuantity'], fr)}',
               ),
               subtitle: Text(
                 '${movement['occurredAt'].toString().substring(0, 10)} · ${movement['fromLocation']} → ${movement['toLocation']}',
