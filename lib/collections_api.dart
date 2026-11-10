@@ -1572,12 +1572,13 @@ class CollectionsApi {
     String? operatorName,
     String? filterValue,
     String? viewId,
+    int first = 30,
   }) async {
     final data = await auth.authenticatedRequest(
       'query Page(\$id: String!, \$first: Int!, \$after: String, \$search: String, \$formatId: String, \$filters: [EntryFieldFilterInput!], \$viewId: String) { collectionEntriesPage(collectionId: \$id, first: \$first, after: \$after, search: \$search, formatId: \$formatId, filters: \$filters, viewId: \$viewId) { entries { $_entryFields } nextCursor hasMore } }',
       {
         'id': collectionId,
-        'first': 30,
+        'first': first,
         if (after?.isNotEmpty == true) 'after': after,
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         if (formatId?.isNotEmpty == true) 'formatId': formatId,

@@ -1,3 +1,6 @@
+import 'analysis_radar_chart.dart';
+import 'analysis_scatter_chart.dart';
+import 'chart_scatter_radar.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -483,10 +486,13 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                 const ['CUMULATIVE', 'MOVING_AVERAGE', 'LINEAR_TREND'].contains(operation)));
     final canShowBar = nonnegative || multi != null;
     final canStack = multi != null && nonnegative;
+    // A radar compares 3 to 12 categories or objects of one result (T23/1).
+    final radarOk = multi == null && result != null && canRadar([for (final row in rows) double.tryParse(row['value'] as String? ?? '') ?? 0], result!['groupBy'] as String?);
     final effectiveChart =
         (chart == 'PIE' && (!nonnegative || pieTotal <= 0)) ||
             (chart == 'LINE' && !canShowLine) ||
             (chart == 'STACKED' && !canStack) ||
+            (chart == 'RADAR' && !radarOk) ||
             (chart == 'BAR' && !canShowBar)
         ? 'TABLE'
         : chart;
@@ -1117,6 +1123,23 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                         style: const TextStyle(color: Colors.red),
                       ),
                     ),
+                  // Link between two number fields of the data format (T23/1).
+                  ExpansionTile(
+                    key: const Key('insights-scatter'),
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 12),
+                    title: Text(fr ? 'Relation entre deux champs (nuage de points)' : 'Link between two fields (scatter plot)'),
+                    children: [
+                      AnalysisScatterChart(
+                        key: ValueKey('scatter-$formatId'),
+                        api: widget.api,
+                        collection: collection,
+                        format: collection.formats.firstWhere((item) => item.id == formatId, orElse: () => collection.formats.first),
+                        french: fr,
+                        onOpenEntry: widget.onOpenEntry,
+                      ),
+                    ],
+                  ),
                   if (result != null) ...[
                     const Divider(height: 32),
                     Text(
@@ -1146,6 +1169,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                           if (canShowLine) 'LINE',
                           if (canStack) 'STACKED',
                           if (nonnegative && pieTotal > 0) 'PIE',
+                          if (radarOk) 'RADAR',
                         ],
                         labels: {
                           'TABLE': fr ? 'Tableau' : 'Table',
@@ -1153,6 +1177,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                           'LINE': multi != null ? (fr ? 'Courbes' : 'Lines') : (fr ? 'Courbe' : 'Line'),
                           'STACKED': fr ? 'Aires empilées' : 'Stacked areas',
                           'PIE': fr ? 'Répartition' : 'Shares',
+                          'RADAR': 'Radar',
                         },
                       ),
                       (value) => setState(() => chart = value!),
@@ -1187,6 +1212,13 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                         ],
                         onViewChange: (view) => setState(() => chart = view == ChartView.line ? 'LINE' : 'BAR'),
                         height: MediaQuery.sizeOf(context).width < 600 ? 230 : 300,
+                      ),
+                    if (effectiveChart == 'RADAR')
+                      AnalysisRadarChart(
+                        rows: rows,
+                        comparisonRows: (result!['comparisonRows'] as List<dynamic>? ?? const []).cast<Map<String, dynamic>>(),
+                        unit: result!['unit'] as String?,
+                        french: fr,
                       ),
                     if (effectiveChart == 'PIE' && rows.length > 1) ...[
                       Semantics(

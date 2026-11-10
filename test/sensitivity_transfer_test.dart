@@ -18,6 +18,7 @@ class _ExportApi extends Fake implements CollectionsApi {
     String? operatorName,
     String? filterValue,
     String? viewId,
+    int first = 30,
   }) async => page;
 
   @override
