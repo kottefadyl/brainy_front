@@ -1,3 +1,4 @@
+import 'analysis_operations.dart';
 import 'package:flutter/material.dart';
 
 import 'collections_api.dart';
@@ -35,7 +36,17 @@ String auditDetailText(BrainyAuditLog log, {required bool french}) {
     final reason = _reasons[details.split(':').first];
     if (reason != null) return reason[french ? 1 : 0];
   }
-  return details.replaceFirst(RegExp(r';?\s*query [0-9a-f]{16}'), '').replaceFirst(RegExp(r'^Data format [^;]+;\s*'), '').trim();
+  // "operation X; observations N" becomes "Average · 57 observations" in the person's language.
+  final rest = details.replaceFirst(RegExp(r';?\s*query [0-9a-f]{16}'), '').replaceFirst(RegExp(r'^Data format [^;]+;\s*'), '').trim();
+  return rest.split(RegExp(r';\s*')).where((part) => part.isNotEmpty).map((part) {
+    final operation = RegExp(r'^operation (\w+)$').firstMatch(part);
+    if (operation != null) return analysisOperationLabel(operation[1]!, french: french);
+    final observations = RegExp(r'^observations (\d+)$').firstMatch(part);
+    if (observations != null) return '${observations[1]} observation${observations[1] == '1' ? '' : 's'}';
+    final refused = RegExp(r'^refused: (.*)$').firstMatch(part);
+    if (refused != null) return '${french ? 'refusée : ' : 'refused: '}${refused[1]}';
+    return part;
+  }).join(' · ');
 }
 
 String auditActor(BrainyAuditLog log, BrainyCollection collection, {required bool french}) {

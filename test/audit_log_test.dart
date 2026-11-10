@@ -14,7 +14,9 @@ void main() {
   });
 
   test('details drop the technical query key and alerts are told in plain words', () {
-    expect(auditDetailText(_log('READ_SENSITIVE_AGGREGATE', 'Data format f1; operation SUM; query 0123456789abcdef; observations 8'), french: false), 'operation SUM; observations 8');
+    expect(auditDetailText(_log('READ_SENSITIVE_AGGREGATE', 'Data format f1; operation SUM; query 0123456789abcdef; observations 8'), french: false), 'Sum · 8 observations');
+    expect(auditDetailText(_log('READ_SENSITIVE_AGGREGATE', 'Data format f1; operation AVERAGE; query 0123456789abcdef; observations 57'), french: true), 'Moyenne · 57 observations');
+    expect(auditDetailText(_log('REFUSED_SENSITIVE_AGGREGATE', 'Data format f1; operation MEDIAN; query 0123456789abcdef; refused: group below 5'), french: true), 'Médiane · refusée : group below 5');
     expect(auditDetailText(_log('SENSITIVE_AGGREGATE_ALERT', 'BURST: the same sensitive question was asked repeatedly within an hour; data format f1; query 0123456789abcdef'), french: true),
         'la même question a été posée de nombreuses fois en une heure');
     expect(auditDetailText(_log('UPDATE_ENTRY', null), french: true), '');
