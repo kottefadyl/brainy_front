@@ -151,3 +151,20 @@ List<MapTile> visibleTiles(MapView view, int z, double width, double height) {
   }
   return tiles;
 }
+
+/// Latitude and longitude of a world point (inverse of [projectToWorld]).
+({double latitude, double longitude}) unprojectWorld(WorldPoint point) {
+  final longitude = point.x * 360 - 180;
+  final n = math.pi * (1 - 2 * point.y);
+  final latitude = math.atan((math.exp(n) - math.exp(-n)) / 2) * 180 / math.pi;
+  return (latitude: latitude, longitude: ((longitude + 540) % 360) - 180);
+}
+
+/// The world point under a viewport position (inverse of [toScreen]).
+WorldPoint fromScreen(double left, double top, MapView view, double width, double height) {
+  final size = worldSize(view.zoom);
+  return WorldPoint(view.x + (left - width / 2) / size, view.y + (top - height / 2) / size);
+}
+
+/// Six decimals: about 11 cm, finer than any phone or map tap.
+double roundCoordinate(double value) => (value * 1e6).round() / 1e6;

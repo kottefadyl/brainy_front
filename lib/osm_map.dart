@@ -10,13 +10,15 @@ import 'package:url_launcher/url_launcher.dart';
 import 'data_format_colors.dart';
 import 'design_tokens.dart';
 import 'map_math.dart';
+import 'tile_cache.dart';
 
 const _tilesPreference = 'brainy:map:osm-tiles';
 // The OpenStreetMap tile policy asks every application to identify itself.
 const _userAgent = 'Brainy/1.0 (Flutter map client)';
 const _pinSize = 44.0;
 
-ImageProvider<Object> _networkTile(String url) => NetworkImage(url, headers: const {'User-Agent': _userAgent});
+// Tiles already seen are kept for offline use (T38/2, tile_cache.dart).
+ImageProvider<Object> _networkTile(String url) => CachedTileImage(url, headers: const {'User-Agent': _userAgent});
 
 /// Claims a pointer at once: dragging the map must not scroll the page around it.
 class _EagerScaleRecognizer extends ScaleGestureRecognizer {
@@ -49,7 +51,11 @@ class OsmMap extends StatefulWidget {
     this.selected = const [],
     this.tileProvider = _networkTile,
     this.storage = const FlutterSecureStorage(),
+    this.onPick,
   });
+
+  /// Pointing mode (T38/3): a tap, a click, or Enter for the centre, gives a position.
+  final void Function(double latitude, double longitude)? onPick;
 
   final List<MapMarker> markers;
   final bool french;
@@ -73,6 +79,7 @@ class _OsmMapState extends State<OsmMap> with SingleTickerProviderStateMixin {
   MapView _from = const MapView(0.5, 0.5, 0);
   MapView _to = const MapView(0.5, 0.5, 0);
   Size _size = Size.zero;
+  Offset? _pickAt;
   bool _needsFit = true;
   bool _tilesOn = false;
   bool _showFocus = false;
@@ -219,9 +226,20 @@ class _OsmMapState extends State<OsmMap> with SingleTickerProviderStateMixin {
     }
   }
 
+  void _pick(double left, double top) {
+    final onPick = widget.onPick;
+    if (onPick == null) return;
+    final point = unprojectWorld(fromScreen(left, top, _clamped, _size.width, _size.height));
+    onPick(roundCoordinate(point.latitude), roundCoordinate(point.longitude));
+  }
+
   KeyEventResult _onMapKey(FocusNode node, KeyEvent event) {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
+    if (widget.onPick != null && (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.space)) {
+      _pick(_size.width / 2, _size.height / 2);
+      return KeyEventResult.handled;
+    }
     const step = 80.0;
     final view = _clamped;
     if (key == LogicalKeyboardKey.arrowLeft) _animateTo(panBy(view, step, 0));
@@ -318,6 +336,7 @@ class _OsmMapState extends State<OsmMap> with SingleTickerProviderStateMixin {
             (recognizer) {
               recognizer
                 ..onStart = (details) {
+                  _pickAt = details.pointerCount == 1 ? details.localFocalPoint : null;
                   _animation.stop();
                   _gestureZoom = _clamped.zoom;
                   _moved = 0;
@@ -334,6 +353,8 @@ class _OsmMapState extends State<OsmMap> with SingleTickerProviderStateMixin {
                 }
                 ..onEnd = (details) {
                   if (_moved < 5 && _openId != null) setState(() => _openId = null);
+                  final at = _pickAt;
+                  if (_moved < 5 && at != null) _pick(at.dx, at.dy);
                 };
             },
           ),
