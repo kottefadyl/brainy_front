@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'chart_math.dart';
+import 'chart_zoom.dart';
 import 'design_tokens.dart';
 
 enum ChartView { line, bar }
@@ -45,7 +46,9 @@ class _AnalysisChartState extends State<AnalysisChart> {
   final _active = ValueNotifier<int?>(null);
   final _focus = FocusNode(debugLabel: 'analysis chart');
   late List<ChartSlot> _allSlots;
+  late List<ChartSlot> _windowSlots;
   late List<ChartSlot> _slots;
+  late final ChartZoom _zoom;
   _Series? _isolated;
   bool _showFocus = false;
   int _rove = 0;
@@ -57,7 +60,20 @@ class _AnalysisChartState extends State<AnalysisChart> {
   @override
   void initState() {
     super.initState();
-    _prepare();
+    _allSlots = _align();
+    _zoom = ChartZoom(_allSlots.length)..addListener(_onZoom);
+    _applyWindow();
+  }
+
+  void _onZoom() => setState(() {
+    _applyWindow();
+    _active.value = null;
+  });
+
+  void _applyWindow() {
+    final window = _zoom.window;
+    _windowSlots = _allSlots.sublist(window.start, window.end);
+    _slots = sampleSlots(_windowSlots);
   }
 
   @override
@@ -71,16 +87,20 @@ class _AnalysisChartState extends State<AnalysisChart> {
     }
   }
 
+  List<ChartSlot> _align() => alignSeries(
+    widget.rows.map(ChartPoint.fromRow).toList(),
+    widget.comparisonRows.map(ChartPoint.fromRow).toList(),
+  );
+
   void _prepare() {
-    _allSlots = alignSeries(
-      widget.rows.map(ChartPoint.fromRow).toList(),
-      widget.comparisonRows.map(ChartPoint.fromRow).toList(),
-    );
-    _slots = sampleSlots(_allSlots);
+    _allSlots = _align();
+    _zoom.total = _allSlots.length;
+    _applyWindow();
   }
 
   @override
   void dispose() {
+    _zoom.dispose();
     _active.dispose();
     _focus.dispose();
     super.dispose();
@@ -96,6 +116,14 @@ class _AnalysisChartState extends State<AnalysisChart> {
     final key = event.logicalKey;
     final last = _slots.length - 1;
     final current = _active.value ?? _rove;
+    if (_zoom.onKey(event, current / math.max(1, last)) == KeyEventResult.handled) return KeyEventResult.handled;
+    // Past an edge of a zoomed, unsampled window, the window follows the point.
+    final edge = (key == LogicalKeyboardKey.arrowRight && current == last) || (key == LogicalKeyboardKey.arrowLeft && current == 0);
+    if (edge && _zoom.zoomed && _slots.length == _windowSlots.length) {
+      _zoom.shift(key == LogicalKeyboardKey.arrowRight ? 1 : -1);
+      _select(current);
+      return KeyEventResult.handled;
+    }
     int? next;
     if (key == LogicalKeyboardKey.arrowRight) next = math.min(last, current + 1);
     if (key == LogicalKeyboardKey.arrowLeft) next = math.max(0, current - 1);
@@ -139,7 +167,16 @@ class _AnalysisChartState extends State<AnalysisChart> {
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 8,
-          children: [_legend(theme, colors), _viewSwitch(theme)],
+          children: [
+            _legend(theme, colors),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_allSlots.length > minZoomPoints) ChartZoomButtons(zoom: _zoom, french: french),
+                _viewSwitch(theme),
+              ],
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         SizedBox(
@@ -149,7 +186,7 @@ class _AnalysisChartState extends State<AnalysisChart> {
               final geometry = _ChartGeometry(
                 size: Size(constraints.maxWidth, widget.height),
                 slots: _slots,
-                allSlots: _allSlots,
+                allSlots: _windowSlots,
                 view: widget.view,
                 showMain: _showMain,
                 showComparison: _showComparison,
@@ -160,13 +197,23 @@ class _AnalysisChartState extends State<AnalysisChart> {
             },
           ),
         ),
-        if (_allSlots.length > maxChartPoints)
+        ChartScrubber(
+          zoom: _zoom,
+          french: french,
+          label: _windowSlots.isEmpty ? '' : '${fullChartLabel(_windowSlots.first.label, french)} – ${fullChartLabel(_windowSlots.last.label, french)}',
+        ),
+        if (_zoom.zoomed)
+          Text(
+            french ? 'Zoom : ${_windowSlots.length} points sur ${_allSlots.length}.' : 'Zoomed: ${_windowSlots.length} of ${_allSlots.length} points.',
+            style: TextStyle(color: colors.muted, fontSize: 13),
+          ),
+        if (_windowSlots.length > maxChartPoints)
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               french
-                  ? 'Courbe simplifiée : ${_slots.length} points affichés sur ${_allSlots.length}. La liste ci-dessous contient tout.'
-                  : 'Simplified chart: ${_slots.length} of ${_allSlots.length} points shown. The list below contains every point.',
+                  ? 'Courbe simplifiée : ${_slots.length} points affichés sur ${_windowSlots.length}. La liste ci-dessous contient tout.'
+                  : 'Simplified chart: ${_slots.length} of ${_windowSlots.length} points shown. The list below contains every point.',
               style: TextStyle(color: colors.muted, fontSize: 13),
             ),
           ),
@@ -305,7 +352,14 @@ class _AnalysisChartState extends State<AnalysisChart> {
             setState(() => _showFocus = focused && FocusManager.instance.highlightMode == FocusHighlightMode.traditional);
             if (!focused) _active.value = null;
           },
-          child: MouseRegion(
+          // Pinch and Ctrl + wheel zoom; the gestures below keep selecting points.
+          child: Listener(
+            onPointerSignal: (event) => _zoom.onPointerSignal(event, geometry.shareAt),
+            onPointerDown: (event) => _zoom.onPointerDown(event, geometry.shareAt),
+            onPointerMove: _zoom.onPointerMove,
+            onPointerUp: _zoom.onPointerEnd,
+            onPointerCancel: _zoom.onPointerEnd,
+            child: MouseRegion(
             cursor: SystemMouseCursors.precise,
             onHover: (event) {
               if (event.kind == PointerDeviceKind.mouse) pick(event.localPosition);
@@ -381,6 +435,7 @@ class _AnalysisChartState extends State<AnalysisChart> {
                 ],
               ),
             ),
+          ),
           ),
         ),
       ),
@@ -489,6 +544,9 @@ class _ChartGeometry {
   double y(double value) => axis - (value - scale.low) / (scale.high - scale.low) * (axis - top);
   double get baseline => y(0);
   bool get showDots => plotWidth / slots.length >= 14;
+
+  /// Share of the plot width under a local x position, from 0 to 1.
+  double shareAt(Offset position) => ((position.dx - left) / math.max(1, plotWidth)).clamp(0.0, 1.0);
 
   int indexAt(double dx) {
     var best = 0;

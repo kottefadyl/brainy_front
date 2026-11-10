@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'analysis_chart.dart' show ChartView;
 import 'chart_math.dart';
+import 'chart_zoom.dart';
 import 'design_tokens.dart';
 
 enum _Marker { circle, square, triangle, diamond }
@@ -45,11 +46,21 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
   final _hidden = <String>{};
   bool _showFocus = false;
   int _rove = 0;
+  late final ChartZoom _zoom;
+
+  @override
+  void initState() {
+    super.initState();
+    _zoom = ChartZoom(widget.multi.periods.length)..addListener(_onZoom);
+  }
+
+  void _onZoom() => setState(() => _active.value = null);
 
   @override
   void didUpdateWidget(covariant AnalysisMultiSeriesChart old) {
     super.didUpdateWidget(old);
     if (!identical(old.multi, widget.multi)) {
+      _zoom.total = widget.multi.periods.length;
       _hidden.clear();
       _active.value = null;
       _rove = 0;
@@ -58,6 +69,7 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
 
   @override
   void dispose() {
+    _zoom.dispose();
     _active.dispose();
     _focus.dispose();
     super.dispose();
@@ -70,13 +82,14 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
 
   /// Long period runs are thinned on the visible total, so that peaks of every series survive.
   List<int> _kept(List<int> visible) {
-    final periods = widget.multi.periods;
-    if (periods.length <= maxChartPoints) return [for (var index = 0; index < periods.length; index++) index];
+    final window = _zoom.window;
+    final inWindow = [for (var index = window.start; index < window.end; index++) index];
+    if (inWindow.length <= maxChartPoints) return inWindow;
     final sums = [
-      for (var index = 0; index < periods.length; index++)
+      for (final index in inWindow)
         visible.fold<double>(0, (sum, series) => sum + (widget.multi.series[series].points[index]?.value.abs() ?? 0)),
     ];
-    return lttbIndices(sums, maxChartPoints);
+    return [for (final offset in lttbIndices(sums, maxChartPoints)) window.start + offset];
   }
 
   void _select(int order) {
@@ -88,6 +101,14 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
     final current = _active.value ?? _rove;
+    if (_zoom.onKey(event, current / math.max(1, count - 1)) == KeyEventResult.handled) return KeyEventResult.handled;
+    // Past an edge of a zoomed, unsampled window, the window follows the point.
+    final edge = (key == LogicalKeyboardKey.arrowRight && current == count - 1) || (key == LogicalKeyboardKey.arrowLeft && current == 0);
+    if (edge && _zoom.zoomed && count == _zoom.window.span) {
+      _zoom.shift(key == LogicalKeyboardKey.arrowRight ? 1 : -1);
+      _select(current);
+      return KeyEventResult.handled;
+    }
     int? next;
     if (key == LogicalKeyboardKey.arrowRight) next = math.min(count - 1, current + 1);
     if (key == LogicalKeyboardKey.arrowLeft) next = math.max(0, current - 1);
@@ -139,7 +160,16 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 8,
-          children: [_legend(colors), _viewSwitch(theme)],
+          children: [
+            _legend(colors),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (multi.periods.length > minZoomPoints) ChartZoomButtons(zoom: _zoom, french: french),
+                _viewSwitch(theme),
+              ],
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         SizedBox(
@@ -152,6 +182,7 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
                 multi: multi,
                 visible: visible,
                 kept: kept,
+                window: _zoom.window,
                 line: widget.view == ChartView.line,
                 french: french,
                 characterScale: characterScale,
@@ -160,6 +191,16 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
             ),
           ),
         ),
+        ChartScrubber(
+          zoom: _zoom,
+          french: french,
+          label: '${fullChartLabel(multi.periods[_zoom.window.start], french)} – ${fullChartLabel(multi.periods[_zoom.window.end - 1], french)}',
+        ),
+        if (_zoom.zoomed)
+          Text(
+            french ? 'Zoom : ${_zoom.window.span} périodes sur ${multi.periods.length}.' : 'Zoomed: ${_zoom.window.span} of ${multi.periods.length} periods.',
+            style: note,
+          ),
         if (multi.hiddenSeries > 0)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -182,13 +223,13 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
               style: note,
             ),
           ),
-        if (multi.periods.length > maxChartPoints)
+        if (_zoom.window.span > maxChartPoints)
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               french
-                  ? 'Graphique simplifié : ${kept.length} périodes affichées sur ${multi.periods.length}.'
-                  : 'Simplified chart: ${kept.length} of ${multi.periods.length} periods shown.',
+                  ? 'Graphique simplifié : ${kept.length} périodes affichées sur ${_zoom.window.span}.'
+                  : 'Simplified chart: ${kept.length} of ${_zoom.window.span} periods shown.',
               style: note,
             ),
           ),
@@ -300,7 +341,14 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
             setState(() => _showFocus = focused && FocusManager.instance.highlightMode == FocusHighlightMode.traditional);
             if (!focused) _active.value = null;
           },
-          child: MouseRegion(
+          // Pinch and Ctrl + wheel zoom; the gestures below keep selecting periods.
+          child: Listener(
+            onPointerSignal: (event) => _zoom.onPointerSignal(event, geometry.shareAt),
+            onPointerDown: (event) => _zoom.onPointerDown(event, geometry.shareAt),
+            onPointerMove: _zoom.onPointerMove,
+            onPointerUp: _zoom.onPointerEnd,
+            onPointerCancel: _zoom.onPointerEnd,
+            child: MouseRegion(
             cursor: SystemMouseCursors.precise,
             onHover: (event) {
               if (event.kind == PointerDeviceKind.mouse) pick(event.localPosition);
@@ -372,6 +420,7 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
               ),
             ),
           ),
+          ),
         ),
       ),
     );
@@ -384,12 +433,13 @@ class _Geometry {
     required this.multi,
     required this.visible,
     required this.kept,
+    required ChartWindow window,
     required this.line,
     required this.french,
     required this.characterScale,
   }) : scale = niceScale([
          for (final series in visible)
-           for (final point in multi.series[series].points)
+           for (final point in multi.series[series].points.sublist(window.start, window.end))
              if (point != null) point.value,
        ]) {
     final longest = scale.ticks.fold<int>(0, (size, tick) => math.max(size, compactChartNumber(tick, french).length));
@@ -427,6 +477,9 @@ class _Geometry {
   double y(double value) => axis - (value - scale.low) / (scale.high - scale.low) * (axis - top);
   double get baseline => y(0);
   bool get showMarkers => band >= 14;
+
+  /// Share of the plot width under a local x position, from 0 to 1.
+  double shareAt(Offset position) => ((position.dx - left) / math.max(1, plotWidth)).clamp(0.0, 1.0);
 
   int indexAt(double dx) {
     var best = 0;
