@@ -18,6 +18,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 /// `flutter run -d windows -t tool/charts_journal_preview.dart --dart-define=VISUAL_OUTPUT=folder`
 void main() => runApp(const _Preview());
 
+/// VISUAL_OUTPUT on a computer; on Android the app's temporary folder, read with `adb exec-out run-as`.
+Future<String> _outputDir(String name) async {
+  const requested = String.fromEnvironment('VISUAL_OUTPUT');
+  final directory = Directory(requested.isNotEmpty ? requested : '${Directory.systemTemp.path}/$name');
+  await directory.create(recursive: true);
+  return directory.path;
+}
+
 final _now = DateTime.now().toUtc();
 
 class _Auth extends AuthApi {
@@ -82,9 +90,9 @@ class _PreviewState extends State<_Preview> {
   }
 
   Future<void> _run() async {
-    const output = String.fromEnvironment('VISUAL_OUTPUT');
+    final output = await _outputDir('brainy-charts-journal');
     for (final journal in [false, true]) {
-      for (final width in [320.0, 1000.0]) {
+      for (final width in Platform.isAndroid ? [320.0, 390.0] : [320.0, 1000.0]) {
         for (final dark in [false, true]) {
           setState(() { _journal = journal; _width = width; _dark = dark; });
           // Type a target in the gauge, as a person would, so the dial is drawn.
@@ -108,7 +116,8 @@ class _PreviewState extends State<_Preview> {
         }
       }
     }
-    exit(0);
+    debugPrint('PREVIEW_COMPLETE $output');
+    if (!Platform.isAndroid) exit(0);
   }
 
   Widget _charts(BuildContext context) => Column(

@@ -14,6 +14,14 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 /// `flutter run -d windows -t tool/scatter_radar_preview.dart --dart-define=VISUAL_OUTPUT=folder`
 void main() => runApp(const _Preview());
 
+/// VISUAL_OUTPUT on a computer; on Android the app's temporary folder, read with `adb exec-out run-as`.
+Future<String> _outputDir(String name) async {
+  const requested = String.fromEnvironment('VISUAL_OUTPUT');
+  final directory = Directory(requested.isNotEmpty ? requested : '${Directory.systemTemp.path}/$name');
+  await directory.create(recursive: true);
+  return directory.path;
+}
+
 class _Auth extends AuthApi {
   @override
   Future<Map<String, dynamic>> authenticatedRequest(String query, Map<String, dynamic> variables, {Duration timeout = const Duration(seconds: 12)}) async => {
@@ -73,8 +81,8 @@ class _PreviewState extends State<_Preview> {
   }
 
   Future<void> _run() async {
-    const output = String.fromEnvironment('VISUAL_OUTPUT');
-    for (final width in [320.0, 1000.0]) {
+    final output = await _outputDir('brainy-scatter-radar');
+    for (final width in Platform.isAndroid ? [320.0, 390.0] : [320.0, 1000.0]) {
       for (final dark in [false, true]) {
         setState(() { _width = width; _dark = dark; });
         await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -86,7 +94,8 @@ class _PreviewState extends State<_Preview> {
         await File('$output/scatter-radar-${width.toInt()}-${dark ? 'dark' : 'light'}.png').writeAsBytes(bytes!.buffer.asUint8List());
       }
     }
-    exit(0);
+    debugPrint('PREVIEW_COMPLETE $output');
+    if (!Platform.isAndroid) exit(0);
   }
 
   @override
