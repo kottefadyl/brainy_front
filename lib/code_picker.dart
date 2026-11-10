@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'code_tree.dart';
+import 'referentials_api.dart';
+import 'remote_code_browser.dart';
 
 const _emptyChoice = '';
 
@@ -262,6 +264,7 @@ class CodePickerField extends StatelessWidget {
     required this.onChanged,
     this.canSelect,
     this.emptyLabel,
+    this.remote,
   });
 
   final String label;
@@ -272,10 +275,15 @@ class CodePickerField extends StatelessWidget {
   final bool Function(CodeNode)? canSelect;
   final String? emptyLabel;
 
+  /// A large list (T39/3): codes are searched on the server instead of [codes].
+  final RemoteCodeSource? remote;
+
   String t(String french_, String english) => french ? french_ : english;
 
   Future<void> _open(BuildContext context) async {
-    Widget content(BuildContext sheetContext) => CodeBrowser(
+    Widget content(BuildContext sheetContext) => remote != null
+        ? RemoteCodeBrowser(source: remote!, french: french, value: value, autofocus: _isDesktop, onSelect: (code) => Navigator.pop(sheetContext, code))
+        : CodeBrowser(
       codes: codes,
       french: french,
       value: value,
@@ -327,6 +335,11 @@ class CodePickerField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (remote == null) return _display(context, codes);
+    return RemoteCodeValue(source: remote!, value: value, builder: (context, code) => _display(context, code == null ? const [] : [code]));
+  }
+
+  Widget _display(BuildContext context, List<Map<String, dynamic>> codes) {
     final node = CodeTree.build(codes, french).nodes[value];
     final colors = Theme.of(context).colorScheme;
     final shown = node == null ? (value.isEmpty ? t('Choisir un code', 'Choose a code') : value) : '${node.label} (${node.code})${node.active ? '' : ' · ${t('obsolète', 'obsolete')}'}';

@@ -161,7 +161,8 @@ class _InsightsDialogState extends State<_InsightsDialog> {
     final fieldId = groupFieldId ?? format.fields.where((item) => item.kind == BrainyFieldKind.code).firstOrNull?.id;
     final listId = format.fields.where((item) => item.id == fieldId).firstOrNull?.codeListId;
     final list = collection.codeLists.where((item) => item['id'] == listId).firstOrNull;
-    final levels = CodeTree.build((list?['codes'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>(), fr).deepestLevel;
+    // A large list sends no codes, only its number of levels (T39/3).
+    final levels = list?['external'] == true ? list!['levels'] as int? ?? 1 : CodeTree.build((list?['codes'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>(), fr).deepestLevel;
     return [
       for (var level = 0; level < levels - 1 && level < exactCodeDepth; level++)
         DropdownMenuItem(value: level, child: Text(level == 0 ? (fr ? 'Racine' : 'Root') : (fr ? 'Niveau ${level + 1}' : 'Level ${level + 1}'))),

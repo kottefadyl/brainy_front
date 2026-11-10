@@ -7,6 +7,9 @@ import 'adaptive_form.dart';
 import 'code_picker.dart';
 import 'code_tree.dart';
 import 'collections_api.dart';
+import 'referential_import.dart';
+import 'referentials_api.dart';
+import 'remote_code_browser.dart';
 
 Future<bool> showClassificationScreen(BuildContext context, CollectionsApi api, BrainyCollection collection, List<BrainyCollection> targets, {required bool french}) async {
   await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => ClassificationScreen(api: api, collection: collection, targets: targets, french: french)));
@@ -120,15 +123,46 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
     return null;
   }
 
+  Future<void> importReferential(String listName, String format, String content) async {
+    final list = selected;
+    final updated = await widget.api.importReferential(collection.id, listName, format, content, listId: list?['id'] as String?, expectedVersion: list?['version'] as int?);
+    if (!mounted) return;
+    setState(() { collection = updated; changed = true; });
+    choose(list != null ? updated.codeLists.firstWhere((item) => item['id'] == list['id']) : updated.codeLists.last);
+  }
+
+  /// A list beyond 5,000 codes: read on the server, replaced only by a new import (T39/3).
+  List<Widget> largeList(Map<String, dynamic> list) {
+    final count = (list['codeCount'] as int? ?? 0).toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+$)'), (_) => widget.french ? ' ' : ',');
+    return [
+      const SizedBox(height: 16),
+      Text(t('$count codes sur ${list['levels'] ?? 1} niveaux · grande liste, recherchée côté serveur', '$count codes on ${list['levels'] ?? 1} levels · large list, searched on the server'), style: const TextStyle(fontWeight: FontWeight.w600)),
+      const SizedBox(height: 8),
+      SizedBox(height: 360, child: RemoteCodeBrowser(key: ValueKey('remote-${list['id']}-${list['version']}'), source: widget.api.remoteCodes(collection.id, list['id'] as String, french: widget.french), french: widget.french)),
+    ];
+  }
+
+  Widget referentialImport(Map<String, dynamic>? list) => ExpansionTile(
+    key: ValueKey('referential-${list?['id'] ?? 'new'}-${list?['version'] ?? 0}'),
+    tilePadding: EdgeInsets.zero,
+    initiallyExpanded: isLargeCodeList(list),
+    title: Text(list != null ? t('Remplacer par un référentiel', 'Replace from a referential') : t('Importer un référentiel (CSV ou JSON)', 'Import a referential (CSV or JSON)')),
+    childrenPadding: const EdgeInsets.only(bottom: 12),
+    children: [ReferentialImport(french: widget.french, list: list, preview: widget.api.previewReferential, save: importReferential)],
+  );
+
   @override Widget build(BuildContext context) {
     final list = selected;
+    final large = isLargeCodeList(list);
     return Scaffold(
       appBar: AppBar(title: Text(t('Classifications', 'Classifications')), leading: IconButton(icon: const Icon(Icons.arrow_back), tooltip: t('Retour', 'Back'), onPressed: () => Navigator.pop(context, changed))),
       body: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 850), child: ListView(padding: const EdgeInsets.all(16), children: [
         Text(t('Les codes restent stables quand les libellés changent. Créez une liste avant d’ajouter un champ code à un format de données.', 'Codes stay stable when labels change. Create a list before adding a code field to a data format.')),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(isExpanded: true, key: ValueKey(listId), initialValue: listId, decoration: InputDecoration(labelText: t('Liste de codes', 'Code list'), border: const OutlineInputBorder()), items: [for (final item in collection.codeLists) DropdownMenuItem(value: item['id'] as String, child: Text(item['name'] as String, maxLines: 1, overflow: TextOverflow.ellipsis))], onChanged: (value) => choose(collection.codeLists.firstWhere((item) => item['id'] == value))),
-        const SizedBox(height: 8), Wrap(runSpacing: 8, spacing: 8, children: [OutlinedButton(onPressed: () => choose(null), child: Text(t('Nouvelle liste', 'New list'))), OutlinedButton(onPressed: () { choose(null); name.text = t('Niveaux d’études', 'Education levels'); setState(() => codes = [{'code': 'education', 'labelEn': 'Education', 'labelFr': 'Éducation', 'active': true}, {'code': 'primary', 'labelEn': 'Primary', 'labelFr': 'Primaire', 'parentCode': 'education', 'active': true}, {'code': 'secondary', 'labelEn': 'Secondary', 'labelFr': 'Secondaire', 'parentCode': 'education', 'active': true}, {'code': 'tertiary', 'labelEn': 'Tertiary', 'labelFr': 'Supérieur', 'parentCode': 'education', 'active': true}]); }, child: Text(t('Utiliser un modèle', 'Use starter list'))), OutlinedButton(onPressed: importCsv, child: Text(t('Importer CSV', 'Import CSV')))]),
+        const SizedBox(height: 8), Wrap(runSpacing: 8, spacing: 8, children: [OutlinedButton(onPressed: () => choose(null), child: Text(t('Nouvelle liste', 'New list'))), OutlinedButton(onPressed: () { choose(null); name.text = t('Niveaux d’études', 'Education levels'); setState(() => codes = [{'code': 'education', 'labelEn': 'Education', 'labelFr': 'Éducation', 'active': true}, {'code': 'primary', 'labelEn': 'Primary', 'labelFr': 'Primaire', 'parentCode': 'education', 'active': true}, {'code': 'secondary', 'labelEn': 'Secondary', 'labelFr': 'Secondaire', 'parentCode': 'education', 'active': true}, {'code': 'tertiary', 'labelEn': 'Tertiary', 'labelFr': 'Supérieur', 'parentCode': 'education', 'active': true}]); }, child: Text(t('Utiliser un modèle', 'Use starter list'))), if (!large) OutlinedButton(onPressed: importCsv, child: Text(t('Importer CSV', 'Import CSV')))]),
+        if (large) ...largeList(list!),
+        if (!large) ...[
         const SizedBox(height: 16), TextField(controller: name, maxLength: 80, buildCounter: quietFormCounter, decoration: InputDecoration(labelText: t('Nom de la liste', 'List name'), border: const OutlineInputBorder())),
         for (var index = 0; index < codes.length; index++) Card(key: ValueKey('code-$index-${codes[index]['code']}'), child: Padding(padding: const EdgeInsets.all(12), child: Column(children: [
           TextFormField(initialValue: codes[index]['code'] as String? ?? '', readOnly: list != null && (list['codes'] as List<dynamic>).any((item) => item['code'] == codes[index]['code']), decoration: InputDecoration(labelText: t('Code stable', 'Stable code')), onChanged: (value) => codes[index]['code'] = value),
@@ -143,6 +177,8 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
         Wrap(runSpacing: 8, spacing: 8, children: [OutlinedButton(onPressed: () => setState(() => codes.add({'code': '', 'labelEn': '', 'labelFr': '', 'active': true})), child: Text(t('Ajouter un code', 'Add code'))), FilledButton(onPressed: busy || name.text.trim().isEmpty || codes.isEmpty ? null : save, child: Text(t('Enregistrer', 'Save'))), if (list != null) OutlinedButton(onPressed: busy ? null : copyList, child: Text(t('Copier vers…', 'Copy to…'))), if (list != null) OutlinedButton(onPressed: busy ? null : mergeCodes, child: Text(t('Fusionner des codes', 'Merge codes')))]),
         if (tooDeep != null) Text(t('La hiérarchie dépasse $maxCodeLevels niveaux au code $tooDeep.', 'The hierarchy exceeds $maxCodeLevels levels at code $tooDeep.'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
         if (usableCodes.isNotEmpty) ExpansionTile(key: ValueKey('browse-${usableCodes.length}'), tilePadding: EdgeInsets.zero, title: Text(t('Parcourir l’arborescence', 'Browse the tree')), children: [SizedBox(height: 360, child: CodeBrowser(codes: usableCodes, french: widget.french))]),
+        ],
+        referentialImport(list),
         if (notice != null) Text(notice!, style: TextStyle(color: Theme.of(context).colorScheme.primary)),
         if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
       ]))),

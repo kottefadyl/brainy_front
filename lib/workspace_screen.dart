@@ -19,6 +19,7 @@ import 'workspace_entry_row.dart';
 import 'auth_api.dart';
 import 'app_strings.dart';
 import 'code_picker.dart';
+import 'referentials_api.dart';
 import 'collections_api.dart';
 import 'collection_copy_dialog.dart';
 import 'linked_format_dialog.dart';
@@ -3323,6 +3324,7 @@ class _EntryEditorState extends State<_EntryEditor> {
           value: value,
           canSelect: (node) => node.active || node.code == value,
           emptyLabel: _copy.isFrench ? 'Aucune valeur' : 'No value',
+          remote: isLargeCodeList(list) ? widget.api.remoteCodes(widget.collection.id, field.codeListId!, french: _copy.isFrench) : null,
           onChanged: (next) => setState(() => _controllers[field.id]!.text = next),
         ),
       );
