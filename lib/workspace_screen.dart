@@ -59,6 +59,7 @@ import 'classification_screen.dart';
 import 'geo_map_view.dart';
 import 'geo_field_input.dart';
 import 'platform_capabilities.dart';
+import 'profile_photo.dart';
 
 part 'workspace_entry_pagination.dart';
 
@@ -1165,6 +1166,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     themeControl: widget.themeButton,
     onCapture: _collections.isEmpty ? null : () => _showQuickCapture(),
     onRefresh: _load,
+    account: ProfileAccountButton(name: widget.user.name, onPressed: widget.onEditProfile),
   );
 
   Widget _header(bool wide) => wide ? _topBar() : WorkspaceMobileBar(
@@ -1172,6 +1174,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     themeControl: widget.themeButton == null ? null : Theme(data: Theme.of(context).copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: BrainyNavigationColors.ink(_dark))), child: widget.themeButton!),
     onCapture: _collections.isEmpty ? null : () => _showQuickCapture(),
     onOpenCollections: () => _scaffoldKey.currentState?.openEndDrawer(),
+    account: ProfileAccountButton(name: widget.user.name, onPressed: widget.onEditProfile, showName: false),
   );
 
   Widget _sidebar({bool inDrawer = false}) {

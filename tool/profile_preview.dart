@@ -3,10 +3,12 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:brainy/auth_api.dart';
+import 'package:brainy/app_strings.dart';
 import 'package:brainy/brainy_theme.dart';
 import 'package:brainy/profile_photo.dart';
 import 'package:brainy/profile_screen.dart';
 import 'package:brainy/profile_suggest_field.dart';
+import 'package:brainy/workspace_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -45,6 +47,7 @@ class _PreviewState extends State<_Preview> {
   double _width = 390;
   bool _dark = false;
   int _run = 0;
+  bool _bars = false;
 
   @override
   void initState() {
@@ -101,6 +104,17 @@ class _PreviewState extends State<_Preview> {
         FocusManager.instance.primaryFocus?.unfocus();
       }
     }
+    setState(() => _bars = true);
+    for (final width in [320.0, 1100.0]) {
+      for (final dark in [false, true]) {
+        setState(() {
+          _width = width;
+          _dark = dark;
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        await _shot(output, 'bars-${width.toInt()}-${dark ? 'dark' : 'light'}');
+      }
+    }
     debugPrint('PREVIEW_COMPLETE $output');
     exit(0);
   }
@@ -125,7 +139,27 @@ class _PreviewState extends State<_Preview> {
         ),
       );
     },
-    home: ProfileScreen(
+    home: _bars
+        ? Scaffold(
+            body: Column(children: [
+              WorkspaceMobileBar(
+                languageControl: const LanguageMenu(onDark: true),
+                onCapture: () {},
+                onOpenCollections: () {},
+                account: ProfileAccountButton(name: 'Camille Durand', onPressed: () {}, showName: false),
+              ),
+              const SizedBox(height: 16),
+              if (_width > 900)
+                WorkspaceTopBar(
+                  selectedName: 'Sport',
+                  languageControl: const LanguageMenu(fullName: true),
+                  onCapture: () {},
+                  onRefresh: () async {},
+                  account: ProfileAccountButton(name: 'Camille Durand', onPressed: () {}),
+                ),
+            ]),
+          )
+        : ProfileScreen(
       key: ValueKey(_run),
       user: const AppUser(
         id: 'u',

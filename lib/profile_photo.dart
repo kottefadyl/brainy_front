@@ -287,3 +287,54 @@ class _ProfilePhotoPickerState extends State<ProfilePhotoPicker> {
     );
   }
 }
+
+/// Top bar account button: profile photo (or initial), and the name when
+/// [showName] is true; opens the profile editor.
+class ProfileAccountButton extends StatelessWidget {
+  const ProfileAccountButton({super.key, required this.name, required this.onPressed, this.showName = true});
+  final String name;
+  final VoidCallback? onPressed;
+  final bool showName;
+
+  @override
+  Widget build(BuildContext context) {
+    final copy = AppStrings.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final label = '${copy.text('Edit profile')}: $name';
+    final avatar = ValueListenableBuilder<String?>(
+      valueListenable: profilePhotoNotifier,
+      builder: (context, photo, _) => ProfileAvatar(name: name, photo: photo, size: 34),
+    );
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: label,
+        child: showName
+            ? OutlinedButton(
+                onPressed: onPressed,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.fromLTRB(4, 4, 14, 4),
+                  shape: const StadiumBorder(),
+                  side: BorderSide(color: scheme.outlineVariant),
+                  foregroundColor: scheme.onSurface,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    avatar,
+                    const SizedBox(width: 9),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
+                      child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ),
+              )
+            : IconButton(onPressed: onPressed, padding: const EdgeInsets.all(5), icon: avatar),
+      ),
+    );
+  }
+}

@@ -12,10 +12,12 @@ class WorkspaceMobileBar extends StatelessWidget {
     required this.onCapture,
     required this.onOpenCollections,
     this.themeControl,
+    this.account,
   });
 
   final Widget languageControl;
   final Widget? themeControl;
+  final Widget? account;
   final VoidCallback? onCapture;
   final VoidCallback onOpenCollections;
 
@@ -63,6 +65,7 @@ class WorkspaceMobileBar extends StatelessWidget {
           ),
           languageControl,
           ?themeControl,
+          ?account,
           IconButton(
             tooltip: fr ? 'Ouvrir les collections' : 'Open collections',
             onPressed: onOpenCollections,
@@ -85,11 +88,13 @@ class WorkspaceTopBar extends StatefulWidget {
     required this.onCapture,
     required this.onRefresh,
     this.themeControl,
+    this.account,
   });
 
   final String? selectedName;
   final Widget languageControl;
   final Widget? themeControl;
+  final Widget? account;
   final VoidCallback? onCapture;
   final Future<void> Function() onRefresh;
 
@@ -212,6 +217,10 @@ class _WorkspaceTopBarState extends State<WorkspaceTopBar> {
                 : const Icon(Icons.refresh_rounded, size: 19),
             label: Text(refreshLabel),
           ),
+          if (widget.account != null) ...[
+            const SizedBox(width: 8),
+            widget.account!,
+          ],
         ],
       ),
     );
