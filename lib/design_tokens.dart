@@ -63,9 +63,13 @@ class ChartColors {
     required this.successSoft,
     required this.danger,
     required this.dangerSoft,
+    required this.series,
   });
 
   final Color main, comparison, ink, muted, line, surface;
+
+  /// Up to four series of a cross-tabulation, as `--chart-1` to `--chart-4` on the web.
+  final List<Color> series;
   final Color success, successSoft, danger, dangerSoft;
 
   static const _light = ChartColors._(
@@ -79,6 +83,7 @@ class ChartColors {
     successSoft: Color(0xFFEAF7EF),
     danger: Color(0xFFC8202F),
     dangerSoft: Color(0xFFFDEDEE),
+    series: [Color(0xFF2463CE), Color(0xFF0F8F72), Color(0xFFB9730A), Color(0xFFC2385A)],
   );
   static const _dark = ChartColors._(
     main: Color(0xFF4F8BE6),
@@ -91,6 +96,7 @@ class ChartColors {
     successSoft: Color(0xFF233A2C),
     danger: Color(0xFFFF8A8F),
     dangerSoft: Color(0xFF442A2D),
+    series: [Color(0xFF7FB0FF), Color(0xFF5FD1B2), Color(0xFFF2B968), Color(0xFFF28FA6)],
   );
 
   static ChartColors of(Brightness brightness) => brightness == Brightness.dark ? _dark : _light;

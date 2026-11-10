@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import 'adaptive_form.dart';
 import 'analysis_chart.dart';
+import 'analysis_multi_series_chart.dart';
+import 'chart_math.dart' show MultiSeries, splitCrossTab;
 import 'code_tree.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
@@ -75,6 +77,18 @@ class _InsightsDialogState extends State<_InsightsDialog> {
       measureKind = 'EVENT',
       chart = 'TABLE';
   Map<String, dynamic>? result;
+  Map<String, dynamic>? _multiSource;
+  MultiSeries? _multiCache;
+
+  /// One series per category when the result crosses periods with categories (T23/2).
+  MultiSeries? get _multi {
+    if (!identical(_multiSource, result)) {
+      _multiSource = result;
+      final rows = (result?['rows'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? const <Map<String, dynamic>>[];
+      _multiCache = result == null ? null : splitCrossTab(rows, result!['groupBy'] as String?, result!['secondaryGroupBy'] as String?);
+    }
+    return _multiCache;
+  }
   Map<String, dynamic>? forecastResult;
   String forecastMethod = 'MEAN', forecastFrequency = 'MONTH';
   int forecastHorizon = 3;
@@ -458,15 +472,18 @@ class _InsightsDialogState extends State<_InsightsDialog> {
       0,
       (sum, row) => sum + (double.tryParse(row['value'] as String? ?? '') ?? 0),
     );
+    final multi = _multi;
     final canShowLine =
-        nonnegative &&
-        (groupBy == 'DAY' ||
-            groupBy == 'MONTH' ||
-            const ['CUMULATIVE', 'MOVING_AVERAGE', 'LINEAR_TREND'].contains(operation));
+        multi != null ||
+        (nonnegative &&
+            (groupBy == 'DAY' ||
+                groupBy == 'MONTH' ||
+                const ['CUMULATIVE', 'MOVING_AVERAGE', 'LINEAR_TREND'].contains(operation)));
+    final canShowBar = nonnegative || multi != null;
     final effectiveChart =
         (chart == 'PIE' && (!nonnegative || pieTotal <= 0)) ||
             (chart == 'LINE' && !canShowLine) ||
-            (chart == 'BAR' && !nonnegative)
+            (chart == 'BAR' && !canShowBar)
         ? 'TABLE'
         : chart;
     return Scaffold(
@@ -1121,21 +1138,30 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                       options(
                         [
                           'TABLE',
-                          if (nonnegative) 'BAR',
+                          if (canShowBar) 'BAR',
                           if (canShowLine) 'LINE',
                           if (nonnegative && pieTotal > 0) 'PIE',
                         ],
                         labels: {
                           'TABLE': fr ? 'Tableau' : 'Table',
                           'BAR': fr ? 'Barres' : 'Bars',
-                          'LINE': fr ? 'Courbe' : 'Line',
+                          'LINE': multi != null ? (fr ? 'Courbes' : 'Lines') : (fr ? 'Courbe' : 'Line'),
                           'PIE': fr ? 'Répartition' : 'Shares',
                         },
                       ),
                       (value) => setState(() => chart = value!),
                     ),
                     const SizedBox(height: 12),
-                    if (rows.length == 1 ||
+                    if (multi != null && (effectiveChart == 'BAR' || effectiveChart == 'LINE'))
+                      AnalysisMultiSeriesChart(
+                        multi: multi,
+                        unit: result!['unit'] as String?,
+                        french: fr,
+                        view: effectiveChart == 'LINE' ? ChartView.line : ChartView.bar,
+                        onViewChange: (view) => setState(() => chart = view == ChartView.line ? 'LINE' : 'BAR'),
+                        height: MediaQuery.sizeOf(context).width < 600 ? 230 : 300,
+                      )
+                    else if (rows.length == 1 ||
                         effectiveChart == 'BAR' ||
                         effectiveChart == 'LINE')
                       AnalysisChart(

@@ -397,3 +397,85 @@ String entryCount(int count, bool french) {
   if (french) return '$number ${count > 1 ? 'entrées' : 'entrée'}';
   return '$number ${count == 1 ? 'entry' : 'entries'}';
 }
+
+/// Up to this many series are drawn from a cross-tabulation (T23/2).
+const maxChartSeries = 4;
+
+class ChartSeries {
+  const ChartSeries({required this.key, required this.label, required this.total, required this.points});
+
+  final String key;
+  final String label;
+  final double total;
+
+  /// One slot per period; null when the category has no value in that period.
+  final List<ChartPoint?> points;
+}
+
+class MultiSeries {
+  const MultiSeries({required this.periods, required this.series, required this.hiddenSeries, required this.skippedRows});
+
+  final List<String> periods;
+  final List<ChartSeries> series;
+  final int hiddenSeries;
+  final int skippedRows;
+}
+
+/// Turns a cross-tabulation of periods × categories into one series per
+/// category, all in the same unit. The categories with the largest totals are
+/// drawn; the table keeps every cell. Null when the result has no period axis.
+MultiSeries? splitCrossTab(List<Map<String, dynamic>> rows, String? groupBy, String? secondaryGroupBy) {
+  const periodGroups = {'DAY', 'MONTH'};
+  const seriesGroups = {'CATEGORY', 'OBJECT'};
+  final periodFirst = periodGroups.contains(groupBy) && seriesGroups.contains(secondaryGroupBy);
+  final periodSecond = seriesGroups.contains(groupBy) && periodGroups.contains(secondaryGroupBy);
+  if (!periodFirst && !periodSecond) return null;
+  final cells = <({String period, String key, String label, ChartPoint point})>[];
+  var skippedRows = 0;
+  for (final row in rows) {
+    final rowKey = row['rowKey'] as String?;
+    final columnKey = row['columnKey'] as String?;
+    if (rowKey == null || columnKey == null) return null;
+    final period = periodFirst ? rowKey : columnKey;
+    final key = periodFirst ? columnKey : rowKey;
+    if (_periodDate(period) == null) {
+      skippedRows += 1;
+      continue;
+    }
+    // The API writes "<row label> × <column label>"; a period is written as its own key.
+    final full = (row['label'] ?? row['group']) as String;
+    final label = periodFirst
+        ? (full.startsWith('$period × ') ? full.substring(period.length + 3) : key)
+        : (full.endsWith(' × $period') ? full.substring(0, full.length - period.length - 3) : key);
+    cells.add((period: period, key: key, label: label, point: ChartPoint.fromRow(row)));
+  }
+  final periods = {for (final cell in cells) cell.period}.toList()..sort();
+  if (periods.length < 2) return null;
+  final totals = <String, ({String label, double total})>{};
+  for (final cell in cells) {
+    final current = totals[cell.key];
+    totals[cell.key] = (label: current?.label ?? cell.label, total: (current?.total ?? 0) + cell.point.value.abs());
+  }
+  final chosen = totals.entries.toList()
+    ..sort((a, b) {
+      final byTotal = b.value.total.compareTo(a.value.total);
+      return byTotal != 0 ? byTotal : a.value.label.compareTo(b.value.label);
+    });
+  final position = {for (var index = 0; index < periods.length; index++) periods[index]: index};
+  final series = [
+    for (final entry in chosen.take(maxChartSeries))
+      ChartSeries(
+        key: entry.key,
+        label: entry.value.label,
+        total: entry.value.total,
+        points: () {
+          final points = List<ChartPoint?>.filled(periods.length, null);
+          for (final cell in cells) {
+            if (cell.key == entry.key) points[position[cell.period]!] = cell.point;
+          }
+          return points;
+        }(),
+      ),
+  ];
+  return MultiSeries(periods: periods, series: series, hiddenSeries: totals.length - series.length, skippedRows: skippedRows);
+}
