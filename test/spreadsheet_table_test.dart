@@ -3,6 +3,7 @@ import 'package:brainy/collections_api.dart';
 import 'package:brainy/spreadsheet_table.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -39,10 +40,10 @@ const _collection = BrainyCollection(id: 'c', name: 'Feuille', fields: [], forma
 
 BrainyEntry _entry(String id, Map<String, String> values) => BrainyEntry(id: id, formatId: 'f', values: values, createdAt: DateTime.utc(2026, 11, 3), updatedAt: DateTime.utc(2026, 11, 3));
 
-Future<({_Auth auth, List<BrainyEntry> saved})> _pump(WidgetTester tester, {Locale locale = const Locale('en')}) async {
+Future<({_Auth auth, List<BrainyEntry> saved})> _pump(WidgetTester tester, {Locale locale = const Locale('en'), String viewId = 'v', Size size = const Size(1280, 900), bool turnOn = true}) async {
   final auth = _Auth();
   final saved = <BrainyEntry>[];
-  tester.view.physicalSize = const Size(1280, 900);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(
@@ -52,7 +53,7 @@ Future<({_Auth auth, List<BrainyEntry> saved})> _pump(WidgetTester tester, {Loca
     home: Scaffold(body: SingleChildScrollView(child: SavedViewTable(
       api: CollectionsApi(auth),
       collection: _collection,
-      view: const {'id': 'v', 'layout': 'TABLE', 'formatIds': ['f'], 'columnFieldIds': ['t', 'a']},
+      view: {'id': viewId, 'layout': 'TABLE', 'formatIds': const ['f'], 'columnFieldIds': const ['t', 'a']},
       entries: [_entry('e1', {'t': 'Déjeuner', 'a': '4500', 'p': 'false'}), _entry('e2', {'t': 'Taxi', 'a': '2500'})],
       onOpenEntry: (_) {},
       onEntrySaved: saved.add,
@@ -60,8 +61,9 @@ Future<({_Auth auth, List<BrainyEntry> saved})> _pump(WidgetTester tester, {Loca
       onEditFormat: (_) {},
     ))),
   ));
-  // The on/off choice is remembered per view for the session, so turn it on only when needed.
-  if (find.byKey(const Key('spreadsheet-add-row')).evaluate().isEmpty) {
+  await tester.pumpAndSettle();
+  // The on/off choice is remembered per view, so turn it on only when needed.
+  if (turnOn && find.byKey(const Key('spreadsheet-add-row')).evaluate().isEmpty) {
     await tester.tap(find.byKey(const Key('spreadsheet-switch')));
     await tester.pumpAndSettle();
   }
@@ -71,6 +73,28 @@ Future<({_Auth auth, List<BrainyEntry> saved})> _pump(WidgetTester tester, {Loca
 List<Map<String, dynamic>> _sentValues(_Auth auth) => ((auth.requests.last['input'] as Map<String, dynamic>)['values'] as List<dynamic>).cast<Map<String, dynamic>>();
 
 void main() {
+  setUp(() => FlutterSecureStorage.setMockInitialValues({'brainy.spreadsheet.restarted': 'on'}));
+
+  testWidgets('the mode chosen before a restart is restored, and a change is saved on the device', (tester) async {
+    await _pump(tester, viewId: 'restarted', turnOn: false);
+    expect(find.byKey(const Key('spreadsheet-add-row')), findsOneWidget, reason: 'the stored "on" opens the sheet directly');
+    await tester.tap(find.byKey(const Key('spreadsheet-switch')));
+    await tester.pumpAndSettle();
+    expect(await const FlutterSecureStorage().read(key: 'brainy.spreadsheet.restarted'), 'off');
+  });
+
+  testWidgets('row numbers stay in place while the cells scroll sideways', (tester) async {
+    await _pump(tester, viewId: 'narrow', size: const Size(320, 800));
+    final numbers = find.byKey(const Key('spreadsheet-row-numbers'));
+    final before = tester.getTopLeft(numbers);
+    final firstCell = tester.getTopLeft(find.byKey(const Key('sheet-cell-0-0')));
+    await tester.drag(find.byKey(const Key('sheet-cell-0-1')), const Offset(-200, 0));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(numbers), before, reason: 'the number column does not move');
+    expect(tester.getTopLeft(find.byKey(const Key('sheet-cell-0-0'))).dx, lessThan(firstCell.dx), reason: 'the cells did scroll');
+    expect(find.text('1'), findsOneWidget, reason: 'row 1 is still numbered on screen');
+  });
+
   group('cell rules', () {
     const number = BrainyField(id: 'n', name: 'N', kind: BrainyFieldKind.number);
     test('a French decimal is stored with a point and refused when not a number', () {

@@ -3,6 +3,7 @@
 // columns are added to the data format with an explicit unit choice.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'app_strings.dart';
 import 'collections_api.dart';
@@ -110,8 +111,10 @@ String? sheetColumnProblem(BrainyFormat format, {required String name, required 
   return null;
 }
 
-// The choice is remembered per view for this session (no preference storage on this client yet).
+// The choice is kept per view: in memory for an instant display, and on the device so it
+// survives a restart (same storage as the quick entry templates).
 final _sheetModeByView = <String, bool>{};
+String _sheetModeKey(String viewId) => 'brainy.spreadsheet.$viewId';
 
 class SavedViewTable extends StatefulWidget {
   const SavedViewTable({
@@ -124,7 +127,9 @@ class SavedViewTable extends StatefulWidget {
     required this.onEntrySaved,
     required this.onCollectionChanged,
     required this.onEditFormat,
+    this.storage = const FlutterSecureStorage(),
   });
+  final FlutterSecureStorage storage;
   final CollectionsApi api;
   final BrainyCollection collection;
   final Map<String, dynamic> view;
@@ -141,6 +146,28 @@ class SavedViewTable extends StatefulWidget {
 class _SavedViewTableState extends State<SavedViewTable> {
   String get _viewId => widget.view['id'] as String? ?? '';
   late bool _sheet = _sheetModeByView[_viewId] ?? false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_sheetModeByView.containsKey(_viewId)) _restore();
+  }
+
+  Future<void> _restore() async {
+    try {
+      final saved = await widget.storage.read(key: _sheetModeKey(_viewId));
+      if (saved == null || !mounted || _sheetModeByView.containsKey(_viewId)) return;
+      _sheetModeByView[_viewId] = saved == 'on';
+      setState(() => _sheet = saved == 'on');
+    } catch (_) {
+      // Unreadable storage: the sheet simply starts off.
+    }
+  }
+
+  void _setSheet(bool value) {
+    setState(() { _sheet = value; _sheetModeByView[_viewId] = value; });
+    widget.storage.write(key: _sheetModeKey(_viewId), value: value ? 'on' : 'off').catchError((_) {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +189,7 @@ class _SavedViewTableState extends State<SavedViewTable> {
                 secondary: const Icon(Icons.table_chart_outlined),
                 title: Text(fr ? 'Mode tableur' : 'Spreadsheet mode', style: const TextStyle(fontWeight: FontWeight.w600)),
                 value: _sheet,
-                onChanged: (value) => setState(() { _sheet = value; _sheetModeByView[_viewId] = value; }),
+                onChanged: _setSheet,
               ),
             ),
             Text(
@@ -408,6 +435,9 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
     final fields = format.fields;
     final canAddColumn = format.linkedSource == null && fields.length < 30;
     final border = BorderSide(color: scheme.outlineVariant);
+    // One height per row, shared by the fixed numbers and the scrolling cells so they stay aligned;
+    // a long text being edited gets room for four lines.
+    double heightOf(int row) => _editing && row == _row && _editorKind(fields[_col], _entryAt(row)) == SheetEditor.longText ? 128 : _rowHeight;
 
     Widget headerCell(BrainyField field) => Container(
       width: _cellWidth, height: 56, padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -475,8 +505,7 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
           // selected cell edits it, which a double click also does.
           onTap: editing ? null : () { if (selected || field.kind == BrainyFieldKind.boolean) { _start(row, col); } else { _select(row, col); } },
           child: Container(
-            width: _cellWidth, height: kind == SheetEditor.longText && editing ? null : _rowHeight,
-            constraints: const BoxConstraints(minHeight: _rowHeight),
+            width: _cellWidth, height: heightOf(row),
             decoration: BoxDecoration(
               color: _locked(entry) ? scheme.surfaceContainerLow : editing ? scheme.surfaceContainerHighest : scheme.surface,
               border: Border(right: border, bottom: border),
@@ -519,13 +548,20 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
               // Non-uniform border colours cannot be rounded in Flutter, so the sheet keeps square corners.
               border: Border(top: BorderSide(color: _formatColor(format.color, scheme), width: 3), left: border),
             ),
-            child: SingleChildScrollView(
+            // The row numbers stay in place while the cells scroll sideways, as in a spreadsheet.
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Column(key: const Key('spreadsheet-row-numbers'), children: [
+                Container(width: _numberWidth, height: 56, alignment: Alignment.center, decoration: BoxDecoration(color: scheme.surfaceContainerHigh, border: Border(right: border, bottom: border)), child: const Text('#')),
+                for (var row = 0; row < _rowCount; row++)
+                  Container(width: _numberWidth, height: heightOf(row), alignment: Alignment.center, decoration: BoxDecoration(color: scheme.surfaceContainerHigh, border: Border(right: border, bottom: border)), child: Text(row < rows.length ? '${row + 1}' : '*', style: Theme.of(context).textTheme.bodySmall)),
+              ]),
+              Expanded(
+                child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Container(width: _numberWidth, height: 56, alignment: Alignment.center, decoration: BoxDecoration(color: scheme.surfaceContainerHigh, border: Border(right: border, bottom: border)), child: const Text('#')),
                     for (final field in fields) headerCell(field),
                     Container(
                       height: 56, padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -543,16 +579,17 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
                   ]),
                   for (var row = 0; row < _rowCount; row++)
                     Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Container(width: _numberWidth, height: _rowHeight, alignment: Alignment.center, decoration: BoxDecoration(color: scheme.surfaceContainerHigh, border: Border(right: border, bottom: border)), child: Text(row < rows.length ? '${row + 1}' : '*', style: Theme.of(context).textTheme.bodySmall)),
                       for (var col = 0; col < fields.length; col++) cell(row, col),
                       SizedBox(
-                        width: 56, height: _rowHeight,
+                        width: 56, height: heightOf(row),
                         child: row < rows.length ? IconButton(tooltip: fr ? 'Ouvrir la ligne ${row + 1}' : 'Open row ${row + 1}', icon: const Icon(Icons.open_in_new, size: 18), onPressed: () => t.onOpenEntry(rows[row])) : null,
                       ),
                     ]),
                 ],
               ),
             ),
+              ),
+            ]),
           ),
         ),
         const SizedBox(height: 10),
