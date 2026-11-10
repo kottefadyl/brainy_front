@@ -78,6 +78,12 @@ class AppStrings {
     if (message.contains('Add at least one interest or hobby')) {
       return text('Add at least one interest or hobby.');
     }
+    if (message.contains('Profile photo must be at most')) {
+      return text('This photo can’t be reduced below 1 MB. Choose a smaller one.');
+    }
+    if (message.contains('Profile photo must be a')) {
+      return text('This image can’t be read. Choose a JPEG, PNG or WebP photo.');
+    }
     if (message.contains('can have at most 12 items') ||
         message.contains('items must be at most 60 characters')) {
       return text(
@@ -324,6 +330,26 @@ class AppStrings {
     'Hobbies': 'Loisirs',
     'Optional': 'Facultatif',
     'Separate items with commas': 'Séparez les éléments par des virgules',
+    'Profile photo': 'Photo de profil',
+    'Choose a photo': 'Choisir une photo',
+    'Change photo': 'Changer la photo',
+    'Remove photo': 'Retirer la photo',
+    'Preparing photo…': 'Préparation de la photo…',
+    'JPEG, PNG or WebP. Photos over 1 MB are compressed automatically.':
+        'JPEG, PNG ou WebP. Les photos de plus de 1 Mo sont compressées automatiquement.',
+    'Photo compressed to {size} to fit the 1 MB limit.':
+        'Photo compressée à {size} pour respecter la limite de 1 Mo.',
+    'This image can’t be read. Choose a JPEG, PNG or WebP photo.':
+        'Cette image est illisible. Choisissez une photo JPEG, PNG ou WebP.',
+    'This photo can’t be reduced below 1 MB. Choose a smaller one.':
+        'Cette photo ne peut pas descendre sous 1 Mo. Choisissez-en une plus petite.',
+    'Choose from the list or type your own.':
+        'Choisissez dans la liste ou saisissez votre propre réponse.',
+    'Choose from the list or type your own. A comma adds exactly what you typed.':
+        'Choisissez dans la liste ou saisissez votre propre réponse. Une virgule ajoute exactement votre saisie.',
+    'Add “{value}”': 'Ajouter « {value} »',
+    'Remove {item}': 'Retirer {item}',
+    'Search or type…': 'Rechercher ou saisir…',
     'Add at least one interest or hobby.':
         'Ajoutez au moins un centre d’intérêt ou un loisir.',
     'Add at least one interest or hobby':

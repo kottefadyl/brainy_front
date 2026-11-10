@@ -15,6 +15,7 @@ class AppUser {
     this.interests = const [],
     this.hobbies = const [],
     this.profileCompleted = false,
+    this.hasProfilePhoto = false,
   });
 
   final String id;
@@ -26,6 +27,7 @@ class AppUser {
   final List<String> interests;
   final List<String> hobbies;
   final bool profileCompleted;
+  final bool hasProfilePhoto;
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
     id: json['id'] as String,
@@ -37,6 +39,7 @@ class AppUser {
     interests: (json['interests'] as List<dynamic>? ?? []).cast<String>(),
     hobbies: (json['hobbies'] as List<dynamic>? ?? []).cast<String>(),
     profileCompleted: json['profileCompleted'] as bool? ?? false,
+    hasProfilePhoto: json['hasProfilePhoto'] as bool? ?? false,
   );
 }
 
@@ -48,7 +51,7 @@ class AuthApi {
   static const _tokenKey = 'brainy_session';
   static const _configuredUrl = String.fromEnvironment('API_URL');
   static const _userFields =
-      'id name email profession job fieldOfStudy interests hobbies profileCompleted';
+      'id name email profession job fieldOfStudy interests hobbies profileCompleted hasProfilePhoto';
   final http.Client _client;
   final FlutterSecureStorage _storage;
 
@@ -128,6 +131,22 @@ class AuthApi {
       },
     );
     return AppUser.fromJson(data['updateProfile'] as Map<String, dynamic>);
+  }
+
+  /// The signed-in user's profile photo as a data URL, or null.
+  Future<String?> profilePhoto() async {
+    final data = await authenticatedRequest('query { profilePhoto }', {});
+    return data['profilePhoto'] as String?;
+  }
+
+  /// Saves a profile photo data URL (at most 1 MiB), or removes it with null.
+  Future<AppUser> updateProfilePhoto(String? photo) async {
+    final data = await authenticatedRequest(
+      'mutation UpdateProfilePhoto(\$photo: String) { updateProfilePhoto(photo: \$photo) { $_userFields } }',
+      {'photo': photo},
+      timeout: const Duration(seconds: 30),
+    );
+    return AppUser.fromJson(data['updateProfilePhoto'] as Map<String, dynamic>);
   }
 
   Future<Map<String, dynamic>> authenticatedRequest(

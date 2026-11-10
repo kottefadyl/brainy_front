@@ -4,6 +4,7 @@ import 'app_strings.dart';
 import 'collections_api.dart';
 import 'design_tokens.dart';
 import 'workspace_accents.dart';
+import 'profile_photo.dart';
 
 class WorkspaceNavigation extends StatefulWidget {
   const WorkspaceNavigation({
@@ -481,26 +482,15 @@ class _AccountFooter extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 10, 8, 12),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: dark
-                    ? const [BrainyColors.darkPrimary, Color(0xFF22A55A)]
-                    : const [Color(0xFFFFD166), Color(0xFFFF9AA0)],
-              ),
-            ),
-            child: Text(
-              name.isEmpty ? '?' : name.characters.first.toUpperCase(),
-              style: TextStyle(
-                color: dark ? Colors.white : const Color(0xFF0A2A6B),
-                fontWeight: FontWeight.w700,
-              ),
+          ValueListenableBuilder<String?>(
+            valueListenable: profilePhotoNotifier,
+            builder: (context, photo, _) => ProfileAvatar(
+              name: name,
+              photo: photo,
+              gradient: dark
+                  ? const [BrainyColors.darkPrimary, Color(0xFF22A55A)]
+                  : const [Color(0xFFFFD166), Color(0xFFFF9AA0)],
+              initialColor: dark ? Colors.white : const Color(0xFF0A2A6B),
             ),
           ),
           const SizedBox(width: 10),

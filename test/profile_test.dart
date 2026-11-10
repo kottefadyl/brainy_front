@@ -98,14 +98,17 @@ void main() {
         alignment: 0.3,
       );
       await tester.pumpAndSettle();
-      await tester.enterText(hobbyField, 'Drawing');
+      await tester.enterText(hobbyField, 'Dess');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dessin').last);
+      await tester.pumpAndSettle();
       final submit = find.text('Continuer vers l’espace');
       await Scrollable.ensureVisible(tester.element(submit), alignment: 0.5);
       await tester.pumpAndSettle();
       await tester.tap(submit);
       await tester.pumpAndSettle();
       expect(api.submitted?['interests'], ['Design', 'Books']);
-      expect(api.submitted?['hobbies'], ['Drawing']);
+      expect(api.submitted?['hobbies'], ['Dessin']);
       expect(saved?.profileCompleted, true);
       expect(tester.takeException(), isNull);
     });

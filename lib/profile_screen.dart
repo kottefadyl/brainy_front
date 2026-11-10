@@ -4,6 +4,9 @@ import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'auth_api.dart';
 import 'brand_assets.dart';
+import 'profile_photo.dart';
+import 'profile_suggest_field.dart';
+import 'profile_suggestions.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -34,21 +37,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final _profession = TextEditingController(text: widget.user.profession);
   late final _job = TextEditingController(text: widget.user.job);
   late final _study = TextEditingController(text: widget.user.fieldOfStudy);
-  late final _interests = TextEditingController(
-    text: widget.user.interests.join(', '),
-  );
-  late final _hobbies = TextEditingController(
-    text: widget.user.hobbies.join(', '),
-  );
+  late List<String> _interests = [...widget.user.interests];
+  late List<String> _hobbies = [...widget.user.hobbies];
+  final String? _savedPhoto = profilePhotoNotifier.value;
+  late String? _photo = _savedPhoto;
+  bool _photoBusy = false;
   bool _saving = false;
   String? _error;
 
   String _t(String text) => AppStrings.of(context).text(text);
-  List<String> _items(String value) => value
-      .split(RegExp(r'[,;\n]'))
-      .map((item) => item.trim())
-      .where((item) => item.isNotEmpty)
-      .toList();
 
   @override
   void dispose() {
@@ -57,8 +54,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _profession,
       _job,
       _study,
-      _interests,
-      _hobbies,
     ]) {
       controller.dispose();
     }
@@ -66,8 +61,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _save() async {
-    final interests = _items(_interests.text);
-    final hobbies = _items(_hobbies.text);
+    // Leaving the chip fields adds any text still typed in them.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    final interests = _interests;
+    final hobbies = _hobbies;
     if (_name.text.trim().length < 2) {
       setState(() => _error = 'Use 2 to 80 characters for your name.');
       return;
@@ -98,6 +97,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _error = null;
     });
     try {
+      if (_photo != _savedPhoto) {
+        await widget.api.updateProfilePhoto(_photo);
+        profilePhotoNotifier.value = _photo;
+      }
       final user = await widget.api.updateProfile(
         name: _name.text.trim(),
         profession: _profession.text.trim(),
@@ -231,20 +234,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: TextStyle(color: muted, fontSize: 12),
                           ),
                           const SizedBox(height: 26),
+                          ListenableBuilder(
+                            listenable: _name,
+                            builder: (context, _) => ProfilePhotoPicker(
+                              name: _name.text,
+                              photo: _photo,
+                              onChanged: (photo) => setState(() => _photo = photo),
+                              onBusy: (busy) => setState(() => _photoBusy = busy),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
                           _field(_t('Your name'), _name, maxLength: 80),
                           const SizedBox(height: 8),
-                          _field(
-                            _t('Profession'),
-                            _profession,
+                          SuggestTextField(
+                            label: _t('Profession'),
+                            controller: _profession,
+                            suggestions: occupationSuggestions,
                             optional: true,
-                            maxLength: 100,
                           ),
                           const SizedBox(height: 8),
-                          _field(
-                            _t('Current job or role'),
-                            _job,
+                          SuggestTextField(
+                            label: _t('Current job or role'),
+                            controller: _job,
+                            suggestions: occupationSuggestions,
                             optional: true,
-                            maxLength: 100,
                           ),
                           const SizedBox(height: 8),
                           _field(
@@ -254,20 +267,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             maxLength: 100,
                           ),
                           const SizedBox(height: 8),
-                          _field(
-                            _t('Interests'),
-                            _interests,
-                            hint: _t('Separate items with commas'),
-                            maxLength: 730,
-                            lines: 2,
+                          SuggestTagsField(
+                            label: _t('Interests'),
+                            values: _interests,
+                            suggestions: interestSuggestions,
+                            onChanged: (values) => setState(() => _interests = values),
                           ),
-                          const SizedBox(height: 8),
-                          _field(
-                            _t('Hobbies'),
-                            _hobbies,
-                            hint: _t('Separate items with commas'),
-                            maxLength: 730,
-                            lines: 2,
+                          const SizedBox(height: 14),
+                          SuggestTagsField(
+                            label: _t('Hobbies'),
+                            values: _hobbies,
+                            suggestions: hobbySuggestions,
+                            onChanged: (values) => setState(() => _hobbies = values),
                           ),
                           if (_error != null)
                             Padding(
@@ -290,7 +301,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: Text(_t('Cancel')),
                                 ),
                               FilledButton.icon(
-                                onPressed: _saving ? null : _save,
+                                onPressed: _saving || _photoBusy ? null : _save,
                                 icon: const Icon(Icons.arrow_forward_rounded),
                                 label: Text(
                                   _t(

@@ -11,6 +11,7 @@ import 'auth_screen.dart';
 import 'google_auth.dart';
 import 'profile_screen.dart';
 import 'workspace_screen.dart' as workspace;
+import 'profile_photo.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -100,6 +101,7 @@ class _BrainyAppState extends State<BrainyApp> {
     try {
       final user = await _api.restoreSession();
       if (mounted) setState(() => _user = user);
+      unawaited(refreshProfilePhoto(_api, user));
     } catch (_) {
       // A stored session can expire or the API can be offline.
     } finally {
@@ -119,6 +121,7 @@ class _BrainyAppState extends State<BrainyApp> {
         _user = null;
         _editingProfile = false;
       });
+      profilePhotoNotifier.value = null;
     }
   }
 
@@ -152,7 +155,10 @@ class _BrainyAppState extends State<BrainyApp> {
                 onPressed: _toggleTheme,
                 onDarkBackground: true,
               ),
-              onAuthenticated: (user) => setState(() => _user = user),
+              onAuthenticated: (user) {
+                setState(() => _user = user);
+                unawaited(refreshProfilePhoto(_api, user));
+              },
             )
           : !_user!.profileCompleted || _editingProfile
           ? ProfileScreen(
