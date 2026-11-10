@@ -21,6 +21,7 @@ import 'app_strings.dart';
 import 'code_picker.dart';
 import 'referentials_api.dart';
 import 'collections_api.dart';
+import 'spreadsheet_table.dart';
 import 'collection_copy_dialog.dart';
 import 'linked_format_dialog.dart';
 import 'saved_view_dialog.dart';
@@ -1587,56 +1588,16 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       );
     }
     if (view?['layout'] == 'TABLE') {
-      final ids = (view?['columnFieldIds'] as List<dynamic>? ?? const [])
-          .cast<String>();
-      final fields = collection.formats
-          .expand((format) => format.fields)
-          .toList();
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columns: [
-            DataColumn(label: Text(_t('Data format'))),
-            DataColumn(label: Text(_t('Created'))),
-            for (final id in ids)
-              DataColumn(
-                label: Text(
-                  fields.where((field) => field.id == id).firstOrNull?.name ??
-                      id,
-                ),
-              ),
-            DataColumn(label: Text(_t('Action'))),
-          ],
-          rows: [
-            for (final entry in _entries)
-              DataRow(
-                cells: [
-                  DataCell(Text(collection.formatFor(entry).name)),
-                  DataCell(
-                    Text(
-                      MaterialLocalizations.of(context)
-                          .formatMediumDate(entry.createdAt.toLocal()),
-                    ),
-                  ),
-                  for (final id in ids)
-                    DataCell(
-                      Text(
-                        switch ((fields.where((field) => field.id == id).firstOrNull, entry.values[id])) {
-                          (final BrainyField field, final String value) => displayEntryValue(field, value, AppStrings.of(context), snapshot: entry.unitSnapshots[id], collection: collection),
-                          (_, final value) => value ?? '—',
-                        },
-                      ),
-                    ),
-                  DataCell(
-                    TextButton(
-                      onPressed: () => _editEntry(entry),
-                      child: Text(collection.formatFor(entry).appendOnly ? (_copy.isFrench ? 'Ouvrir le registre' : 'Open register') : _t('Edit')),
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
+      return SavedViewTable(
+        key: ValueKey('table-${view!['id']}'),
+        api: _api,
+        collection: collection,
+        view: view,
+        entries: _entries,
+        onOpenEntry: _editEntry,
+        onEntrySaved: (saved) => setState(() => _entries = _entries.any((item) => item.id == saved.id) ? [for (final item in _entries) item.id == saved.id ? saved : item] : [..._entries, saved]),
+        onCollectionChanged: (updated) => setState(() => _collections = [for (final item in _collections) item.id == updated.id ? updated : item]),
+        onEditFormat: _editFormat,
       );
     }
     final groups = view?['groupByFormat'] == true
