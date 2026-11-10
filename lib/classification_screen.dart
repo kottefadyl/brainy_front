@@ -17,11 +17,13 @@ Future<bool> showClassificationScreen(BuildContext context, CollectionsApi api, 
 }
 
 class ClassificationScreen extends StatefulWidget {
-  const ClassificationScreen({super.key, required this.api, required this.collection, required this.targets, required this.french});
+  const ClassificationScreen({super.key, required this.api, required this.collection, required this.targets, required this.french, this.initialListId});
   final CollectionsApi api;
   final BrainyCollection collection;
   final List<BrainyCollection> targets;
   final bool french;
+  /// The list opened first; none (a new list) by default.
+  final String? initialListId;
   @override State<ClassificationScreen> createState() => _ClassificationScreenState();
 }
 
@@ -37,14 +39,22 @@ class _ClassificationScreenState extends State<ClassificationScreen> {
   String t(String french, String english) => widget.french ? french : english;
   Map<String, dynamic>? get selected { for (final item in collection.codeLists) { if (item['id'] == listId) return item; } return null; }
 
+  @override void initState() {
+    super.initState();
+    final first = widget.initialListId;
+    if (first != null) _open(collection.codeLists.where((item) => item['id'] == first).firstOrNull);
+  }
+
   @override void dispose() { name.dispose(); super.dispose(); }
 
-  void choose(Map<String, dynamic>? item) => setState(() {
+  void choose(Map<String, dynamic>? item) => setState(() => _open(item));
+
+  void _open(Map<String, dynamic>? item) {
     listId = item?['id'] as String?;
     name.text = item?['name'] as String? ?? '';
     codes = (item?['codes'] as List<dynamic>? ?? []).map((entry) => Map<String, dynamic>.from(entry as Map<String, dynamic>)).toList();
     error = null; notice = null;
-  });
+  }
 
   Future<void> save() async {
     setState(() { busy = true; error = null; });
