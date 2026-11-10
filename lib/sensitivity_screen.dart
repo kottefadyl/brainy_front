@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'audit_log_screen.dart';
 import 'collections_api.dart';
 
 Future<bool> showSensitivityScreen(BuildContext context, CollectionsApi api,
@@ -105,6 +106,17 @@ class _SensitivityScreenState extends State<_SensitivityScreen> {
                     ),
             ]),
         if (error != null) Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        const SizedBox(height: 20),
+        Text(t('Journal', 'Journal'), style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Text(t('Qui a demandé quelle analyse sensible, les refus et les alertes sur des questions répétées. Aucune valeur n’y figure.',
+          'Who asked which sensitive analysis, the refusals and the alerts on repeated questions. No value is kept there.')),
+        const SizedBox(height: 8),
+        Align(alignment: Alignment.centerLeft, child: OutlinedButton.icon(
+          key: const ValueKey('open-audit-log'),
+          onPressed: () => showAuditLogScreen(context, widget.api, current, french: widget.french),
+          icon: const Icon(Icons.history_rounded),
+          label: Text(t('Ouvrir le journal', 'Open the journal')))),
       ]))),
   );
 }

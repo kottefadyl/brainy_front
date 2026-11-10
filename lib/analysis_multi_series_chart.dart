@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'analysis_chart.dart' show ChartView;
+import 'chart_export.dart';
 import 'chart_math.dart';
 import 'chart_zoom.dart';
 import 'design_tokens.dart';
@@ -27,10 +28,22 @@ class AnalysisMultiSeriesChart extends StatefulWidget {
     required this.onViewChange,
     required this.height,
     this.unit,
+    this.rows = const [],
+    this.title,
+    this.views = const [ChartView.line, ChartView.bar],
   });
 
   final MultiSeries multi;
+
+  /// The views offered by the switch; stacked areas only when every value is non-negative.
+  final List<ChartView> views;
   final String? unit;
+
+  /// Every cell of the cross-tabulation, for the CSV export.
+  final List<Map<String, dynamic>> rows;
+
+  /// Heading of the exported image.
+  final String? title;
   final bool french;
   final ChartView view;
   final ValueChanged<ChartView> onViewChange;
@@ -47,6 +60,41 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
   bool _showFocus = false;
   int _rove = 0;
   late final ChartZoom _zoom;
+  ChartExportOutcome? _exportOutcome;
+
+  Future<Uint8List> _png() {
+    final french = widget.french;
+    final colors = ChartColors.of(Brightness.light);
+    final size = Size(chartExportWidth, widget.height);
+    final visible = _visible;
+    final geometry = _Geometry(
+      size: size,
+      multi: widget.multi,
+      visible: visible,
+      kept: _kept(visible),
+      window: _zoom.window,
+      line: widget.view == ChartView.line,
+      stacked: widget.view == ChartView.stacked,
+      french: french,
+      characterScale: 1,
+    );
+    return chartReportPng(
+      title: widget.title ?? (french ? 'Résultats par période' : 'Results by period'),
+      plot: size,
+      legend: [for (final index in visible) ChartReportLegendItem(widget.multi.series[index].label, colors.series[index], dashed: _dashes[index] != null)],
+      paintPlot: (canvas, size) => _SeriesPainter(geometry, colors).paint(canvas, size),
+    );
+  }
+
+  Future<void> _export(ChartExportKind kind) async {
+    final french = widget.french;
+    final name = chartExportBaseName();
+    final outcome = switch (kind) {
+      ChartExportKind.png => await runChartExport(french, _png, '$name.png'),
+      ChartExportKind.csv => await runChartExport(french, () async => csvBytes(chartCsv(widget.rows, const [], widget.unit, french)), '$name.csv'),
+    };
+    if (mounted) setState(() => _exportOutcome = outcome);
+  }
 
   @override
   void initState() {
@@ -141,6 +189,8 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
     fullChartLabel(widget.multi.periods[period], widget.french),
     for (final series in visible)
       '${widget.multi.series[series].label} : ${_valueText(widget.multi.series[series].points[period])}',
+    if (widget.view == ChartView.stacked)
+      'Total : ${formatChartValue(visible.fold<double>(0, (sum, series) => sum + math.max(0, widget.multi.series[series].points[period]?.value ?? 0)), widget.unit, widget.french)}',
   ].join(' · ');
 
   @override
@@ -167,10 +217,12 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
               children: [
                 if (multi.periods.length > minZoomPoints) ChartZoomButtons(zoom: _zoom, french: french),
                 _viewSwitch(theme),
+                ChartExportMenu(french: french, onExport: _export),
               ],
             ),
           ],
         ),
+        ChartExportNote(_exportOutcome),
         const SizedBox(height: 4),
         SizedBox(
           height: widget.height,
@@ -184,6 +236,7 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
                 kept: kept,
                 window: _zoom.window,
                 line: widget.view == ChartView.line,
+                stacked: widget.view == ChartView.stacked,
                 french: french,
                 characterScale: characterScale,
               ),
@@ -304,8 +357,9 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        button(ChartView.line, french ? 'Courbes' : 'Lines', Icons.show_chart_rounded),
-        button(ChartView.bar, french ? 'Barres' : 'Bars', Icons.bar_chart_rounded),
+        if (widget.views.contains(ChartView.line)) button(ChartView.line, french ? 'Courbes' : 'Lines', Icons.show_chart_rounded),
+        if (widget.views.contains(ChartView.bar)) button(ChartView.bar, french ? 'Barres' : 'Bars', Icons.bar_chart_rounded),
+        if (widget.views.contains(ChartView.stacked)) button(ChartView.stacked, french ? 'Aires empilées' : 'Stacked areas', Icons.area_chart_rounded),
       ],
     );
   }
@@ -410,6 +464,7 @@ class _AnalysisMultiSeriesChartState extends State<AnalysisMultiSeriesChart> {
                               colors: colors,
                               french: french,
                               valueText: _valueText,
+                              total: geometry.stacked ? formatChartValue(geometry.tops.last[active], widget.unit, french) : null,
                             ),
                           );
                         },
@@ -435,20 +490,26 @@ class _Geometry {
     required this.kept,
     required ChartWindow window,
     required this.line,
+    this.stacked = false,
     required this.french,
     required this.characterScale,
-  }) : scale = niceScale([
-         for (final series in visible)
-           for (final point in multi.series[series].points.sublist(window.start, window.end))
-             if (point != null) point.value,
-       ]) {
+  }) : tops = stackedTops([for (final series in visible) multi.series[series]], kept),
+       scale = niceScale(
+         stacked
+             ? [0, ...stackedTops([for (final series in visible) multi.series[series]], kept).last]
+             : [
+                 for (final series in visible)
+                   for (final point in multi.series[series].points.sublist(window.start, window.end))
+                     if (point != null) point.value,
+               ],
+       ) {
     final longest = scale.ticks.fold<int>(0, (size, tick) => math.max(size, compactChartNumber(tick, french).length));
     left = math.min(72, math.max(36, longest * 8 * characterScale + 12));
     plotWidth = math.max(40, size.width - left - right);
     band = plotWidth / kept.length;
     positions = [
       for (var order = 0; order < kept.length; order++)
-        line ? left + order * plotWidth / math.max(1, kept.length - 1) : left + band * (order + 0.5),
+        flowing ? left + order * plotWidth / math.max(1, kept.length - 1) : left + band * (order + 0.5),
     ];
     ticks = chooseAxisTicks([for (final index in kept) multi.periods[index]], positions, french, characterWidth: 7 * characterScale);
     axis = size.height - 34;
@@ -463,9 +524,18 @@ class _Geometry {
   final List<int> visible;
   final List<int> kept;
   final bool line;
+
+  /// Stacked areas (T23/1): each series sits on the previous ones.
+  final bool stacked;
+
+  /// Running tops per visible series, in `visible` order, one per kept period.
+  final List<List<double>> tops;
   final bool french;
   final double characterScale;
   final ChartScale scale;
+
+  /// Points spread like a line chart rather than centred in bands.
+  bool get flowing => line || stacked;
   late final double left;
   late final double plotWidth;
   late final double band;
@@ -490,6 +560,7 @@ class _Geometry {
   }
 
   Offset anchorFor(int order) {
+    if (stacked) return Offset(positions[order], y(tops.last[order]));
     final values = [
       for (final series in visible)
         if (multi.series[series].points[kept[order]] != null) multi.series[series].points[kept[order]]!.value,
@@ -637,7 +708,35 @@ class _SeriesPainter extends CustomPainter {
       canvas.drawLine(Offset(g.left, g.y(tick)), Offset(size.width - _Geometry.right, g.y(tick)), grid);
       _text(canvas, compactChartNumber(tick, g.french), Offset(g.left - 6, g.y(tick)), align: TextAlign.right);
     }
-    if (g.line) {
+    if (g.stacked) {
+      for (var at = 0; at < g.visible.length; at++) {
+        final color = colors.series[g.visible[at]];
+        final upper = g.tops[at];
+        final path = Path()..moveTo(g.positions[0], g.y(upper[0]));
+        for (var order = 1; order < upper.length; order++) {
+          path.lineTo(g.positions[order], g.y(upper[order]));
+        }
+        if (at == 0) {
+          path
+            ..lineTo(g.positions.last, g.baseline)
+            ..lineTo(g.positions.first, g.baseline);
+        } else {
+          for (var order = upper.length - 1; order >= 0; order--) {
+            path.lineTo(g.positions[order], g.y(g.tops[at - 1][order]));
+          }
+        }
+        path.close();
+        canvas.drawPath(path, Paint()..color = color.withValues(alpha: 0.55));
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5
+            ..strokeJoin = StrokeJoin.round,
+        );
+      }
+    } else if (g.line) {
       for (final series in g.visible) {
         final color = colors.series[series];
         final stroke = Paint()
@@ -703,6 +802,7 @@ class _SeriesPainter extends CustomPainter {
       !listEquals(old.geometry.visible, geometry.visible) ||
       !listEquals(old.geometry.kept, geometry.kept) ||
       old.geometry.line != geometry.line ||
+      old.geometry.stacked != geometry.stacked ||
       old.geometry.french != geometry.french ||
       old.colors != colors;
 }
@@ -720,7 +820,7 @@ class _SelectionPainter extends CustomPainter {
     final g = geometry;
     if (order == null || order >= g.kept.length) return;
     final x = g.positions[order];
-    if (!g.line) {
+    if (!g.flowing) {
       canvas.drawRect(
         Rect.fromLTRB(x - g.band / 2, _Geometry.top, x + g.band / 2, g.axis),
         Paint()..color = colors.muted.withValues(alpha: 0.14),
@@ -734,9 +834,10 @@ class _SelectionPainter extends CustomPainter {
         ..color = colors.muted
         ..strokeWidth = 1,
     );
-    for (final series in g.visible) {
+    for (var at = 0; at < g.visible.length; at++) {
+      final series = g.visible[at];
       final point = g.multi.series[series].points[g.kept[order]];
-      if (point != null) _drawMarker(canvas, series, Offset(x, g.y(point.value)), 5.5, colors.series[series], colors.surface);
+      if (point != null) _drawMarker(canvas, series, Offset(x, g.y(g.stacked ? g.tops[at][order] : point.value)), 5.5, colors.series[series], colors.surface);
     }
   }
 
@@ -771,7 +872,11 @@ class _Tooltip extends StatelessWidget {
     required this.colors,
     required this.french,
     required this.valueText,
+    this.total,
   });
+
+  /// The stacked total of the period, shown last in stacked areas.
+  final String? total;
 
   final int period;
   final MultiSeries multi;
@@ -820,6 +925,16 @@ class _Tooltip extends StatelessWidget {
                     valueText(multi.series[series].points[period]),
                     style: TextStyle(color: colors.ink, fontSize: 13, fontWeight: FontWeight.w600),
                   ),
+                ],
+              ),
+            ],
+            if (total != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(child: Text('Total', style: TextStyle(color: colors.ink, fontSize: 13, fontWeight: FontWeight.w600))),
+                  const SizedBox(width: 8),
+                  Text(total!, key: const ValueKey('multi-series-total'), style: TextStyle(color: colors.ink, fontSize: 13, fontWeight: FontWeight.w700)),
                 ],
               ),
             ],

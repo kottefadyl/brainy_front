@@ -482,9 +482,11 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                 groupBy == 'MONTH' ||
                 const ['CUMULATIVE', 'MOVING_AVERAGE', 'LINEAR_TREND'].contains(operation)));
     final canShowBar = nonnegative || multi != null;
+    final canStack = multi != null && nonnegative;
     final effectiveChart =
         (chart == 'PIE' && (!nonnegative || pieTotal <= 0)) ||
             (chart == 'LINE' && !canShowLine) ||
+            (chart == 'STACKED' && !canStack) ||
             (chart == 'BAR' && !canShowBar)
         ? 'TABLE'
         : chart;
@@ -1142,25 +1144,30 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                           'TABLE',
                           if (canShowBar) 'BAR',
                           if (canShowLine) 'LINE',
+                          if (canStack) 'STACKED',
                           if (nonnegative && pieTotal > 0) 'PIE',
                         ],
                         labels: {
                           'TABLE': fr ? 'Tableau' : 'Table',
                           'BAR': fr ? 'Barres' : 'Bars',
                           'LINE': multi != null ? (fr ? 'Courbes' : 'Lines') : (fr ? 'Courbe' : 'Line'),
+                          'STACKED': fr ? 'Aires empilées' : 'Stacked areas',
                           'PIE': fr ? 'Répartition' : 'Shares',
                         },
                       ),
                       (value) => setState(() => chart = value!),
                     ),
                     const SizedBox(height: 12),
-                    if (multi != null && (effectiveChart == 'BAR' || effectiveChart == 'LINE'))
+                    if (multi != null && (effectiveChart == 'BAR' || effectiveChart == 'LINE' || effectiveChart == 'STACKED'))
                       AnalysisMultiSeriesChart(
                         multi: multi,
+                        rows: rows,
                         unit: result!['unit'] as String?,
+                        title: '${fr ? 'Résultats' : 'Results'} · ${result!['unit'] ?? (fr ? 'sans unité' : 'no unit')}',
                         french: fr,
-                        view: effectiveChart == 'LINE' ? ChartView.line : ChartView.bar,
-                        onViewChange: (view) => setState(() => chart = view == ChartView.line ? 'LINE' : 'BAR'),
+                        view: effectiveChart == 'LINE' ? ChartView.line : effectiveChart == 'STACKED' ? ChartView.stacked : ChartView.bar,
+                        views: [ChartView.line, ChartView.bar, if (canStack) ChartView.stacked],
+                        onViewChange: (view) => setState(() => chart = view == ChartView.line ? 'LINE' : view == ChartView.stacked ? 'STACKED' : 'BAR'),
                         height: MediaQuery.sizeOf(context).width < 600 ? 230 : 300,
                       )
                     else if (rows.length == 1 ||
@@ -1171,6 +1178,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                         comparisonRows: (result!['comparisonRows'] as List<dynamic>? ?? const [])
                             .cast<Map<String, dynamic>>(),
                         unit: result!['unit'] as String?,
+                        title: '${fr ? 'Résultats' : 'Results'} · ${result!['unit'] ?? (fr ? 'sans unité' : 'no unit')}',
                         french: fr,
                         view: effectiveChart == 'LINE' ? ChartView.line : ChartView.bar,
                         views: [

@@ -479,3 +479,19 @@ MultiSeries? splitCrossTab(List<Map<String, dynamic>> rows, String? groupBy, Str
   ];
   return MultiSeries(periods: periods, series: series, hiddenSeries: totals.length - series.length, skippedRows: skippedRows);
 }
+
+/// Running tops of stacked series (T23/1): `tops[order][i]` is the sum of the
+/// first `order + 1` series at `indices[i]`; a missing or negative value counts
+/// as 0. Same as `stackedTops` on the web.
+List<List<double>> stackedTops(List<ChartSeries> series, List<int> indices) {
+  final tops = <List<double>>[];
+  var previous = List<double>.filled(indices.length, 0);
+  for (final item in series) {
+    final current = [
+      for (var order = 0; order < indices.length; order++) previous[order] + math.max(0, item.points[indices[order]]?.value ?? 0),
+    ];
+    tops.add(current);
+    previous = current;
+  }
+  return tops;
+}

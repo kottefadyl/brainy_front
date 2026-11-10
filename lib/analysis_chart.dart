@@ -6,11 +6,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'analysis_gauge.dart';
+import 'chart_export.dart';
 import 'chart_math.dart';
 import 'chart_zoom.dart';
 import 'design_tokens.dart';
 
-enum ChartView { line, bar }
+enum ChartView { line, bar, stacked }
 
 enum _Series { main, comparison }
 
@@ -27,11 +29,15 @@ class AnalysisChart extends StatefulWidget {
     required this.height,
     this.comparisonRows = const [],
     this.unit,
+    this.title,
   });
 
   final List<Map<String, dynamic>> rows;
   final List<Map<String, dynamic>> comparisonRows;
   final String? unit;
+
+  /// Heading of the exported image; the series name when absent.
+  final String? title;
   final bool french;
   final ChartView view;
   final List<ChartView> views;
@@ -52,6 +58,7 @@ class _AnalysisChartState extends State<AnalysisChart> {
   _Series? _isolated;
   bool _showFocus = false;
   int _rove = 0;
+  ChartExportOutcome? _exportOutcome;
 
   bool get _compared => widget.comparisonRows.isNotEmpty;
   bool get _showMain => _isolated != _Series.comparison;
@@ -152,6 +159,45 @@ class _AnalysisChartState extends State<AnalysisChart> {
     ].join(' · ');
   }
 
+  String get _mainName => '${widget.french ? 'Résultat par groupe' : 'Result by group'}${widget.unit == null ? '' : ' · ${widget.unit}'}';
+
+  /// The report image: the same painter as on screen, light palette, every
+  /// point of the current zoom window at a fixed width.
+  Future<Uint8List> _png() {
+    final french = widget.french;
+    final colors = ChartColors.of(Brightness.light);
+    final size = Size(chartExportWidth, widget.height);
+    final geometry = _ChartGeometry(
+      size: size,
+      slots: _slots,
+      allSlots: _windowSlots,
+      view: widget.view,
+      showMain: _showMain,
+      showComparison: _showComparison,
+      french: french,
+      characterScale: 1,
+    );
+    return chartReportPng(
+      title: widget.title ?? _mainName,
+      plot: size,
+      legend: [
+        if (_showMain) ChartReportLegendItem(_mainName, colors.main),
+        if (_showComparison) ChartReportLegendItem(french ? 'Période comparée' : 'Comparison period', colors.comparison, dashed: true),
+      ],
+      paintPlot: (canvas, size) => _SeriesPainter(geometry, colors).paint(canvas, size),
+    );
+  }
+
+  Future<void> _export(ChartExportKind kind) async {
+    final french = widget.french;
+    final name = chartExportBaseName();
+    final outcome = switch (kind) {
+      ChartExportKind.png => await runChartExport(french, _png, '$name.png'),
+      ChartExportKind.csv => await runChartExport(french, () async => csvBytes(chartCsv(widget.rows, widget.comparisonRows, widget.unit, french)), '$name.csv'),
+    };
+    if (mounted) setState(() => _exportOutcome = outcome);
+  }
+
   @override
   Widget build(BuildContext context) {
     final french = widget.french;
@@ -174,10 +220,12 @@ class _AnalysisChartState extends State<AnalysisChart> {
               children: [
                 if (_allSlots.length > minZoomPoints) ChartZoomButtons(zoom: _zoom, french: french),
                 _viewSwitch(theme),
+                ChartExportMenu(french: french, onExport: _export),
               ],
             ),
           ],
         ),
+        ChartExportNote(_exportOutcome),
         const SizedBox(height: 4),
         SizedBox(
           height: widget.height,
@@ -235,13 +283,14 @@ class _AnalysisChartState extends State<AnalysisChart> {
           style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         Text('${point.label} · ${entryCount(point.count, french)}', style: TextStyle(color: muted, fontSize: 13)),
+        if (point.value.isFinite) KeyFigureGauge(value: point.value, unit: widget.unit, french: french),
       ],
     );
   }
 
   Widget _legend(ThemeData theme, ChartColors colors) {
     final french = widget.french;
-    final mainName = '${french ? 'Résultat par groupe' : 'Result by group'}${widget.unit == null ? '' : ' · ${widget.unit}'}';
+    final mainName = _mainName;
     if (!_compared) {
       return Row(
         mainAxisSize: MainAxisSize.min,
