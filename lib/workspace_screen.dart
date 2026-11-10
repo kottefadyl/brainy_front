@@ -56,6 +56,7 @@ import 'quick_entry_sheet.dart';
 import 'classification_screen.dart';
 import 'geo_map_view.dart';
 import 'geo_field_input.dart';
+import 'platform_capabilities.dart';
 
 part 'workspace_entry_pagination.dart';
 
@@ -170,6 +171,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     super.initState();
     QuickCaptureBridge.install((data) { _queuedShare = data; if (_collections.isNotEmpty) { _queuedShare = null; _showQuickCapture(data); } });
     _load();
+    BrainyPlatform.load(widget.api).then((_) { if (mounted) setState(() {}); });
     _push.refreshIfAuthorized().catchError((Object _) {});
   }
 
@@ -1384,7 +1386,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       if (mounted) await _load();
                     },
                     onMap: _showGeoMap,
-                    onDataSources: () async {
+                    onDataSources: BrainyPlatform.isFrozen('dataSources') ? null : () async {
                       if (await showDataSourcesScreen(context, _api, collection, widget.user.id, french: _copy.isFrench) && mounted) await _load();
                     },
                   ),
@@ -1473,7 +1475,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         collection: collection,
         view: view,
         onEdit: (entry) => _editEntry(entry),
-        onRemind: (entry) => showEntryReminderDialog(
+        onRemind: BrainyPlatform.isFrozen('reminders') ? null : (entry) => showEntryReminderDialog(
           context,
           api: _api,
           collection: collection,
@@ -1559,7 +1561,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         entry.values[priorityId]!,
                         style: const TextStyle(color: _muted),
                       ),
-                    IconButton(
+                    if (!BrainyPlatform.isFrozen('reminders')) IconButton(
                       onPressed: () => showEntryReminderDialog(
                         context,
                         api: _api,
@@ -1997,7 +1999,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     final title = titleField != null ? entry.values[titleField.id]! : firstField != null ? displayEntryValue(firstField, entry.values[firstField.id]!, _copy, snapshot: entry.unitSnapshots[firstField.id], collection: collection) : _displayFormatName(context, format);
     return WorkspaceEntryRow(
       key: ValueKey(entry.id), color: format.color, title: title,
-      formatName: _displayFormatName(context, format), appendOnly: format.appendOnly,
+      formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders'),
       preview: previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
       created: _formatTimestamp(entry.createdAt, compact: true),
       edited: entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2))) ? _formatTimestamp(entry.updatedAt, compact: true) : null,
@@ -3201,11 +3203,11 @@ class _EntryEditorState extends State<_EntryEditor> {
       return;
     }
     if (_attachments.values.fold<int>(0, (sum, bytes) => sum + bytes.length) >
-        8_388_608) {
+        BrainyPlatform.current.maxEntryAttachmentBytes) {
       setState(
         () => _error = _t(
           'Choose a file smaller than 2 MB. An entry can hold at most 8 MB of files.',
-        ),
+        ).replaceAll(RegExp(r'8 (MB|Mo)'), BrainyPlatform.current.attachmentLimit(_copy.isFrench)),
       );
       return;
     }

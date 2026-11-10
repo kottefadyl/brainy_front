@@ -6,6 +6,7 @@ import 'background_jobs_panel.dart';
 import 'collections_api.dart';
 import 'design_tokens.dart';
 import 'workspace_backup_panel.dart';
+import 'platform_capabilities.dart';
 
 Future<void> showWorkspaceToolsDialog(
   BuildContext context, {
@@ -125,11 +126,13 @@ class WorkspaceToolsDialog extends StatelessWidget {
                         onRestored();
                       },
                     ),
-                    const SizedBox(height: 16),
-                    BackgroundJobsPanel(
-                      api: api,
-                      collections: collections,
-                    ),
+                    if (!BrainyPlatform.isFrozen('backgroundJobs')) ...[
+                      const SizedBox(height: 16),
+                      BackgroundJobsPanel(
+                        api: api,
+                        collections: collections,
+                      ),
+                    ],
                   ],
                 ),
               ),

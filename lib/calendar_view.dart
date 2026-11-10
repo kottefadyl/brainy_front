@@ -12,13 +12,14 @@ class CalendarView extends StatefulWidget {
     required this.collection,
     required this.view,
     required this.onEdit,
-    required this.onRemind,
+    this.onRemind,
   });
   final CollectionsApi api;
   final BrainyCollection collection;
   final Map<String, dynamic> view;
   final ValueChanged<BrainyEntry> onEdit;
-  final ValueChanged<BrainyEntry> onRemind;
+  /// Null when reminders are paused on this hosting.
+  final ValueChanged<BrainyEntry>? onRemind;
 
   @override
   State<CalendarView> createState() => _CalendarViewState();
@@ -242,8 +243,8 @@ class _CalendarViewState extends State<CalendarView> {
                           ),
                         ),
                       ),
-                      IconButton(
-                        onPressed: () => widget.onRemind(entry),
+                      if (widget.onRemind != null) IconButton(
+                        onPressed: () => widget.onRemind!(entry),
                         tooltip: _fr ? 'Rappels' : 'Reminders',
                         icon: const Icon(Icons.notifications_outlined),
                       ),

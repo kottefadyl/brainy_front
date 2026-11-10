@@ -17,10 +17,14 @@ class WorkspaceEntryRow extends StatelessWidget {
     this.preview,
     this.edited,
     this.appendOnly = false,
+    this.reminders = true,
   });
   final String color, title, formatName, created;
   final String? preview, edited;
   final bool appendOnly;
+
+  /// False when reminders are paused on this hosting.
+  final bool reminders;
   final VoidCallback onDetails;
   final ValueChanged<String> onAction;
 
@@ -86,7 +90,7 @@ class WorkspaceEntryRow extends StatelessWidget {
                             : copy.text('Edit'),
                       ),
                     ),
-                    PopupMenuItem(
+                    if (reminders) PopupMenuItem(
                       value: 'reminder',
                       child: Text(copy.isFrench ? 'Rappels' : 'Reminders'),
                     ),

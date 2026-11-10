@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'collections_api.dart';
 import 'large_file_api.dart';
+import 'platform_capabilities.dart';
 
 String largeFileStateLabel(String state, bool fr) => switch (state) {
   'AVAILABLE' => fr ? 'Vérifié : intact' : 'Verified: intact',
@@ -98,6 +99,11 @@ class _LargeFileAttachmentFieldState extends State<LargeFileAttachmentField> {
       if (size <= largeFileThreshold) {
         setState(() => _pending = null);
         widget.onSmallFile(file.name, await file.readAsBytes());
+        return;
+      }
+      // Large files need storage and uploads this hosting does not offer.
+      if (BrainyPlatform.isFrozen('largeFiles')) {
+        widget.onError(_t('Choose a file smaller than 2 MB.', 'Choisissez un fichier de moins de 2 Mo.'));
         return;
       }
       await _upload(file);

@@ -10,6 +10,7 @@ import 'code_tree.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 import 'formula_editor_panel.dart';
+import 'platform_capabilities.dart';
 
 Future<BrainyCollection?> showInsightsDialog(
   BuildContext context,
@@ -1078,7 +1079,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                     child: Text(fr ? 'Calculer' : 'Calculate'),
                   ),
                   const SizedBox(height: 8),
-                  Wrap(runSpacing: 8, spacing: 8, children: [
+                  if (!BrainyPlatform.isFrozen('backgroundJobs')) Wrap(runSpacing: 8, spacing: 8, children: [
                     OutlinedButton(onPressed: busy ? null : () => queueAnalysis('RECALCULATE'), child: Text(fr ? 'Recalculer en arrière-plan' : 'Recalculate in background')),
                     OutlinedButton(onPressed: busy ? null : () => queueAnalysis('CHART'), child: Text(fr ? 'Préparer un graphique' : 'Prepare chart')),
                   ]),
@@ -1094,7 +1095,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                   const SizedBox(height: 12),
                   FilledButton.tonal(onPressed: busy || measure == null || measure!.startsWith('formula:') || dateFieldId == null ? null : runForecast, child: Text(fr ? 'Estimer' : 'Estimate')),
                   const SizedBox(height: 8),
-                  OutlinedButton(onPressed: busy || measure == null || measure!.startsWith('formula:') || dateFieldId == null ? null : queueForecast, child: Text(fr ? 'Estimer en arrière-plan' : 'Estimate in background')),
+                  if (!BrainyPlatform.isFrozen('backgroundJobs')) OutlinedButton(onPressed: busy || measure == null || measure!.startsWith('formula:') || dateFieldId == null ? null : queueForecast, child: Text(fr ? 'Estimer en arrière-plan' : 'Estimate in background')),
                   if (backgroundNotice != null) Text(backgroundNotice!),
                   if (forecastResult != null) Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${fr ? 'Sources' : 'Sources'}: ${forecastResult!['sourceFrom']} → ${forecastResult!['sourceTo']}'),
