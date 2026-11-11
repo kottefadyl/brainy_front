@@ -6,10 +6,35 @@ import 'adaptive_form.dart';
 import 'app_strings.dart';
 
 const _accents = {
-  'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ç': 'c',
-  'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e', 'ì': 'i', 'í': 'i', 'î': 'i',
-  'ï': 'i', 'ñ': 'n', 'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o',
-  'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u', 'ý': 'y', 'ÿ': 'y', 'œ': 'oe', 'æ': 'ae',
+  'à': 'a',
+  'á': 'a',
+  'â': 'a',
+  'ã': 'a',
+  'ä': 'a',
+  'å': 'a',
+  'ç': 'c',
+  'è': 'e',
+  'é': 'e',
+  'ê': 'e',
+  'ë': 'e',
+  'ì': 'i',
+  'í': 'i',
+  'î': 'i',
+  'ï': 'i',
+  'ñ': 'n',
+  'ò': 'o',
+  'ó': 'o',
+  'ô': 'o',
+  'õ': 'o',
+  'ö': 'o',
+  'ù': 'u',
+  'ú': 'u',
+  'û': 'u',
+  'ü': 'u',
+  'ý': 'y',
+  'ÿ': 'y',
+  'œ': 'oe',
+  'æ': 'ae',
 };
 
 /// Lower-case, accent-free form used to compare suggestions with typed text.
@@ -28,20 +53,24 @@ List<String> searchProfileSuggestions(
   String query, {
   required bool french,
   Iterable<String> exclude = const [],
-  int limit = 8,
+  int? limit,
 }) {
   final needle = foldSuggestion(query);
-  if (needle.isEmpty) return const [];
   final excluded = exclude.map(foldSuggestion).toSet();
   final ranked = <(String, int)>[];
   for (final (en, fr) in suggestions) {
     final label = french ? fr : en;
     if (excluded.contains(foldSuggestion(label))) continue;
-    var rank = 3;
-    for (final text in [foldSuggestion(en), foldSuggestion(fr)]) {
+    var rank = needle.isEmpty ? 2 : 3;
+    for (final text
+        in needle.isEmpty
+            ? const <String>[]
+            : [foldSuggestion(en), foldSuggestion(fr)]) {
       if (text.startsWith(needle)) {
         rank = math.min(rank, 0);
-      } else if (text.split(RegExp(r'[\s/’\x27-]+')).any((word) => word.startsWith(needle))) {
+      } else if (text
+          .split(RegExp(r'[\s/’\x27-]+'))
+          .any((word) => word.startsWith(needle))) {
         rank = math.min(rank, 1);
       } else if (text.contains(needle)) {
         rank = math.min(rank, 2);
@@ -49,8 +78,10 @@ List<String> searchProfileSuggestions(
     }
     if (rank < 3) ranked.add((label, rank));
   }
-  ranked.sort((a, b) => a.$2 != b.$2 ? a.$2.compareTo(b.$2) : a.$1.compareTo(b.$1));
-  return ranked.take(limit).map((item) => item.$1).toList();
+  ranked.sort(
+    (a, b) => a.$2 != b.$2 ? a.$2.compareTo(b.$2) : a.$1.compareTo(b.$1),
+  );
+  return ranked.take(limit ?? ranked.length).map((item) => item.$1).toList();
 }
 
 class _Option {
@@ -69,50 +100,72 @@ Widget _optionsView(
   final scheme = Theme.of(context).colorScheme;
   final highlighted = AutocompleteHighlightedOption.of(context);
   final items = options.toList();
-  return Align(
-    alignment: Alignment.topLeft,
-    child: Material(
-      elevation: 6,
-      color: scheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: 300, maxWidth: width),
-        child: ListView.builder(
-          padding: const EdgeInsets.all(6),
-          shrinkWrap: true,
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final option = items[index];
-            final active = index == highlighted;
-            return InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => onSelected(option),
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 48),
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: active ? scheme.primary.withValues(alpha: .12) : null,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  option.label,
-                  style: TextStyle(
-                    color: option.typed ? scheme.primary : scheme.onSurface,
-                    fontWeight: option.typed ? FontWeight.w700 : FontWeight.w500,
+  // The gap keeps the field's floating label visible when the list opens upwards.
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: UnconstrainedBox(
+      alignment: AlignmentDirectional.topStart,
+      constrainedAxis: Axis.vertical,
+      child: Material(
+        elevation: 6,
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: 320,
+            maxWidth: width,
+            minWidth: width,
+          ),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(6),
+            shrinkWrap: true,
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final option = items[index];
+              final active = index == highlighted;
+              return InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => onSelected(option),
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? scheme.primary.withValues(alpha: .12)
+                        : null,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    option.label,
+                    style: TextStyle(
+                      color: option.typed ? scheme.primary : scheme.onSurface,
+                      fontWeight: option.typed
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     ),
   );
 }
 
-InputDecoration _decoration(BuildContext context, String label, String hint, {bool optional = false, String? placeholder}) {
+InputDecoration _decoration(
+  BuildContext context,
+  String label,
+  String hint, {
+  bool optional = false,
+  String? placeholder,
+}) {
   final copy = AppStrings.of(context);
   return InputDecoration(
     labelText: optional ? '$label · ${copy.text('Optional')}' : label,
@@ -161,18 +214,36 @@ class _SuggestTextFieldState extends State<SuggestTextField> {
         textEditingController: widget.controller,
         focusNode: _focus,
         displayStringForOption: (option) => option.value,
-        optionsBuilder: (value) => searchProfileSuggestions(widget.suggestions, value.text, french: copy.isFrench)
-            .where((item) => foldSuggestion(item) != foldSuggestion(value.text))
-            .map((item) => _Option(item, item)),
-        optionsViewBuilder: (context, onSelected, options) => _optionsView(context, onSelected, options, constraints.maxWidth),
-        fieldViewBuilder: (context, controller, focusNode, onSubmitted) => TextField(
-          controller: controller,
-          focusNode: focusNode,
-          maxLength: widget.maxLength,
-          buildCounter: quietFormCounter,
-          onSubmitted: (_) => onSubmitted(),
-          decoration: _decoration(context, widget.label, copy.text('Choose from the list or type your own.'), optional: widget.optional),
-        ),
+        optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
+        optionsBuilder: (value) =>
+            searchProfileSuggestions(
+                  widget.suggestions,
+                  value.text,
+                  french: copy.isFrench,
+                )
+                .where(
+                  (item) => foldSuggestion(item) != foldSuggestion(value.text),
+                )
+                .map((item) => _Option(item, item)),
+        optionsViewBuilder: (context, onSelected, options) =>
+            _optionsView(context, onSelected, options, constraints.maxWidth),
+        fieldViewBuilder: (context, controller, focusNode, onSubmitted) =>
+            TextField(
+              controller: controller,
+              focusNode: focusNode,
+              maxLength: widget.maxLength,
+              buildCounter: quietFormCounter,
+              onSubmitted: (_) {
+                // An empty field keeps its value: Enter only picks while searching.
+                if (controller.text.trim().isNotEmpty) onSubmitted();
+              },
+              decoration: _decoration(
+                context,
+                widget.label,
+                copy.text('Choose from the list or type your own.'),
+                optional: widget.optional,
+              ),
+            ),
       ),
     );
   }
@@ -210,7 +281,9 @@ class _SuggestTagsFieldState extends State<SuggestTagsField> {
   void initState() {
     super.initState();
     _focus.addListener(() {
-      if (!_focus.hasFocus && _controller.text.trim().isNotEmpty) _add([_controller.text]);
+      if (!_focus.hasFocus && _controller.text.trim().isNotEmpty) {
+        _add([_controller.text]);
+      }
     });
   }
 
@@ -227,8 +300,11 @@ class _SuggestTagsFieldState extends State<SuggestTagsField> {
     final next = [...widget.values];
     for (final text in raw) {
       final item = text.trim();
-      final cut = item.length > widget.maxLength ? item.substring(0, widget.maxLength) : item;
-      if (cut.isNotEmpty && next.length < widget.maxItems &&
+      final cut = item.length > widget.maxLength
+          ? item.substring(0, widget.maxLength)
+          : item;
+      if (cut.isNotEmpty &&
+          next.length < widget.maxItems &&
           !next.any((value) => foldSuggestion(value) == foldSuggestion(cut))) {
         next.add(cut);
       }
@@ -242,15 +318,22 @@ class _SuggestTagsFieldState extends State<SuggestTagsField> {
     if (parts.length < 2) return;
     final rest = parts.last;
     _add(parts.sublist(0, parts.length - 1));
-    _controller.value = TextEditingValue(text: rest, selection: TextSelection.collapsed(offset: rest.length));
+    _controller.value = TextEditingValue(
+      text: rest,
+      selection: TextSelection.collapsed(offset: rest.length),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final copy = AppStrings.of(context);
     final hint = _full
-        ? copy.text('Keep up to 12 interests or hobbies, with 60 characters per item.')
-        : copy.text('Choose from the list or type your own. A comma adds exactly what you typed.');
+        ? copy.text(
+            'Keep up to 12 interests or hobbies, with 60 characters per item.',
+          )
+        : copy.text(
+            'Choose from the list or type your own. A comma adds exactly what you typed.',
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -259,35 +342,65 @@ class _SuggestTagsFieldState extends State<SuggestTagsField> {
             textEditingController: _controller,
             focusNode: _focus,
             displayStringForOption: (option) => '',
+            optionsViewOpenDirection: OptionsViewOpenDirection.mostSpace,
             optionsBuilder: (value) {
               final typed = value.text.trim();
-              if (_full || typed.isEmpty) return const [];
-              final matches = searchProfileSuggestions(widget.suggestions, typed, french: copy.isFrench, exclude: widget.values)
-                  .map((item) => _Option(item, item))
-                  .toList();
-              final exact = matches.any((item) => foldSuggestion(item.value) == foldSuggestion(typed)) ||
-                  widget.values.any((item) => foldSuggestion(item) == foldSuggestion(typed));
+              if (_full) return const [];
+              final matches = searchProfileSuggestions(
+                widget.suggestions,
+                typed,
+                french: copy.isFrench,
+                exclude: widget.values,
+              ).map((item) => _Option(item, item)).toList();
+              final exact =
+                  matches.any(
+                    (item) =>
+                        foldSuggestion(item.value) == foldSuggestion(typed),
+                  ) ||
+                  widget.values.any(
+                    (item) => foldSuggestion(item) == foldSuggestion(typed),
+                  );
               return [
                 ...matches,
-                if (!exact) _Option(typed, copy.text('Add “{value}”').replaceAll('{value}', typed), typed: true),
+                if (typed.isNotEmpty && !exact)
+                  _Option(
+                    typed,
+                    copy.text('Add “{value}”').replaceAll('{value}', typed),
+                    typed: true,
+                  ),
               ];
             },
             onSelected: (option) => _add([option.value]),
-            optionsViewBuilder: (context, onSelected, options) => _optionsView(context, onSelected, options, constraints.maxWidth),
-            fieldViewBuilder: (context, controller, focusNode, onSubmitted) => TextField(
-              controller: controller,
-              focusNode: focusNode,
-              enabled: !_full,
-              maxLength: widget.maxLength,
-              buildCounter: quietFormCounter,
-              onChanged: _typed,
-              onSubmitted: (_) {
-                onSubmitted();
-                if (controller.text.trim().isNotEmpty) _add([controller.text]);
-                focusNode.requestFocus();
-              },
-              decoration: _decoration(context, widget.label, hint, placeholder: copy.text('Search or type…')),
+            optionsViewBuilder: (context, onSelected, options) => _optionsView(
+              context,
+              onSelected,
+              options,
+              constraints.maxWidth,
             ),
+            fieldViewBuilder: (context, controller, focusNode, onSubmitted) =>
+                TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: !_full,
+                  maxLength: widget.maxLength,
+                  buildCounter: quietFormCounter,
+                  onChanged: _typed,
+                  onSubmitted: (_) {
+                    // An empty field adds nothing: Enter only picks while searching.
+                    if (controller.text.trim().isEmpty) return;
+                    onSubmitted();
+                    if (controller.text.trim().isNotEmpty) {
+                      _add([controller.text]);
+                    }
+                    focusNode.requestFocus();
+                  },
+                  decoration: _decoration(
+                    context,
+                    widget.label,
+                    hint,
+                    placeholder: copy.text('Search or type…'),
+                  ),
+                ),
           ),
         ),
         if (widget.values.isNotEmpty)
@@ -300,8 +413,12 @@ class _SuggestTagsFieldState extends State<SuggestTagsField> {
                 for (final item in widget.values)
                   InputChip(
                     label: Text(item, overflow: TextOverflow.ellipsis),
-                    onDeleted: () => widget.onChanged(widget.values.where((value) => value != item).toList()),
-                    deleteButtonTooltipMessage: copy.text('Remove {item}').replaceAll('{item}', item),
+                    onDeleted: () => widget.onChanged(
+                      widget.values.where((value) => value != item).toList(),
+                    ),
+                    deleteButtonTooltipMessage: copy
+                        .text('Remove {item}')
+                        .replaceAll('{item}', item),
                   ),
               ],
             ),

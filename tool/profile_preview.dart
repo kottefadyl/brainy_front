@@ -78,6 +78,23 @@ class _PreviewState extends State<_Preview> {
     return found;
   }
 
+  Element? _lastTagsField() {
+    Element? last;
+    void visit(Element element) {
+      if (element.widget is SuggestTagsField) {
+        void inner(Element child) {
+          if (child.widget is EditableText) last = child;
+          child.visitChildren(inner);
+        }
+        element.visitChildren(inner);
+        return;
+      }
+      element.visitChildren(visit);
+    }
+    (_boundary.currentContext! as Element).visitChildren(visit);
+    return last;
+  }
+
   Future<void> _shot(String output, String name) async {
     final boundary = _boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
     final image = await boundary.toImage();
@@ -102,6 +119,16 @@ class _PreviewState extends State<_Preview> {
         await Future<void>.delayed(const Duration(milliseconds: 700));
         await _shot(output, 'profile-${width.toInt()}-${dark ? 'dark' : 'light'}-suggest');
         FocusManager.instance.primaryFocus?.unfocus();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        final hobbies = _lastTagsField();
+        if (hobbies != null) {
+          await Scrollable.ensureVisible(hobbies, alignment: 1);
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          (hobbies.widget as EditableText).focusNode.requestFocus();
+          await Future<void>.delayed(const Duration(milliseconds: 700));
+          await _shot(output, 'profile-${width.toInt()}-${dark ? 'dark' : 'light'}-hobbies');
+          FocusManager.instance.primaryFocus?.unfocus();
+        }
       }
     }
     setState(() => _bars = true);

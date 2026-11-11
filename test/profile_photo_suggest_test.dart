@@ -14,7 +14,7 @@ void main() {
     expect(searchProfileSuggestions(occupationSuggestions, 'nurse', french: true).first, 'Infirmier');
     expect(searchProfileSuggestions(occupationSuggestions, 'developpeur', french: true), contains('Développeur web'));
     expect(searchProfileSuggestions(hobbySuggestions, 'rand', french: true, exclude: ['Randonnée']), isNot(contains('Randonnée')));
-    expect(searchProfileSuggestions(interestSuggestions, '', french: false), isEmpty);
+    expect(searchProfileSuggestions(interestSuggestions, '', french: false).length, interestSuggestions.length);
     expect(occupationSuggestions.length, greaterThan(350));
   });
 
