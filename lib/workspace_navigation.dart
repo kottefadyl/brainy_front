@@ -21,13 +21,14 @@ class WorkspaceNavigation extends StatefulWidget {
     required this.onSignOut,
     this.onEditProfile,
     this.onGuide,
+    this.onGuideCenter,
   });
   final List<BrainyCollection> collections;
   final String? selectedId;
   final String userName, userEmail;
   final ValueChanged<BrainyCollection> onSelect;
   final VoidCallback onCreate, onManual, onTransfer, onTools, onSignOut;
-  final VoidCallback? onEditProfile, onGuide;
+  final VoidCallback? onEditProfile, onGuide, onGuideCenter;
   @override
   State<WorkspaceNavigation> createState() => _WorkspaceNavigationState();
 }
@@ -205,6 +206,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
               onTransfer: widget.onTransfer,
               onTools: widget.onTools,
               onGuide: widget.onGuide,
+              onGuideCenter: widget.onGuideCenter,
             ),
           ),
           Padding(
@@ -396,11 +398,12 @@ class _MoreActions extends StatelessWidget {
     required this.onTransfer,
     required this.onTools,
     this.onGuide,
+    this.onGuideCenter,
   });
 
   final bool dark;
   final VoidCallback onManual, onTransfer, onTools;
-  final VoidCallback? onGuide;
+  final VoidCallback? onGuide, onGuideCenter;
 
   @override
   Widget build(BuildContext context) {
@@ -415,6 +418,7 @@ class _MoreActions extends StatelessWidget {
         'manual' => onManual(),
         'transfer' => onTransfer(),
         'guide' => onGuide?.call(),
+        'guideCenter' => onGuideCenter?.call(),
         _ => onTools(),
       },
       itemBuilder: (_) => [
@@ -422,6 +426,7 @@ class _MoreActions extends StatelessWidget {
         _item('transfer', Icons.upload_outlined, copy.text('Import and export')),
         _item('tools', Icons.tune_rounded, fr ? 'Outils de l’espace' : 'Workspace tools'),
         if (onGuide != null) _item('guide', Icons.explore_outlined, fr ? 'Guide de démarrage' : 'Getting started guide'),
+        if (onGuideCenter != null) _item('guideCenter', Icons.school_outlined, fr ? 'Guide et formation' : 'Guide and training'),
       ],
       child: Container(
         height: 44,

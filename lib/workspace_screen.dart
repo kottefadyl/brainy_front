@@ -61,6 +61,7 @@ import 'quick_capture_sheet.dart';
 import 'quick_entry_sheet.dart';
 import 'classification_screen.dart';
 import 'geo_map_view.dart';
+import 'guide_center_screen.dart';
 import 'geo_field_input.dart';
 import 'platform_capabilities.dart';
 import 'profile_photo.dart';
@@ -1204,6 +1205,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       onSignOut: () => run(() => widget.onSignOut()),
       onEditProfile: widget.onEditProfile == null ? null : () => run(widget.onEditProfile!),
       onGuide: widget.onOpenGuide == null ? null : () => run(widget.onOpenGuide!),
+      onGuideCenter: () => run(() => openGuideCenter(context)),
     );
   }
 
