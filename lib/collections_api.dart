@@ -462,6 +462,13 @@ class BrainyCollection {
   }
 }
 
+/// T53: a person shown as creator or last editor of an entry.
+typedef BrainyPerson = ({String userId, String name, bool hasPhoto});
+
+BrainyPerson? _person(Object? json) => json is Map<String, dynamic>
+    ? (userId: json['userId'] as String, name: json['name'] as String, hasPhoto: json['hasPhoto'] as bool? ?? false)
+    : null;
+
 class BrainyEntry {
   const BrainyEntry({
     required this.id,
@@ -482,7 +489,12 @@ class BrainyEntry {
     this.workflow,
     this.offlinePending = false,
     this.largeFiles = const {},
+    this.createdBy,
+    this.updatedBy,
   });
+
+  /// T53: creator and last editor (shown in shared collections).
+  final BrainyPerson? createdBy, updatedBy;
   final String id;
   final Map<String, String> values;
 
@@ -552,6 +564,8 @@ class BrainyEntry {
         if ((item as Map<String, dynamic>)['largeFileId'] is String)
           item['fieldId'] as String: (item['attachmentSize'] as num?)?.toInt() ?? 0,
     },
+    createdBy: _person(json['createdBy']),
+    updatedBy: _person(json['updatedBy']),
   );
 }
 
@@ -606,7 +620,7 @@ class CollectionsApi {
   static const _collectionFields =
       'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity singleEntry parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } sharedBy { userId name }';
   static const _entryFields =
-      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
+      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt createdBy { userId name hasPhoto } updatedBy { userId name hasPhoto }';
 
   static String get workflowCollectionFields => _collectionFields;
   static String get workflowEntryFields => _entryFields;

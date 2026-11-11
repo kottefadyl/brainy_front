@@ -63,6 +63,7 @@ import 'classification_screen.dart';
 import 'geo_map_view.dart';
 import 'guide_center_screen.dart';
 import 'collaborators_screen.dart';
+import 'entry_authors.dart';
 import 'geo_field_input.dart';
 import 'platform_capabilities.dart';
 import 'profile_photo.dart';
@@ -183,6 +184,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   @override
   void initState() {
     super.initState();
+    EntryAuthorPhotos.auth = widget.api;
     QuickCaptureBridge.install((data) { _queuedShare = data; if (_collections.isNotEmpty) { _queuedShare = null; _showQuickCapture(data); } });
     _load();
     if (widget.openTemplatesOnStart) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _createCollection(); });
@@ -1522,6 +1524,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 child: Row(
                   children: [
+                    EntryAuthors(entry: entry, collection: collection, compact: true),
                     Checkbox(
                       value: entry.values[doneId] == 'true',
                       onChanged: (done) async {
@@ -1993,6 +1996,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     final title = titleField != null ? entry.values[titleField.id]! : firstField != null ? displayEntryValue(firstField, entry.values[firstField.id]!, _copy, snapshot: entry.unitSnapshots[firstField.id], collection: collection) : _displayFormatName(context, format);
     return WorkspaceEntryRow(
       key: ValueKey(entry.id), color: format.color, title: title,
+      authors: isSharedCollection(collection) && entry.createdBy != null ? EntryAuthors(entry: entry, collection: collection) : null,
       formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders'),
       preview: previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
       attachment: linkPreviewFor(_api, collection, format, entry, french: _copy.isFrench),

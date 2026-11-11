@@ -6,6 +6,7 @@ import 'data_format_colors.dart';
 import 'design_tokens.dart';
 import 'number_units.dart';
 import 'workspace_hover_surface.dart';
+import 'entry_authors.dart';
 
 class WorkspaceFormatCards extends StatelessWidget {
   const WorkspaceFormatCards({
@@ -71,6 +72,7 @@ class WorkspaceFormatCards extends StatelessWidget {
                     width: width,
                     child: _FormatCard(
                       key: ValueKey(format.id),
+                      authors: FormatAuthors(collection: collection),
                       format: format,
                       count: entryCounts[format.id] ?? 0,
                       partial: partialCounts,
@@ -117,8 +119,10 @@ class _FormatCard extends StatefulWidget {
     required this.onCopy,
     required this.onLink,
     required this.onReview,
+    this.authors,
   });
   final BrainyFormat format;
+  final Widget? authors;
   final int count;
   final bool partial;
   final VoidCallback onAddEntry, onEdit, onColor, onCopy, onLink, onReview;
@@ -177,6 +181,7 @@ class _FormatCardState extends State<_FormatCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ?widget.authors,
           Row(
             children: [
               Container(

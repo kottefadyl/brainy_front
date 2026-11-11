@@ -4,6 +4,7 @@ import 'entry_editor_pickers.dart';
 import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
+import 'entry_authors.dart';
 
 class CalendarView extends StatefulWidget {
   const CalendarView({
@@ -232,6 +233,7 @@ class _CalendarViewState extends State<CalendarView> {
                   );
                   return Row(
                     children: [
+                      EntryAuthors(entry: entry, collection: widget.collection, compact: true),
                       Expanded(
                         child: TextButton(
                           onPressed: () => widget.onEdit(entry),

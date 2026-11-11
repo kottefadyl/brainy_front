@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'collections_api.dart';
 import 'data_format_colors.dart';
+import 'entry_authors.dart';
 
 typedef TaskOccurrence = ({String entryId, String date, bool done, bool overdue, bool repeating});
 
@@ -25,7 +26,7 @@ String monthTitle(String day, bool fr) { final date = parseDay(day); return fr ?
 extension TaskPlannerApi on CollectionsApi {
   Future<({List<TaskOccurrence> occurrences, List<BrainyEntry> entries})> taskAgenda(String collectionId, String from, String to, String today, String timeZone) async {
     final data = await auth.authenticatedRequest(
-      'query(\$id:String!,\$from:String!,\$to:String!,\$today:String!,\$tz:String!){taskAgenda(collectionId:\$id,from:\$from,to:\$to,today:\$today,timeZone:\$tz){occurrences{entryId date done overdue repeating} entries{id formatId createdAt updatedAt values{fieldId value}}}}',
+      'query(\$id:String!,\$from:String!,\$to:String!,\$today:String!,\$tz:String!){taskAgenda(collectionId:\$id,from:\$from,to:\$to,today:\$today,timeZone:\$tz){occurrences{entryId date done overdue repeating} entries{id formatId createdAt updatedAt createdBy{userId name hasPhoto} updatedBy{userId name hasPhoto} values{fieldId value}}}}',
       {'id': collectionId, 'from': from, 'to': to, 'today': today, 'tz': timeZone},
     );
     final agenda = data['taskAgenda'] as Map<String, dynamic>;
@@ -166,7 +167,10 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
                       controlAffinity: ListTileControlAffinity.leading,
                       value: item.done,
                       onChanged: busy == '${item.entryId}-${item.date}' ? null : (_) => _toggle(item),
-                      title: Text(name, style: TextStyle(fontWeight: FontWeight.w600, decoration: item.done ? TextDecoration.lineThrough : null, color: item.done ? scheme.onSurfaceVariant : null)),
+                      title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        if (entry != null) EntryAuthors(entry: entry, collection: widget.collection, compact: true),
+                        Text(name, style: TextStyle(fontWeight: FontWeight.w600, decoration: item.done ? TextDecoration.lineThrough : null, color: item.done ? scheme.onSurfaceVariant : null)),
+                      ]),
                       subtitle: info.isEmpty ? null : Row(children: [if (item.repeating) Icon(Icons.repeat, size: 14, color: scheme.onSurfaceVariant), if (item.repeating) const SizedBox(width: 4), Flexible(child: Text(info, style: TextStyle(color: item.overdue ? scheme.error : scheme.onSurfaceVariant)))]),
                     ),
                   ),

@@ -19,7 +19,11 @@ class WorkspaceEntryRow extends StatelessWidget {
     this.appendOnly = false,
     this.reminders = true,
     this.attachment,
+    this.authors,
   });
+
+  /// T53: creator and last editor, top left (shared collections only).
+  final Widget? authors;
   final String color, title, formatName, created;
   /// Extra content under the values, such as a saved link preview (T48).
   final Widget? attachment;
@@ -47,6 +51,7 @@ class WorkspaceEntryRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (authors != null) Padding(padding: const EdgeInsets.only(top: 7), child: authors!),
             Row(
               children: [
                 Expanded(
