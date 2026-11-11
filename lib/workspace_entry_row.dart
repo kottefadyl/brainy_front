@@ -18,8 +18,11 @@ class WorkspaceEntryRow extends StatelessWidget {
     this.edited,
     this.appendOnly = false,
     this.reminders = true,
+    this.attachment,
   });
   final String color, title, formatName, created;
+  /// Extra content under the values, such as a saved link preview (T48).
+  final Widget? attachment;
   final String? preview, edited;
   final bool appendOnly;
 
@@ -124,6 +127,7 @@ class WorkspaceEntryRow extends StatelessWidget {
                   style: TextStyle(color: muted, fontSize: 13),
                 ),
               ),
+            ?attachment,
             Wrap(
               spacing: 12,
               runSpacing: 4,

@@ -52,6 +52,7 @@ import 'offline_entry_queue.dart';
 import 'offline_sync_panel.dart';
 import 'period_totals_panel.dart';
 import 'book_view_screen.dart';
+import 'link_preview_card.dart';
 import 'collection_tools_hub.dart';
 import 'workspace_tools_dialog.dart';
 import 'quick_capture_sheet.dart';
@@ -1968,6 +1969,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       key: ValueKey(entry.id), color: format.color, title: title,
       formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders'),
       preview: previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
+      attachment: linkPreviewFor(_api, collection, format, entry, french: _copy.isFrench),
       created: _formatTimestamp(entry.createdAt, compact: true),
       edited: entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2))) ? _formatTimestamp(entry.updatedAt, compact: true) : null,
       onDetails: () => _showEntryDetails(collection, entry),
