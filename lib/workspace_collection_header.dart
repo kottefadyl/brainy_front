@@ -17,6 +17,9 @@ class WorkspaceCollectionHeader extends StatelessWidget {
     required this.onRename,
     required this.onDelete,
     this.onPackages,
+    this.onShare,
+    this.owner = true,
+    this.canWrite = true,
   });
 
   final String name;
@@ -24,6 +27,10 @@ class WorkspaceCollectionHeader extends StatelessWidget {
   final bool partialEntryCount;
   final VoidCallback onNewEntry, onInsights, onRename, onDelete;
   final VoidCallback? onPackages;
+
+  /// T52: only the owner shares, renames and deletes; a read-only collaborator cannot add entries.
+  final VoidCallback? onShare;
+  final bool owner, canWrite;
 
   @override
   Widget build(BuildContext context) {
@@ -88,6 +95,9 @@ class WorkspaceCollectionHeader extends StatelessWidget {
                     onRename: onRename,
                     onDelete: onDelete,
                     onPackages: onPackages,
+                    onShare: onShare,
+                    owner: owner,
+                    canWrite: canWrite,
                   );
                   if (compact) {
                     return Column(
@@ -341,11 +351,14 @@ class _Actions extends StatelessWidget {
     required this.onRename,
     required this.onDelete,
     this.onPackages,
+    this.onShare,
+    this.owner = true,
+    this.canWrite = true,
   });
 
-  final bool dark, stretched;
+  final bool dark, stretched, owner, canWrite;
   final VoidCallback onNewEntry, onInsights, onRename, onDelete;
-  final VoidCallback? onPackages;
+  final VoidCallback? onPackages, onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -390,12 +403,14 @@ class _Actions extends StatelessWidget {
       position: PopupMenuPosition.under,
       onSelected: (action) => switch (action) {
         'rename' => onRename(),
+        'share' => onShare?.call(),
         'packages' => onPackages?.call(),
         _ => onDelete(),
       },
       itemBuilder: (context) {
         final danger = Theme.of(context).colorScheme.error;
         return [
+          if (onShare != null) _menuItem('share', Icons.person_add_alt_1_outlined, fr ? 'Partager' : 'Share'),
           _menuItem('rename', Icons.edit_outlined, copy.text('Rename')),
           if (onPackages != null)
             _menuItem(
@@ -441,13 +456,11 @@ class _Actions extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          newEntry,
-          const SizedBox(height: 8),
+          if (canWrite) ...[newEntry, const SizedBox(height: 8)],
           Row(
             children: [
               Expanded(child: insights),
-              const SizedBox(width: 8),
-              Expanded(child: manage),
+              if (owner) ...[const SizedBox(width: 8), Expanded(child: manage)],
             ],
           ),
         ],
@@ -456,11 +469,9 @@ class _Actions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        newEntry,
-        const SizedBox(width: 8),
+        if (canWrite) ...[newEntry, const SizedBox(width: 8)],
         insights,
-        const SizedBox(width: 8),
-        manage,
+        if (owner) ...[const SizedBox(width: 8), manage],
       ],
     );
   }

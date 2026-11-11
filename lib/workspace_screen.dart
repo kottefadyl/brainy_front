@@ -62,6 +62,7 @@ import 'quick_entry_sheet.dart';
 import 'classification_screen.dart';
 import 'geo_map_view.dart';
 import 'guide_center_screen.dart';
+import 'collaborators_screen.dart';
 import 'geo_field_input.dart';
 import 'platform_capabilities.dart';
 import 'profile_photo.dart';
@@ -1206,6 +1207,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       onEditProfile: widget.onEditProfile == null ? null : () => run(widget.onEditProfile!),
       onGuide: widget.onOpenGuide == null ? null : () => run(widget.onOpenGuide!),
       onGuideCenter: () => run(() => openGuideCenter(context)),
+      onCollaborators: () => run(() => openCollaborators(context, widget.api, onChanged: _load)),
     );
   }
 
@@ -1253,6 +1255,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _overviewBanner(collection),
+                  if (collection.sharedBy != null) SharedCollectionBanner(ownerName: collection.sharedBy!.name, canWrite: _myRole(collection) == BrainyCollectionRole.editor),
                   BookViewLauncher(key: ValueKey('book-${collection.id}'), api: _api, collection: collection, french: _copy.isFrench, onOpenEntry: (entry) => _editEntry(entry), onChanged: _load),
                   if (collection.periodTotals != null) PeriodTotalsPanel(key: ValueKey(collection.id), api: _api, collection: collection, entries: _entries, french: _copy.isFrench, onSaved: () { _loadEntries(); }),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
@@ -1903,7 +1906,16 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     onRename: _renameCollection,
     onDelete: _deleteCollection,
     onPackages: _openPackages,
+    owner: collection.sharedBy == null,
+    canWrite: collection.sharedBy == null || _myRole(collection) == BrainyCollectionRole.editor,
+    onShare: collection.sharedBy == null
+        ? () async { if (await showCollectionShareSheet(context, auth: widget.api, collection: collection, onOpenCollaborators: () => openCollaborators(context, widget.api, onChanged: _load))) await _load(); }
+        : null,
   );
+
+  /// T52: my role in a collection shared with me (the API only returns my own member line).
+  BrainyCollectionRole _myRole(BrainyCollection collection) =>
+      collection.members.where((member) => member.userId == widget.user.id).firstOrNull?.role ?? BrainyCollectionRole.reader;
 
   Widget _collectionFormat(BrainyCollection collection) => WorkspaceFormatCards(
     collection: collection,

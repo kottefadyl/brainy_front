@@ -360,6 +360,7 @@ class BrainyCollection {
     this.stockRules = const [],
     this.allowNegativeStock = false,
     this.members = const [],
+    this.sharedBy,
     this.minAggregateSize = 5,
     this.periodTotals,
     this.templateId,
@@ -386,6 +387,9 @@ class BrainyCollection {
   final List<Map<String, dynamic>> stockRules;
   final bool allowNegativeStock;
   final List<BrainyCollectionMember> members;
+
+  /// T52: owner of a collection shared with me; null for my own collections.
+  final ({String userId, String name})? sharedBy;
   final int minAggregateSize;
   final BrainyPeriodTotals? periodTotals;
 
@@ -451,6 +455,9 @@ class BrainyCollection {
               ?.map((item) => BrainyCollectionMember.fromJson(item as Map<String, dynamic>))
               .toList() ??
           const [],
+      sharedBy: json['sharedBy'] is Map<String, dynamic>
+          ? (userId: (json['sharedBy'] as Map<String, dynamic>)['userId'] as String, name: (json['sharedBy'] as Map<String, dynamic>)['name'] as String)
+          : null,
     );
   }
 }
@@ -597,7 +604,7 @@ class CollectionsApi {
   }
 
   static const _collectionFields =
-      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity singleEntry parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds }';
+      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity singleEntry parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } sharedBy { userId name }';
   static const _entryFields =
       'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
 

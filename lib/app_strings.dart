@@ -21,6 +21,13 @@ class AppStrings {
     final message = error.toString();
     if (!isFrench) return message;
     if (_french.containsKey(message)) return text(message);
+    // T52: refusals in a collection shared with me.
+    if (message.contains('Read-only members cannot modify collection data')) {
+      return 'Cette collection vous est partagée en lecture seule : vous ne pouvez pas la modifier.';
+    }
+    if (message.contains('Only a collection owner can perform this action')) {
+      return 'Seul le propriétaire de la collection peut effectuer cette action.';
+    }
     for (final rule in [
       'An object data format needs a title field',
       'Give this object a name',

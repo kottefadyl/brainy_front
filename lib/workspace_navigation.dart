@@ -22,13 +22,14 @@ class WorkspaceNavigation extends StatefulWidget {
     this.onEditProfile,
     this.onGuide,
     this.onGuideCenter,
+    this.onCollaborators,
   });
   final List<BrainyCollection> collections;
   final String? selectedId;
   final String userName, userEmail;
   final ValueChanged<BrainyCollection> onSelect;
   final VoidCallback onCreate, onManual, onTransfer, onTools, onSignOut;
-  final VoidCallback? onEditProfile, onGuide, onGuideCenter;
+  final VoidCallback? onEditProfile, onGuide, onGuideCenter, onCollaborators;
   @override
   State<WorkspaceNavigation> createState() => _WorkspaceNavigationState();
 }
@@ -155,7 +156,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                for (final (index, collection) in visible.indexed)
+                for (final (index, collection) in visible.where((item) => item.sharedBy == null).indexed)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: _CollectionRow(
@@ -164,6 +165,33 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
                       selected: collection.id == widget.selectedId,
                       dark: dark,
                       onTap: () => widget.onSelect(collection),
+                    ),
+                  ),
+                // T52: collections shared with me, under their own heading.
+                if (visible.any((item) => item.sharedBy != null))
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
+                    child: Semantics(
+                      header: true,
+                      child: Row(children: [
+                        Icon(Icons.group_outlined, size: 14, color: muted),
+                        const SizedBox(width: 6),
+                        Text((fr ? 'Partagées avec moi' : 'Shared with me').toUpperCase(), style: TextStyle(color: muted, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+                      ]),
+                    ),
+                  ),
+                for (final (index, collection) in visible.where((item) => item.sharedBy != null).indexed)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Tooltip(
+                      message: fr ? 'Partagée par ${collection.sharedBy!.name}' : 'Shared by ${collection.sharedBy!.name}',
+                      child: _CollectionRow(
+                        index: index,
+                        collection: collection,
+                        selected: collection.id == widget.selectedId,
+                        dark: dark,
+                        onTap: () => widget.onSelect(collection),
+                      ),
                     ),
                   ),
                 if (_query.isNotEmpty && visible.isEmpty)
@@ -207,6 +235,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
               onTools: widget.onTools,
               onGuide: widget.onGuide,
               onGuideCenter: widget.onGuideCenter,
+              onCollaborators: widget.onCollaborators,
             ),
           ),
           Padding(
@@ -399,11 +428,12 @@ class _MoreActions extends StatelessWidget {
     required this.onTools,
     this.onGuide,
     this.onGuideCenter,
+    this.onCollaborators,
   });
 
   final bool dark;
   final VoidCallback onManual, onTransfer, onTools;
-  final VoidCallback? onGuide, onGuideCenter;
+  final VoidCallback? onGuide, onGuideCenter, onCollaborators;
 
   @override
   Widget build(BuildContext context) {
@@ -419,6 +449,7 @@ class _MoreActions extends StatelessWidget {
         'transfer' => onTransfer(),
         'guide' => onGuide?.call(),
         'guideCenter' => onGuideCenter?.call(),
+        'collaborators' => onCollaborators?.call(),
         _ => onTools(),
       },
       itemBuilder: (_) => [
@@ -426,6 +457,7 @@ class _MoreActions extends StatelessWidget {
         _item('transfer', Icons.upload_outlined, copy.text('Import and export')),
         _item('tools', Icons.tune_rounded, fr ? 'Outils de l’espace' : 'Workspace tools'),
         if (onGuide != null) _item('guide', Icons.explore_outlined, fr ? 'Guide de démarrage' : 'Getting started guide'),
+        if (onCollaborators != null) _item('collaborators', Icons.group_outlined, fr ? 'Collaborateurs' : 'Collaborators'),
         if (onGuideCenter != null) _item('guideCenter', Icons.school_outlined, fr ? 'Guide et formation' : 'Guide and training'),
       ],
       child: Container(
