@@ -404,6 +404,7 @@ class AppStrings {
     'Text': 'Texte',
     'Long text': 'Texte long',
     'Yes or no': 'Oui ou non',
+    'Checkbox (yes/no)': 'Case à cocher (oui/non)',
     'Single choice': 'Choix unique',
     'Multiple choices': 'Choix multiples',
     'Date and time': 'Date et heure',

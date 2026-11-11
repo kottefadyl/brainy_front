@@ -53,6 +53,8 @@ import 'offline_sync_panel.dart';
 import 'period_totals_panel.dart';
 import 'book_view_screen.dart';
 import 'link_preview_card.dart';
+import 'boolean_field_input.dart';
+import 'task_agenda_view.dart';
 import 'collection_tools_hub.dart';
 import 'workspace_tools_dialog.dart';
 import 'quick_capture_sheet.dart';
@@ -1280,7 +1282,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                       ),
                     )
                   else if (_entries.isEmpty &&
-                      _selectedView?['layout'] != 'CALENDAR')
+                      !const ['CALENDAR', 'TASK_DAY', 'TASK_CALENDAR'].contains(_selectedView?['layout']))
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(
@@ -1476,6 +1478,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _entryPresentation(BrainyCollection collection) {
     final view = _selectedView;
+    if ((view?['layout'] == 'TASK_DAY' || view?['layout'] == 'TASK_CALENDAR') && collection.taskPlanner != null) {
+      return TaskAgendaView(key: ValueKey('agenda-${view!['id']}-$_entryRequest'), api: _api, collection: collection, calendar: view['layout'] == 'TASK_CALENDAR', french: _copy.isFrench, onEdit: (entry) => _editEntry(entry), onNewTask: () => _editEntry());
+    }
     if (view?['layout'] == 'CALENDAR') {
       return CalendarView(
         key: ValueKey('calendar-${view!['id']}-$_entryRequest'),
@@ -3317,6 +3322,9 @@ class _EntryEditorState extends State<_EntryEditor> {
         onUploadingChanged: (uploading) => setState(() => _uploadingFiles = (_uploadingFiles + (uploading ? 1 : -1)).clamp(0, 99)),
         onError: (message) => setState(() => _error = message),
       );
+    }
+    if (kind == BrainyFieldKind.boolean) {
+      return BooleanFieldInput(label: field.name, value: _controllers[field.id]!.text, french: _copy.isFrench, onChanged: (next) => setState(() => _controllers[field.id]!.text = next));
     }
     if (kind == BrainyFieldKind.boolean || kind == BrainyFieldKind.select) {
       final value = _controllers[field.id]!.text;

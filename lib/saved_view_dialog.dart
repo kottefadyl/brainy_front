@@ -212,11 +212,20 @@ class _SavedViewDialogState extends State<_SavedViewDialog> {
                     value: 'CALENDAR',
                     child: Text(_fr ? 'Agenda' : 'Calendar', maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
+                  if (widget.collection.taskPlanner != null || _layout.startsWith('TASK_')) ...[
+                    DropdownMenuItem(value: 'TASK_DAY', child: Text(_fr ? 'Tâches du jour' : 'Tasks by day', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    DropdownMenuItem(value: 'TASK_CALENDAR', child: Text(_fr ? 'Calendrier des tâches' : 'Task calendar', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  ],
                 ],
                 onChanged: (value) => setState(() {
                   _layout = value ?? 'LIST';
                   if (_layout == 'TASKS' || _layout == 'CALENDAR') {
                     _formats = _formats.take(1).toList();
+                    _sort = 'NEWEST';
+                  }
+                  final planner = widget.collection.taskPlanner;
+                  if (_layout.startsWith('TASK_') && planner != null) {
+                    _formats = [planner['formatId'] as String];
                     _sort = 'NEWEST';
                   }
                 }),

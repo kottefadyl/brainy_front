@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'boolean_field_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -86,6 +87,7 @@ class _QuickEntryDialogState extends State<_QuickEntryDialog> {
   Widget _field(BrainyField field) {
     final controller = values[field.id]!;
     final suggestions = recent.map((entry) => entry.values[field.id]).whereType<String>().where((item) => item.isNotEmpty).toSet().take(3).toList();
+    if (field.kind == BrainyFieldKind.boolean) return StatefulBuilder(builder: (context, setLocal) => BooleanFieldInput(label: field.name, value: controller.text, french: fr, onChanged: (next) => setLocal(() => controller.text = next)));
     final input = field.kind == BrainyFieldKind.select || field.kind == BrainyFieldKind.boolean
       ? DropdownButtonFormField<String>(isExpanded: true, key: ValueKey('${field.id}:${controller.text}'), initialValue: controller.text.isEmpty ? null : controller.text, hint: Text(fr ? 'Choisissez une valeur' : 'Choose a value', maxLines: 1, overflow: TextOverflow.ellipsis), decoration: InputDecoration(labelText: field.name), items: (field.kind == BrainyFieldKind.boolean ? ['true', 'false'] : field.options).map((item) => DropdownMenuItem(value: item, child: Text(item == 'true' ? fr ? 'Oui' : 'Yes' : item == 'false' ? fr ? 'Non' : 'No' : item, maxLines: 1, overflow: TextOverflow.ellipsis))).toList(), onChanged: (value) => controller.text = value ?? '')
       : [BrainyFieldKind.date, BrainyFieldKind.datetime].contains(field.kind) ? LocalizedDateField(controller: controller, kind: field.kind == BrainyFieldKind.date ? StoredDateKind.date : StoredDateKind.dateTime, label: field.name, enabled: !datesToday.contains(field.id), hint: datesToday.contains(field.id) ? localizedStoredDate(context, _today(field), field.kind == BrainyFieldKind.date ? StoredDateKind.date : StoredDateKind.dateTime) : null, onPick: () => _pickDate(field))

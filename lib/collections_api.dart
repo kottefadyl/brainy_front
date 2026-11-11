@@ -65,7 +65,7 @@ extension BrainyFieldKindLabel on BrainyFieldKind {
     BrainyFieldKind.character => 'Character',
     BrainyFieldKind.text => 'Text',
     BrainyFieldKind.longText => 'Long text',
-    BrainyFieldKind.boolean => 'Yes or no',
+    BrainyFieldKind.boolean => 'Checkbox (yes/no)',
     BrainyFieldKind.select => 'Single choice',
     BrainyFieldKind.multiSelect => 'Multiple choices',
     BrainyFieldKind.datetime => 'Date and time',
@@ -364,6 +364,7 @@ class BrainyCollection {
     this.periodTotals,
     this.templateId,
     this.bookView,
+    this.taskPlanner,
   });
   final String id;
   final String name;
@@ -373,6 +374,8 @@ class BrainyCollection {
   final String? templateId;
   /// T47: book view settings, see book_model.dart.
   final Map<String, dynamic>? bookView;
+  /// T49: fields driving the Day and Calendar task views (Task list template only).
+  final Map<String, dynamic>? taskPlanner;
   final String? ownerId;
   final List<Map<String, dynamic>> codeLists;
   final List<BrainyUnit> units;
@@ -406,6 +409,7 @@ class BrainyCollection {
       periodTotals: json['periodTotals'] == null ? null : BrainyPeriodTotals.fromJson(json['periodTotals'] as Map<String, dynamic>),
       templateId: json['templateId'] as String?,
       bookView: json['bookView'] as Map<String, dynamic>?,
+      taskPlanner: json['taskPlanner'] as Map<String, dynamic>?,
       fields: fields,
       formats: formats?.isNotEmpty == true
           ? formats!
@@ -593,7 +597,7 @@ class CollectionsApi {
   }
 
   static const _collectionFields =
-      'id ownerId name minAggregateSize templateId bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity singleEntry parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds }';
+      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity singleEntry parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds }';
   static const _entryFields =
       'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
 
