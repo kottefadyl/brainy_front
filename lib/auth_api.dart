@@ -16,6 +16,7 @@ class AppUser {
     this.hobbies = const [],
     this.profileCompleted = false,
     this.hasProfilePhoto = false,
+    this.onboardingCompleted = false,
   });
 
   final String id;
@@ -28,6 +29,8 @@ class AppUser {
   final List<String> hobbies;
   final bool profileCompleted;
   final bool hasProfilePhoto;
+  /// T50: the welcome guide was finished or skipped.
+  final bool onboardingCompleted;
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
     id: json['id'] as String,
@@ -40,6 +43,7 @@ class AppUser {
     hobbies: (json['hobbies'] as List<dynamic>? ?? []).cast<String>(),
     profileCompleted: json['profileCompleted'] as bool? ?? false,
     hasProfilePhoto: json['hasProfilePhoto'] as bool? ?? false,
+    onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
   );
 }
 
@@ -50,8 +54,9 @@ class AuthApi {
 
   static const _tokenKey = 'brainy_session';
   static const _configuredUrl = String.fromEnvironment('API_URL');
-  static const _userFields =
-      'id name email profession job fieldOfStudy interests hobbies profileCompleted hasProfilePhoto';
+  static const _userFields = userFields;
+  static const userFields =
+      'id name email profession job fieldOfStudy interests hobbies profileCompleted hasProfilePhoto onboardingCompleted';
   final http.Client _client;
   final FlutterSecureStorage _storage;
 

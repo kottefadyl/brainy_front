@@ -10,6 +10,7 @@ import 'auth_api.dart';
 import 'auth_screen.dart';
 import 'google_auth.dart';
 import 'profile_screen.dart';
+import 'onboarding_screen.dart';
 import 'workspace_screen.dart' as workspace;
 import 'profile_photo.dart';
 
@@ -40,6 +41,9 @@ class _BrainyAppState extends State<BrainyApp> {
   Locale? _locale;
   ThemeMode _themeMode = ThemeMode.system;
   bool _editingProfile = false;
+  bool _guideOpen = false;
+  bool _openTemplates = false;
+  int _workspaceGeneration = 0;
   bool _loading = true;
 
   @override
@@ -175,7 +179,20 @@ class _BrainyAppState extends State<BrainyApp> {
               onLanguageChanged: _changeLanguage,
               themeButton: AppThemeButton(onPressed: _toggleTheme),
             )
+          : !_user!.onboardingCompleted || _guideOpen
+          ? OnboardingScreen(
+              user: _user!,
+              api: _api,
+              onFinished: (user, {created = false, openTemplates = false}) => setState(() {
+                _user = user;
+                _guideOpen = false;
+                _openTemplates = openTemplates;
+              }),
+            )
           : workspace.WorkspaceScreen(
+              key: ValueKey('workspace-${_user!.id}-$_workspaceGeneration'),
+              openTemplatesOnStart: _openTemplates,
+              onOpenGuide: () => setState(() { _guideOpen = true; _openTemplates = false; _workspaceGeneration++; }),
               user: _user!,
               api: _api,
               onSignOut: _signOut,

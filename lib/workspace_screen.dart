@@ -105,8 +105,13 @@ class WorkspaceScreen extends StatefulWidget {
     this.onEditProfile,
     this.onLanguageChanged,
     this.themeButton,
+    this.onOpenGuide,
+    this.openTemplatesOnStart = false,
   });
 
+  /// T50: reopens the welcome guide; opens the template chooser when the guide asked for it.
+  final VoidCallback? onOpenGuide;
+  final bool openTemplatesOnStart;
   final AppUser user;
   final AuthApi api;
   final Future<void> Function() onSignOut;
@@ -178,6 +183,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     super.initState();
     QuickCaptureBridge.install((data) { _queuedShare = data; if (_collections.isNotEmpty) { _queuedShare = null; _showQuickCapture(data); } });
     _load();
+    if (widget.openTemplatesOnStart) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _createCollection(); });
     BrainyPlatform.load(widget.api).then((_) { if (mounted) setState(() {}); });
     _push.refreshIfAuthorized().catchError((Object _) {});
   }
@@ -1197,6 +1203,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       onTools: () => run(() => showWorkspaceToolsDialog(context, api: _api, collections: _collections, onRestored: () => _load())),
       onSignOut: () => run(() => widget.onSignOut()),
       onEditProfile: widget.onEditProfile == null ? null : () => run(widget.onEditProfile!),
+      onGuide: widget.onOpenGuide == null ? null : () => run(widget.onOpenGuide!),
     );
   }
 

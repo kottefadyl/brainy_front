@@ -20,13 +20,14 @@ class WorkspaceNavigation extends StatefulWidget {
     required this.onTools,
     required this.onSignOut,
     this.onEditProfile,
+    this.onGuide,
   });
   final List<BrainyCollection> collections;
   final String? selectedId;
   final String userName, userEmail;
   final ValueChanged<BrainyCollection> onSelect;
   final VoidCallback onCreate, onManual, onTransfer, onTools, onSignOut;
-  final VoidCallback? onEditProfile;
+  final VoidCallback? onEditProfile, onGuide;
   @override
   State<WorkspaceNavigation> createState() => _WorkspaceNavigationState();
 }
@@ -203,6 +204,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
               onManual: widget.onManual,
               onTransfer: widget.onTransfer,
               onTools: widget.onTools,
+              onGuide: widget.onGuide,
             ),
           ),
           Padding(
@@ -393,10 +395,12 @@ class _MoreActions extends StatelessWidget {
     required this.onManual,
     required this.onTransfer,
     required this.onTools,
+    this.onGuide,
   });
 
   final bool dark;
   final VoidCallback onManual, onTransfer, onTools;
+  final VoidCallback? onGuide;
 
   @override
   Widget build(BuildContext context) {
@@ -410,12 +414,14 @@ class _MoreActions extends StatelessWidget {
       onSelected: (value) => switch (value) {
         'manual' => onManual(),
         'transfer' => onTransfer(),
+        'guide' => onGuide?.call(),
         _ => onTools(),
       },
       itemBuilder: (_) => [
         _item('manual', Icons.add_rounded, fr ? 'Créer manuellement' : 'Create manually'),
         _item('transfer', Icons.upload_outlined, copy.text('Import and export')),
         _item('tools', Icons.tune_rounded, fr ? 'Outils de l’espace' : 'Workspace tools'),
+        if (onGuide != null) _item('guide', Icons.explore_outlined, fr ? 'Guide de démarrage' : 'Getting started guide'),
       ],
       child: Container(
         height: 44,
