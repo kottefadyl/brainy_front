@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'adaptive_form.dart';
 import 'app_strings.dart';
+import 'book_view_screen.dart';
 import 'collections_api.dart';
 
 Future<BrainyCollection?> showStarterDialog(
@@ -196,6 +197,8 @@ class _StarterDialogState extends State<_StarterDialog> {
                                             Text(
                                               template['description'] as String,
                                             ),
+                                            if (template['id'] == 'book')
+                                              BookTemplateArt(french: AppStrings.of(context).isFrench, dark: dark),
                                           ],
                                         ),
                                       ),

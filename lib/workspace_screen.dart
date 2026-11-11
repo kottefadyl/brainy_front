@@ -51,6 +51,7 @@ import 'entry_object_ref_field.dart';
 import 'offline_entry_queue.dart';
 import 'offline_sync_panel.dart';
 import 'period_totals_panel.dart';
+import 'book_view_screen.dart';
 import 'collection_tools_hub.dart';
 import 'workspace_tools_dialog.dart';
 import 'quick_capture_sheet.dart';
@@ -1240,6 +1241,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _overviewBanner(collection),
+                  BookViewLauncher(key: ValueKey('book-${collection.id}'), api: _api, collection: collection, french: _copy.isFrench, onOpenEntry: (entry) => _editEntry(entry), onChanged: _load),
                   if (collection.periodTotals != null) PeriodTotalsPanel(key: ValueKey(collection.id), api: _api, collection: collection, entries: _entries, french: _copy.isFrench, onSaved: () { _loadEntries(); }),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
                   const SizedBox(height: 12),

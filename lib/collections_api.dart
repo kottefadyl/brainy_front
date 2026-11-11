@@ -216,11 +216,17 @@ class BrainyFormat {
     this.linkedSource,
     this.workflow,
     this.sensitivity = 'ORDINARY',
+    this.singleEntry = false,
+    this.parentFormatIds = const [],
   });
   final String id;
   final String name;
   final String color;
   final List<BrainyField> fields;
+  /// T47: at most one entry may use this data format.
+  final bool singleEntry;
+  /// T47: allowed parent data formats for a parent relation (empty = any).
+  final List<String> parentFormatIds;
   final int version;
   final bool objectModel;
   final bool appendOnly;
@@ -243,6 +249,8 @@ class BrainyFormat {
     linkedSource: json['linkedSource'] as Map<String, dynamic>?,
     workflow: json['workflow'] as Map<String, dynamic>?,
     sensitivity: json['sensitivity'] as String? ?? 'ORDINARY',
+    singleEntry: json['singleEntry'] as bool? ?? false,
+    parentFormatIds: (json['parentFormatIds'] as List<dynamic>?)?.cast<String>() ?? const [],
   );
 }
 
@@ -354,11 +362,17 @@ class BrainyCollection {
     this.members = const [],
     this.minAggregateSize = 5,
     this.periodTotals,
+    this.templateId,
+    this.bookView,
   });
   final String id;
   final String name;
   final List<BrainyField> fields;
   final List<BrainyFormat> formats;
+  /// T47: starter template the collection came from (provenance only).
+  final String? templateId;
+  /// T47: book view settings, see book_model.dart.
+  final Map<String, dynamic>? bookView;
   final String? ownerId;
   final List<Map<String, dynamic>> codeLists;
   final List<BrainyUnit> units;
@@ -390,6 +404,8 @@ class BrainyCollection {
       ownerId: json['ownerId'] as String?,
       minAggregateSize: (json['minAggregateSize'] as num?)?.toInt() ?? 5,
       periodTotals: json['periodTotals'] == null ? null : BrainyPeriodTotals.fromJson(json['periodTotals'] as Map<String, dynamic>),
+      templateId: json['templateId'] as String?,
+      bookView: json['bookView'] as Map<String, dynamic>?,
       fields: fields,
       formats: formats?.isNotEmpty == true
           ? formats!
@@ -577,7 +593,7 @@ class CollectionsApi {
   }
 
   static const _collectionFields =
-      'id ownerId name minAggregateSize periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds }';
+      'id ownerId name minAggregateSize templateId bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity singleEntry parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds }';
   static const _entryFields =
       'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt';
 
