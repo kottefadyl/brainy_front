@@ -40,6 +40,16 @@ class _Auth extends AuthApi {
 }
 
 void main() {
+  test('the task form shows only the fields of the chosen Repeat', () {
+    const planner = BrainyCollection(id: 'c', name: 'T', fields: [], formats: [_format], templateId: 'tasks', taskPlanner: {'formatId': 'task', 'doneFieldId': 'done', 'startFieldId': 'start', 'endFieldId': 'end', 'repeatFieldId': 'repeat', 'intervalFieldId': 'n', 'weekdaysFieldId': 'w', 'completedFieldId': 'at'});
+    expect(hiddenTaskFieldIds(planner, 'task', {'repeat': 'Une seule fois'}), {'n', 'w'});
+    expect(hiddenTaskFieldIds(planner, 'task', {}), {'n', 'w'});
+    expect(hiddenTaskFieldIds(planner, 'task', {'repeat': 'Tous les N jours'}), {'w', 'done', 'at'});
+    expect(hiddenTaskFieldIds(planner, 'task', {'repeat': 'Some weekdays'}), {'n', 'done', 'at'});
+    expect(hiddenTaskFieldIds(planner, 'other', {'repeat': 'Chaque jour'}), isEmpty);
+    expect(deviceZoneOrOffset(), isNotEmpty);
+  });
+
   test('day helpers', () {
     expect(addDays('2026-12-31', 1), '2027-01-01');
     expect(weekStart('2026-11-11'), '2026-11-09');

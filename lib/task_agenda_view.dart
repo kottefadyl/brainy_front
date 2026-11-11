@@ -41,10 +41,7 @@ extension TaskPlannerApi on CollectionsApi {
 }
 
 /// IANA zone of the device when Dart knows it, otherwise UTC (dates are local days anyway).
-String deviceTimeZone() {
-  final name = DateTime.now().timeZoneName;
-  return name.contains('/') ? name : 'UTC';
-}
+String deviceTimeZone() => deviceZoneOrOffset();
 
 class TaskAgendaView extends StatefulWidget {
   const TaskAgendaView({super.key, required this.api, required this.collection, required this.calendar, required this.french, required this.onEdit, required this.onNewTask, this.today});
@@ -286,4 +283,34 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
     }
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [header, const SizedBox(height: 12), body]);
   }
+}
+
+const _repeatChoices = {'ONCE': ['once', 'une seule fois'], 'EVERY_N_DAYS': ['every n days', 'tous les n jours'], 'WEEKDAYS': ['some weekdays', 'certains jours de la semaine'], 'DAILY': ['every day', 'chaque jour'], 'WEEKLY': ['every week', 'chaque semaine'], 'MONTHLY': ['every month', 'chaque mois']};
+String repeatKind(String? value) {
+  final key = (value ?? '').trim().toLowerCase();
+  if (key.isEmpty) return 'ONCE';
+  return _repeatChoices.entries.where((item) => item.value.contains(key)).firstOrNull?.key ?? 'ONCE';
+}
+
+/// T49: in the task form, show only the fields that matter for the chosen Repeat.
+Set<String> hiddenTaskFieldIds(BrainyCollection collection, String formatId, Map<String, String> values) {
+  final planner = collection.taskPlanner;
+  if (planner == null || planner['formatId'] != formatId) return const {};
+  final repeat = repeatKind(values[planner['repeatFieldId']]);
+  return {
+    if (repeat != 'EVERY_N_DAYS') planner['intervalFieldId'] as String,
+    if (repeat != 'WEEKDAYS') planner['weekdaysFieldId'] as String,
+    if (repeat != 'ONCE') planner['doneFieldId'] as String,
+    if (repeat != 'ONCE' && planner['completedFieldId'] != null) planner['completedFieldId'] as String,
+  };
+}
+
+/// Named zone when Dart knows it, else a fixed-offset zone (Etc/GMT signs are inverted), else UTC.
+String deviceZoneOrOffset() {
+  final name = DateTime.now().timeZoneName;
+  if (name.contains('/')) return name;
+  final offset = DateTime.now().timeZoneOffset;
+  if (offset.inMinutes % 60 != 0) return 'UTC';
+  final hours = offset.inHours;
+  return hours == 0 ? 'UTC' : 'Etc/GMT${hours > 0 ? '-' : '+'}${hours.abs()}';
 }

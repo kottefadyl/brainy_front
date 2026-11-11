@@ -3583,7 +3583,8 @@ class _EntryEditorState extends State<_EntryEditor> {
                 shrinkWrap: true,
                 padding: const EdgeInsets.only(top: 8),
                 children: [
-                  for (final field in _activeFormat.fields) _field(field),
+                  for (final field in _activeFormat.fields)
+                    if (!hiddenTaskFieldIds(widget.collection, _activeFormat.id, {for (final item in _controllers.entries) item.key: item.value.text}).contains(field.id)) _field(field),
                 ],
               ),
             ),
