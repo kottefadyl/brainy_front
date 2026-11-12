@@ -1,3 +1,4 @@
+import 'language_flag.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_api.dart';
@@ -544,33 +545,19 @@ class LanguageMenu extends StatelessWidget {
         : Theme.of(context).brightness == Brightness.dark
         ? const Color(0xFFD6E4FA)
         : const Color(0xFF24456F);
+    final name = code == 'fr' ? 'Français' : 'English';
+    // The flag alone is the button; the language name stays in the tooltip and the accessible label.
     return PopupMenuButton<String>(
-      tooltip: code == 'fr' ? 'Langue' : 'Language',
+      tooltip: '${code == 'fr' ? 'Langue' : 'Language'} : $name',
       onSelected: onChanged,
-      itemBuilder: (context) => const [
-        PopupMenuItem(value: 'en', child: Text('English')),
-        PopupMenuItem(value: 'fr', child: Text('Français')),
+      itemBuilder: (context) => [
+        for (final (value, label) in const [('en', 'English'), ('fr', 'Français')])
+          PopupMenuItem(value: value, child: Row(children: [LanguageFlag(value), const SizedBox(width: 10), Text(label), if (value == code) ...[const Spacer(), Icon(Icons.check, size: 16, color: color)]])),
       ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.language_rounded, size: 17, color: color),
-            const SizedBox(width: 5),
-            Text(
-              fullName
-                  ? (code == 'fr' ? 'Français' : 'English')
-                  : code.toUpperCase(),
-              style: TextStyle(
-                color: color,
-                fontSize: fullName ? 14 : 12,
-                fontWeight: fullName ? FontWeight.w600 : FontWeight.w800,
-              ),
-            ),
-            Icon(Icons.expand_more_rounded, size: 16, color: color),
-          ],
-        ),
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(child: Semantics(label: '${code == 'fr' ? 'Langue' : 'Language'} : $name', child: LanguageFlag(code))),
       ),
     );
   }

@@ -1,4 +1,5 @@
 // T52: "Collaborators" screen, link pasted from a message, collection sharing and shared banner.
+import 'collaborator_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -26,6 +27,7 @@ class CollaboratorsScreen extends StatefulWidget {
 }
 
 class _CollaboratorsScreenState extends State<CollaboratorsScreen> {
+  String _query = '';
   late final _api = CollaboratorsApi(widget.auth);
   late final _paste = TextEditingController(text: widget.pastedLink ?? '');
   String? _link, _error, _notice;
@@ -223,7 +225,8 @@ class _CollaboratorsScreenState extends State<CollaboratorsScreen> {
                           Text(_t('No collaborator yet. Send your link to a colleague to get started.', 'Aucun collaborateur pour l’instant. Envoyez votre lien à un collègue pour commencer.'), textAlign: TextAlign.center, style: TextStyle(color: muted)),
                         ]),
                       ),
-                    for (final person in _people ?? const <BrainyCollaborator>[])
+                    if (_people?.isNotEmpty ?? false) CollaboratorSearchField(query: _query, french: _fr, onChanged: (value) => setState(() => _query = value), total: filterCollaborators(_people!, _query).length, shown: filterCollaborators(_people!, _query).take(maxShownCollaborators).length),
+                    for (final person in filterCollaborators(_people ?? const <BrainyCollaborator>[], _query).take(maxShownCollaborators))
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(backgroundColor: _soft(context), foregroundColor: _ink(context), child: Text(person.name.characters.first.toUpperCase())),
@@ -316,6 +319,7 @@ class _ShareSheetState extends State<_ShareSheet> {
   late final Map<String, BrainyCollectionRole?> _access = {for (final member in widget.collection.members) member.userId: member.role};
   String? _error, _saving, _saved;
   bool _changed = false;
+  String _query = '';
 
   bool get _fr => AppStrings.of(context).isFrench;
   String _t(String en, String fr) => _fr ? fr : en;
@@ -323,7 +327,8 @@ class _ShareSheetState extends State<_ShareSheet> {
   @override
   void initState() {
     super.initState();
-    _api.list().then((people) { if (mounted) setState(() => _people = people); }).catchError((Object error) { if (mounted) setState(() => _error = collaboratorError(error, _fr)); });
+    // People who already have access come first, in the order of the opening.
+    _api.list().then((people) { if (mounted) setState(() => _people = [...people.where((person) => _access[person.userId] != null), ...people.where((person) => _access[person.userId] == null)]); }).catchError((Object error) { if (mounted) setState(() => _error = collaboratorError(error, _fr)); });
   }
 
   Future<void> _change(BrainyCollaborator person, BrainyCollectionRole? role) async {
@@ -368,7 +373,8 @@ class _ShareSheetState extends State<_ShareSheet> {
                 if (widget.onOpenCollaborators != null)
                   Align(alignment: Alignment.centerLeft, child: FilledButton(onPressed: () { Navigator.of(context).pop(_changed); widget.onOpenCollaborators!(); }, child: Text(_t('Get my link', 'Obtenir mon lien')))),
               ],
-              for (final person in _people ?? const <BrainyCollaborator>[])
+              if (_people?.isNotEmpty ?? false) CollaboratorSearchField(query: _query, french: _fr, onChanged: (value) => setState(() => _query = value), total: filterCollaborators(_people!, _query).length, shown: filterCollaborators(_people!, _query).take(maxShownCollaborators).length),
+              for (final person in filterCollaborators(_people ?? const <BrainyCollaborator>[], _query).take(maxShownCollaborators))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

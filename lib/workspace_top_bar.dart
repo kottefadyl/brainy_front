@@ -196,26 +196,13 @@ class _WorkspaceTopBarState extends State<WorkspaceTopBar> {
           const SizedBox(width: 2),
           widget.languageControl,
           const SizedBox(width: 2),
-          TextButton.icon(
+          IconButton(
+            tooltip: refreshLabel,
             onPressed: _refreshing ? null : _refresh,
-            style: TextButton.styleFrom(
-              foregroundColor: ink,
-              minimumSize: const Size(0, 44),
-              textStyle: const TextStyle(fontFamily: 'Inter', 
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            color: ink,
             icon: _refreshing
-                ? SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: muted,
-                    ),
-                  )
-                : const Icon(Icons.refresh_rounded, size: 19),
-            label: Text(refreshLabel),
+                ? SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2, color: muted))
+                : const Icon(Icons.refresh_rounded, size: 20),
           ),
           if (widget.account != null) ...[
             const SizedBox(width: 8),
