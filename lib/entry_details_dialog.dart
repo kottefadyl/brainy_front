@@ -17,6 +17,7 @@ Future<bool> showEntryDetailsDialog(
   required void Function(BrainyField) onReference,
   required void Function(BrainyField) onAttachment,
   required void Function(String) onLink,
+  bool canEdit = true,
 }) async {
   final format = collection.formatFor(entry);
   final fields = format.fields
@@ -135,7 +136,7 @@ Future<bool> showEntryDetailsDialog(
           icon: const Icon(Icons.content_copy_rounded, size: 17),
           label: Text(copy.isFrench ? 'Copier l’entrée' : 'Copy entry'),
         ),
-        FilledButton(
+        if (canEdit) FilledButton(
           onPressed: () => Navigator.pop(dialogContext, true),
           child: Text(
             entry.ledgerHash != null

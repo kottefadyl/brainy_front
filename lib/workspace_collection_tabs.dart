@@ -11,17 +11,21 @@ class WorkspaceCollectionTabs extends StatelessWidget {
     super.key,
     required this.value,
     required this.onChanged,
+    this.showFormats = true,
   });
 
   final WorkspaceCollectionTab value;
   final ValueChanged<WorkspaceCollectionTab> onChanged;
+
+  /// T52/3: data formats are the owner's structure; collaborators do not see this tab.
+  final bool showFormats;
 
   @override
   Widget build(BuildContext context) {
     final copy = AppStrings.of(context);
     final labels = {
       WorkspaceCollectionTab.entries: copy.text('Entries'),
-      WorkspaceCollectionTab.formats: copy.text('Data formats'),
+      if (showFormats) WorkspaceCollectionTab.formats: copy.text('Data formats'),
       WorkspaceCollectionTab.tools: copy.isFrench ? 'Outils' : 'Tools',
     };
     return Semantics(
@@ -129,7 +133,9 @@ class WorkspaceEntriesHeading extends StatelessWidget {
 
   final int count;
   final bool partial;
-  final VoidCallback onQuickEntry;
+
+  /// Null in a collection shared with me in read only (T52).
+  final VoidCallback? onQuickEntry;
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +211,7 @@ class WorkspaceEntriesHeading extends StatelessWidget {
             ],
           ),
         ),
+        if (onQuickEntry != null) ...[
         const SizedBox(width: 12),
         OutlinedButton(
           onPressed: onQuickEntry,
@@ -223,6 +230,7 @@ class WorkspaceEntriesHeading extends StatelessWidget {
           ),
           child: Text(copy.isFrench ? 'Saisie rapide' : 'Quick entry'),
         ),
+        ],
       ],
     );
   }

@@ -128,7 +128,12 @@ class SavedViewTable extends StatefulWidget {
     required this.onCollectionChanged,
     required this.onEditFormat,
     this.storage = const FlutterSecureStorage(),
+    this.canWrite = true,
+    this.canChangeStructure = true,
   });
+
+  /// T52/3: a reader sees the plain table only; a collaborator never adds columns.
+  final bool canWrite, canChangeStructure;
   final FlutterSecureStorage storage;
   final CollectionsApi api;
   final BrainyCollection collection;
@@ -173,6 +178,7 @@ class _SavedViewTableState extends State<SavedViewTable> {
   Widget build(BuildContext context) {
     final copy = AppStrings.of(context);
     final fr = copy.isFrench;
+    if (!widget.canWrite) return _readOnly(context, copy);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -217,7 +223,7 @@ class _SavedViewTableState extends State<SavedViewTable> {
           DataColumn(label: Text(copy.text('Data format'))),
           DataColumn(label: Text(copy.text('Created'))),
           for (final id in ids) DataColumn(label: Text(fields.where((field) => field.id == id).firstOrNull?.name ?? id)),
-          DataColumn(label: Text(copy.text('Action'))),
+          if (widget.canWrite) DataColumn(label: Text(copy.text('Action'))),
         ],
         rows: [
           for (final entry in widget.entries)
@@ -229,7 +235,7 @@ class _SavedViewTableState extends State<SavedViewTable> {
                   (final BrainyField field, final String value) => displayEntryValue(field, value, copy, snapshot: entry.unitSnapshots[id], collection: collection),
                   (_, final value) => value ?? '—',
                 })),
-              DataCell(TextButton(
+              if (widget.canWrite) DataCell(TextButton(
                 onPressed: () => widget.onOpenEntry(entry),
                 child: Text(collection.formatFor(entry).appendOnly ? (copy.isFrench ? 'Ouvrir le registre' : 'Open register') : copy.text('Edit')),
               )),
@@ -566,7 +572,7 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
                     Container(
                       height: 56, padding: const EdgeInsets.symmetric(horizontal: 8),
                       decoration: BoxDecoration(color: scheme.surfaceContainerHigh, border: Border(right: border, bottom: border)),
-                      child: Tooltip(
+                      child: !widget.table.canChangeStructure ? const SizedBox(width: 96) : Tooltip(
                         message: canAddColumn ? '' : format.linkedSource != null ? (fr ? 'Format lié : modifiez la source.' : 'Linked format: change the source.') : (fr ? '30 champs au maximum.' : '30 fields at most.'),
                         child: OutlinedButton.icon(
                           key: const Key('spreadsheet-add-column'),

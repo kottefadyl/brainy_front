@@ -4,6 +4,8 @@ import 'package:brainy/collaborators_api.dart';
 import 'package:brainy/collaborators_screen.dart';
 import 'package:brainy/collections_api.dart';
 import 'package:brainy/workspace_collection_header.dart';
+import 'package:brainy/workspace_collection_tabs.dart';
+import 'package:brainy/workspace_entry_row.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -123,6 +125,25 @@ void main() {
       expect(find.text('Partagée par Awa'), findsOneWidget);
       expect(find.text(canWrite ? 'Lecture et écriture' : 'Lecture seule'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+  }
+
+  // T52/3: a collaborator does not see the structure, and a reader has no write action.
+  testWidgets('collaborator tabs leave out data formats', (tester) async {
+    await _pump(tester, Scaffold(body: WorkspaceCollectionTabs(value: WorkspaceCollectionTab.entries, onChanged: (_) {}, showFormats: false)));
+    expect(find.text('Entrées'), findsOneWidget);
+    expect(find.text('Formats de données'), findsNothing);
+    expect(find.text('Outils'), findsOneWidget);
+  });
+
+  for (final canWrite in [true, false]) {
+    testWidgets('entry menu ${canWrite ? 'offers' : 'hides'} edit and delete', (tester) async {
+      await _pump(tester, Scaffold(body: WorkspaceEntryRow(color: '#FFF0F4', title: 'Pain', formatName: 'Dépense', created: '12 nov.', onDetails: () {}, onAction: (_) {}, canWrite: canWrite)));
+      await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('Modifier'), canWrite ? findsOneWidget : findsNothing);
+      expect(find.text('Supprimer'), canWrite ? findsOneWidget : findsNothing);
+      expect(find.text('Copier l’entrée'), findsOneWidget);
     });
   }
 }

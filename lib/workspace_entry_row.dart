@@ -18,6 +18,7 @@ class WorkspaceEntryRow extends StatelessWidget {
     this.edited,
     this.appendOnly = false,
     this.reminders = true,
+    this.canWrite = true,
     this.attachment,
     this.authors,
   });
@@ -32,6 +33,9 @@ class WorkspaceEntryRow extends StatelessWidget {
 
   /// False when reminders are paused on this hosting.
   final bool reminders;
+
+  /// T52/3: false in a collection shared with me in read only.
+  final bool canWrite;
   final VoidCallback onDetails;
   final ValueChanged<String> onAction;
 
@@ -88,7 +92,7 @@ class WorkspaceEntryRow extends StatelessWidget {
                       value: 'copy',
                       child: Text(copy.text('Copy entry')),
                     ),
-                    PopupMenuItem(
+                    if (canWrite) PopupMenuItem(
                       value: 'edit',
                       child: Text(
                         appendOnly
@@ -102,13 +106,13 @@ class WorkspaceEntryRow extends StatelessWidget {
                       value: 'reminder',
                       child: Text(copy.isFrench ? 'Rappels' : 'Reminders'),
                     ),
-                    PopupMenuItem(
+                    if (canWrite) PopupMenuItem(
                       value: 'links',
                       child: Text(
                         copy.isFrench ? 'Liens entre entrées' : 'Entry links',
                       ),
                     ),
-                    if (!appendOnly)
+                    if (!appendOnly && canWrite)
                       PopupMenuItem(
                         value: 'delete',
                         child: Text(

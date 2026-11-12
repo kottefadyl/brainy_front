@@ -1239,9 +1239,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     }
     final collection = _selected;
     if (collection == null) return const SizedBox.shrink();
-    final showEntries = _collectionTab == WorkspaceCollectionTab.entries;
-    final showFormats = _collectionTab == WorkspaceCollectionTab.formats;
-    final showTools = _collectionTab == WorkspaceCollectionTab.tools;
+    final owner = collection.sharedBy == null;
+    final tab = !owner && _collectionTab == WorkspaceCollectionTab.formats ? WorkspaceCollectionTab.entries : _collectionTab;
+    final showEntries = tab == WorkspaceCollectionTab.entries;
+    final showFormats = tab == WorkspaceCollectionTab.formats;
+    final showTools = tab == WorkspaceCollectionTab.tools;
     return RefreshIndicator(
       onRefresh: _loadEntries,
       child: ListView(
@@ -1263,7 +1265,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
                   const SizedBox(height: 12),
                   WorkspaceCollectionTabs(
-                    value: _collectionTab,
+                    value: tab,
+                    showFormats: owner,
                     onChanged: (tab) => setState(() => _collectionTab = tab),
                   ),
                   const SizedBox(height: 20),
@@ -1271,7 +1274,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   WorkspaceEntriesHeading(
                     count: _entries.length,
                     partial: _pageCursor != null,
-                    onQuickEntry: _showQuickEntry,
+                    onQuickEntry: _canWrite(collection) ? _showQuickEntry : null,
                   ),
                   const SizedBox(height: 14),
                   _savedViewBar(collection),
@@ -1432,6 +1435,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     final view = _selectedView;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final phone = screenWidth < 600;
+    final canWrite = _canWrite(collection);
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -1463,7 +1467,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             },
           ),
         ),
-        if (phone)
+        if (!canWrite)
+          const SizedBox.shrink()
+        else if (phone)
           IconButton.outlined(
             tooltip: _t('Save a view'),
             onPressed: () => _editSavedView(collection),
@@ -1476,12 +1482,12 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             icon: const Icon(Icons.add, size: 18),
             label: Text(_t('Save a view')),
           ),
-        if (view != null)
+        if (view != null && canWrite)
           OutlinedButton(
             onPressed: () => _editSavedView(collection, view),
             child: Text(_t('Edit view')),
           ),
-        if (view != null)
+        if (view != null && canWrite)
           TextButton(
             onPressed: () => _deleteSavedView(collection, view),
             child: Text(_t('Delete view')),
@@ -1624,6 +1630,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         onEntrySaved: (saved) => setState(() => _entries = _entries.any((item) => item.id == saved.id) ? [for (final item in _entries) item.id == saved.id ? saved : item] : [..._entries, saved]),
         onCollectionChanged: (updated) => setState(() => _collections = [for (final item in _collections) item.id == updated.id ? updated : item]),
         onEditFormat: _editFormat,
+        canWrite: _canWrite(collection),
+        canChangeStructure: collection.sharedBy == null,
       );
     }
     final groups = view?['groupByFormat'] == true
@@ -1919,6 +1927,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   /// T52: my role in a collection shared with me (the API only returns my own member line).
   BrainyCollectionRole _myRole(BrainyCollection collection) =>
       collection.members.where((member) => member.userId == widget.user.id).firstOrNull?.role ?? BrainyCollectionRole.reader;
+  bool _canWrite(BrainyCollection collection) => collection.sharedBy == null || _myRole(collection) == BrainyCollectionRole.editor;
 
   Widget _collectionFormat(BrainyCollection collection) => WorkspaceFormatCards(
     collection: collection,
@@ -1983,6 +1992,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       onReference: (field) => _showObjectReferences(entry, field),
       onAttachment: (field) => _downloadAttachment(entry, field),
       onLink: _openSavedLink,
+      canEdit: _canWrite(collection),
     );
     if (shouldEdit && mounted) await _editEntry(entry);
   }
@@ -1997,7 +2007,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     return WorkspaceEntryRow(
       key: ValueKey(entry.id), color: format.color, title: title,
       authors: isSharedCollection(collection) && entry.createdBy != null ? EntryAuthors(entry: entry, collection: collection) : null,
-      formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders'),
+      formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders'), canWrite: _canWrite(collection),
       preview: previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
       attachment: linkPreviewFor(_api, collection, format, entry, french: _copy.isFrench),
       created: _formatTimestamp(entry.createdAt, compact: true),
