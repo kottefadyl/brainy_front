@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_strings.dart';
+import 'collection_scope_tabs.dart';
 import 'collections_api.dart';
 import 'design_tokens.dart';
 import 'workspace_accents.dart';
@@ -36,6 +37,7 @@ class WorkspaceNavigation extends StatefulWidget {
 
 class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
   String _query = '';
+  CollectionScope? _scopeChoice;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +53,12 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
               item.name.toLowerCase().contains(_query.trim().toLowerCase()),
         )
         .toList();
+    // T52: my collections and those shared with me are two tabs, each with the full height.
+    final mine = visible.where((item) => item.sharedBy == null).toList();
+    final shared = visible.where((item) => item.sharedBy != null).toList();
+    final sharedTotal = widget.collections.where((item) => item.sharedBy != null).length;
+    final scope = collectionScopeFor(_scopeChoice, selectedIsShared: widget.collections.any((item) => item.id == widget.selectedId && item.sharedBy != null), sharedCount: sharedTotal);
+    final listed = scope == CollectionScope.shared ? shared : mine;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: dark ? BrainyColors.darkSidebar : null,
@@ -152,11 +160,23 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
               ),
             ),
           ),
+          if (sharedTotal > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: CollectionScopeTabs(
+                value: scope,
+                mineCount: mine.length,
+                sharedCount: shared.length,
+                french: fr,
+                dark: dark,
+                onChanged: (value) => setState(() => _scopeChoice = value),
+              ),
+            ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                for (final (index, collection) in visible.where((item) => item.sharedBy == null).indexed)
+                for (final (index, collection) in listed.where((item) => item.sharedBy == null).indexed)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: _CollectionRow(
@@ -167,20 +187,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
                       onTap: () => widget.onSelect(collection),
                     ),
                   ),
-                // T52: collections shared with me, under their own heading.
-                if (visible.any((item) => item.sharedBy != null))
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 14, 10, 6),
-                    child: Semantics(
-                      header: true,
-                      child: Row(children: [
-                        Icon(Icons.group_outlined, size: 14, color: muted),
-                        const SizedBox(width: 6),
-                        Text((fr ? 'Partagées avec moi' : 'Shared with me').toUpperCase(), style: TextStyle(color: muted, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-                      ]),
-                    ),
-                  ),
-                for (final (index, collection) in visible.where((item) => item.sharedBy != null).indexed)
+                for (final (index, collection) in listed.where((item) => item.sharedBy != null).indexed)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Tooltip(
@@ -194,7 +201,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
                       ),
                     ),
                   ),
-                if (_query.isNotEmpty && visible.isEmpty)
+                if (_query.isNotEmpty && listed.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text(
