@@ -509,6 +509,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         api: _api,
         collection: collection,
         userId: widget.user.id,
+        userName: widget.user.name,
         entry: entry,
         initialFormatId: initialFormatId,
       ),
@@ -2955,11 +2956,14 @@ class _EntryEditor extends StatefulWidget {
     required this.api,
     required this.collection,
     required this.userId,
+    this.userName = '',
     this.entry,
     this.initialFormatId,
   });
   final CollectionsApi api;
   final String userId;
+  /// T53/1: shown as author of an entry kept offline until it syncs.
+  final String userName;
   final BrainyCollection collection;
   final BrainyEntry? entry;
   final String? initialFormatId;
@@ -2971,6 +2975,7 @@ class _EntryEditorState extends State<_EntryEditor> {
   late final Map<String, Map<String, String>> _measures = {...?widget.entry?.measures};
   String _t(String value) => AppStrings.of(context).text(value);
   AppStrings get _copy => AppStrings.of(context);
+  BrainyPerson get _me => (userId: widget.userId, name: widget.userName, hasPhoto: true);
   late String _selectedFormatId;
   BrainyFormat get _activeFormat => widget.collection.formats.firstWhere(
     (format) => format.id == _selectedFormatId,
@@ -3284,7 +3289,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       if (widget.entry?.offlinePending == true) {
         if (_attachments.isNotEmpty || _largeFiles.isNotEmpty) throw const FormatException('Attachments need a connection');
         await queue.revise(widget.entry!.id, values);
-        if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry!.id, values: values, formatId: _selectedFormatId, createdAt: widget.entry!.createdAt, updatedAt: DateTime.now(), offlinePending: true));
+        if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry!.id, values: values, formatId: _selectedFormatId, createdAt: widget.entry!.createdAt, updatedAt: DateTime.now(), offlinePending: true, createdBy: widget.entry!.createdBy ?? _me, updatedBy: _me));
         return;
       }
       final saved = await widget.api.saveEntry(
@@ -3305,7 +3310,7 @@ class _EntryEditorState extends State<_EntryEditor> {
       if (networkFailure && plainMeasures && _attachments.isEmpty && _largeFiles.isEmpty && !_activeFormat.fields.any((field) => (field.kind == BrainyFieldKind.objectRef || field.kind == BrainyFieldKind.collaborator) && (values[field.id]?.isNotEmpty ?? false))) {
         try {
           await queue.enqueue({'id': mutationId, 'collectionId': widget.collection.id, if (widget.entry != null) 'entryId': widget.entry!.id, 'formatId': _selectedFormatId, 'values': values, if (widget.entry != null) 'expectedUpdatedAt': widget.entry!.updatedAt.toUtc().toIso8601String(), 'createdAt': DateTime.now().toUtc().toIso8601String(), 'status': 'pending'});
-          if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry?.id ?? 'offline:$mutationId', values: values, formatId: _selectedFormatId, createdAt: widget.entry?.createdAt ?? DateTime.now(), updatedAt: DateTime.now(), offlinePending: true));
+          if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry?.id ?? 'offline:$mutationId', values: values, formatId: _selectedFormatId, createdAt: widget.entry?.createdAt ?? DateTime.now(), updatedAt: DateTime.now(), offlinePending: true, createdBy: widget.entry?.createdBy ?? _me, updatedBy: _me, people: widget.entry?.people ?? const {}));
           return;
         } catch (queueError) { if (mounted) setState(() { _saving = false; _error = _copy.error(queueError); }); return; }
       }

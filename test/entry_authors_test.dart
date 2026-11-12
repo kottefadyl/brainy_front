@@ -70,6 +70,14 @@ void main() {
     expect(find.textContaining('modifié par'), findsNothing);
   });
 
+  testWidgets('an entry kept offline shows its author before syncing (T53/1)', (tester) async {
+    const me = (userId: 'u1', name: 'Awa Diallo', hasPhoto: true);
+    final offline = BrainyEntry(id: 'offline:k1', formatId: 'f1', values: const {'t': 'Courses'}, createdAt: DateTime(2026, 11, 12), updatedAt: DateTime(2026, 11, 12), offlinePending: true, createdBy: me, updatedBy: me);
+    await _pump(tester, _row(_collection(), offline));
+    expect(find.byTooltip('Créée par Awa Diallo'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('nothing in a private collection', (tester) async {
     await _pump(tester, _row(_collection(shared: false), _entry(editor: 'u1')));
     expect(find.text('Bruno Martin'), findsNothing);
