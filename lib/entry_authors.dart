@@ -30,8 +30,8 @@ class EntryAuthorPhotos {
       });
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar(this.person, {this.size = 22});
+class PersonAvatar extends StatelessWidget {
+  const PersonAvatar(this.person, {super.key, this.size = 22});
   final BrainyPerson person;
   final double size;
 
@@ -77,11 +77,11 @@ class _People extends StatelessWidget {
         label: description,
         excludeSemantics: true,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          _Avatar(creator, size: compact ? 20 : 22),
+          PersonAvatar(creator, size: compact ? 20 : 22),
           if (names) ...[const SizedBox(width: 6), Flexible(child: Text(creator.name, style: nameStyle, overflow: TextOverflow.ellipsis))],
           if (changed != null) ...[
             if (names) Text('  · ${fr ? 'modifié par' : 'edited by'}  ', style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)) else const SizedBox(width: 3),
-            _Avatar(changed, size: compact ? 20 : 22),
+            PersonAvatar(changed, size: compact ? 20 : 22),
             if (names) ...[const SizedBox(width: 6), Flexible(child: Text(changed.name, style: nameStyle, overflow: TextOverflow.ellipsis))],
           ],
         ]),

@@ -63,6 +63,7 @@ import 'classification_screen.dart';
 import 'geo_map_view.dart';
 import 'guide_center_screen.dart';
 import 'collaborators_screen.dart';
+import 'person_field_input.dart';
 import 'entry_authors.dart';
 import 'geo_field_input.dart';
 import 'platform_capabilities.dart';
@@ -2971,6 +2972,8 @@ class _EntryEditorState extends State<_EntryEditor> {
         field.id: TextEditingController(
           text: field.kind == BrainyFieldKind.number && _copy.isFrench
               ? (widget.entry?.values[field.id] ?? '').replaceAll('.', ',')
+              : field.kind == BrainyFieldKind.collaborator
+              ? personFieldEditableValue(widget.entry, field)
               : widget.entry?.values[field.id] ?? '',
         ),
   };
@@ -3289,7 +3292,7 @@ class _EntryEditorState extends State<_EntryEditor> {
     } catch (error) {
       final networkFailure = error is AuthApiException && (error.message.contains('Could not reach') || error.message.contains('temporarily unavailable'));
       final plainMeasures = measures.values.every((details) => details.length == 1 && details['status'] == 'MEASURED');
-      if (networkFailure && plainMeasures && _attachments.isEmpty && _largeFiles.isEmpty && !_activeFormat.fields.any((field) => field.kind == BrainyFieldKind.objectRef && (values[field.id]?.isNotEmpty ?? false))) {
+      if (networkFailure && plainMeasures && _attachments.isEmpty && _largeFiles.isEmpty && !_activeFormat.fields.any((field) => (field.kind == BrainyFieldKind.objectRef || field.kind == BrainyFieldKind.collaborator) && (values[field.id]?.isNotEmpty ?? false))) {
         try {
           await queue.enqueue({'id': mutationId, 'collectionId': widget.collection.id, if (widget.entry != null) 'entryId': widget.entry!.id, 'formatId': _selectedFormatId, 'values': values, if (widget.entry != null) 'expectedUpdatedAt': widget.entry!.updatedAt.toUtc().toIso8601String(), 'createdAt': DateTime.now().toUtc().toIso8601String(), 'status': 'pending'});
           if (mounted) Navigator.pop(context, BrainyEntry(id: widget.entry?.id ?? 'offline:$mutationId', values: values, formatId: _selectedFormatId, createdAt: widget.entry?.createdAt ?? DateTime.now(), updatedAt: DateTime.now(), offlinePending: true));
@@ -3336,6 +3339,9 @@ class _EntryEditorState extends State<_EntryEditor> {
           onChanged: (next) => setState(() => _controllers[field.id]!.text = next),
         ),
       );
+    }
+    if (kind == BrainyFieldKind.collaborator) {
+      return PersonFieldInput(key: ValueKey('people-${field.id}'), api: widget.api, collectionId: widget.collection.id, field: field, controller: _controllers[field.id]!, french: _copy.isFrench, stored: widget.entry?.people[field.id] ?? const [], onChanged: () => setState(() {}));
     }
     if (kind == BrainyFieldKind.objectRef) {
       return entryObjectRefField(context: context, field: field, controller: _controllers[field.id]!, objectNames: _objectNames, isFrench: _copy.isFrench, onChoose: () => _chooseObjects(field), ink: _dialogInk(context));

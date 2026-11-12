@@ -418,6 +418,7 @@ class AppStrings {
     'Duration': 'Durée',
     'Attachment': 'Pièce jointe',
     'Object reference': 'Référence d’objet',
+    'Collaborator': 'Collaborateur',
     'Choose a file': 'Choisir un fichier',
     'Remove file': 'Retirer le fichier',
     'File saved': 'Fichier enregistré',

@@ -50,6 +50,7 @@ enum BrainyFieldKind {
   code,
   position,
   zone,
+  collaborator,
 }
 
 extension BrainyFieldKindLabel on BrainyFieldKind {
@@ -76,6 +77,7 @@ extension BrainyFieldKindLabel on BrainyFieldKind {
     BrainyFieldKind.code => 'Code from a list',
     BrainyFieldKind.position => 'Position',
     BrainyFieldKind.zone => 'Zone',
+    BrainyFieldKind.collaborator => 'Collaborator',
   };
 }
 
@@ -491,7 +493,11 @@ class BrainyEntry {
     this.largeFiles = const {},
     this.createdBy,
     this.updatedBy,
+    this.people = const {},
   });
+
+  /// T54: people named by collaborator fields, by field id (IDs and names at saving time).
+  final Map<String, List<BrainyPerson>> people;
 
   /// T53: creator and last editor (shown in shared collections).
   final BrainyPerson? createdBy, updatedBy;
@@ -566,6 +572,14 @@ class BrainyEntry {
     },
     createdBy: _person(json['createdBy']),
     updatedBy: _person(json['updatedBy']),
+    people: {
+      for (final item in json['values'] as List<dynamic>)
+        if ((item as Map<String, dynamic>)['personIds'] is List<dynamic> && (item['personIds'] as List<dynamic>).isNotEmpty)
+          item['fieldId'] as String: [
+            for (final (index, id) in (item['personIds'] as List<dynamic>).cast<String>().indexed)
+              (userId: id, name: ((item['personNames'] as List<dynamic>?)?.elementAtOrNull(index) as String?) ?? '?', hasPhoto: false),
+          ],
+    },
   );
 }
 
@@ -620,7 +634,7 @@ class CollectionsApi {
   static const _collectionFields =
       'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity singleEntry parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } sharedBy { userId name }';
   static const _entryFields =
-      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt createdBy { userId name hasPhoto } updatedBy { userId name hasPhoto }';
+      'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds personIds personNames objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt createdBy { userId name hasPhoto } updatedBy { userId name hasPhoto }';
 
   static String get workflowCollectionFields => _collectionFields;
   static String get workflowEntryFields => _entryFields;
@@ -1153,6 +1167,15 @@ class CollectionsApi {
       {'id': id},
     );
     return data['collectionObject'] as Map<String, dynamic>;
+  }
+
+  /// T54: people a collaborator field can name (the collection owner first, then the owner's collaborators).
+  Future<List<BrainyPerson>> collectionPeople(String collectionId) async {
+    final data = await auth.authenticatedRequest(
+      'query People(\$collectionId: ID!) { collectionPeople(collectionId: \$collectionId) { userId name hasPhoto } }',
+      {'collectionId': collectionId},
+    );
+    return [for (final item in data['collectionPeople'] as List<dynamic>) _person(item)!];
   }
 
   Future<List<Map<String, dynamic>>> entryObjectReferences(
