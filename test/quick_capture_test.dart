@@ -86,6 +86,38 @@ void main() {
     expect(find.text('https://example.org/field-guide'), findsOneWidget);
     expect(find.text('Keep on network failure'), findsOneWidget);
   });
+
+  testWidgets('quick task entry follows the Repeat choice (T49/1)', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final api = SaleApi();
+    final collection = BrainyCollection(id: 'tasks', name: 'Tasks', fields: const [], taskPlanner: const {'formatId': 'task', 'repeatFieldId': 'repeat', 'intervalFieldId': 'every', 'weekdaysFieldId': 'days', 'doneFieldId': 'done'}, formats: const [BrainyFormat(id: 'task', name: 'Task', color: '#EEF5FF', fields: [
+      BrainyField(id: 'title', name: 'Task', kind: BrainyFieldKind.title),
+      BrainyField(id: 'repeat', name: 'Repeat', kind: BrainyFieldKind.select, options: ['Once', 'Every N days', 'Some weekdays', 'Every day']),
+      BrainyField(id: 'every', name: 'Every N days', kind: BrainyFieldKind.number),
+      BrainyField(id: 'days', name: 'Weekdays', kind: BrainyFieldKind.multiSelect, options: ['Monday', 'Wednesday', 'Friday']),
+      BrainyField(id: 'done', name: 'Done', kind: BrainyFieldKind.boolean),
+    ])]);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) => ElevatedButton(onPressed: () => showQuickEntrySheet(context, api: api, collection: collection, userId: 'test', french: false), child: const Text('Open'))))));
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    expect(find.text('Weekdays'), findsNothing, reason: 'a task done once hides the repeat details');
+    expect(find.text('Done'), findsWidgets);
+    await tester.enterText(find.byType(TextField).first, 'Exercise');
+    await tester.tap(find.text('Choose a value').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Some weekdays').last);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(FilterChip, 'Monday'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilterChip, 'Friday'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Monday'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save entry'));
+    await tester.pumpAndSettle();
+    expect(api.saved?['repeat'], 'Some weekdays');
+    expect(api.saved?['days'], '["Monday","Friday"]', reason: 'choices keep their defined order');
+    expect(api.saved?.containsKey('done'), isFalse);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _FailingCaptureApi extends CaptureApi {
@@ -95,5 +127,5 @@ class _FailingCaptureApi extends CaptureApi {
   Future<BrainyEntry> saveEntry(String collectionId, Map<String, String> values, {Map<String, Map<String, String>> measures = const {}, String? entryId, String? formatId, Map<String, Uint8List> attachments = const {}, Map<String, String> largeFiles = const {}, String? clientMutationId, DateTime? expectedUpdatedAt}) async {
     throw StateError('Network unreachable');
   }
-}
 
+}
