@@ -309,12 +309,19 @@ Set<String> hiddenTaskFieldIds(BrainyCollection collection, String formatId, Map
   };
 }
 
+/// T49/2: offsets that are not whole hours have no Etc/GMT zone; the zone using that offset today stands in.
+const _partHourZones = {
+  330: 'Asia/Kolkata', 345: 'Asia/Kathmandu', 210: 'Asia/Tehran', 270: 'Asia/Kabul', 390: 'Asia/Yangon',
+  570: 'Australia/Darwin', 630: 'Australia/Adelaide', 525: 'Australia/Eucla', 765: 'Pacific/Chatham', 825: 'Pacific/Chatham',
+  -210: 'America/St_Johns', -150: 'America/St_Johns', -570: 'Pacific/Marquesas',
+};
+
 /// Named zone when Dart knows it, else a fixed-offset zone (Etc/GMT signs are inverted), else UTC.
-String deviceZoneOrOffset() {
-  final name = DateTime.now().timeZoneName;
+String deviceZoneOrOffset() => zoneForOffset(DateTime.now().timeZoneName, DateTime.now().timeZoneOffset);
+
+String zoneForOffset(String name, Duration offset) {
   if (name.contains('/')) return name;
-  final offset = DateTime.now().timeZoneOffset;
-  if (offset.inMinutes % 60 != 0) return 'UTC';
+  if (offset.inMinutes % 60 != 0) return _partHourZones[offset.inMinutes] ?? 'UTC';
   final hours = offset.inHours;
   return hours == 0 ? 'UTC' : 'Etc/GMT${hours > 0 ? '-' : '+'}${hours.abs()}';
 }
