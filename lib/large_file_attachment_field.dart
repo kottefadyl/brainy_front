@@ -1,5 +1,6 @@
 // Attachment field of the entry editor. Up to 2 MiB the file travels with the entry;
 // above, it is uploaded as a large file by reference (T44) with progress, pause and resume.
+import 'media_file.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -94,6 +95,10 @@ class _LargeFileAttachmentFieldState extends State<LargeFileAttachmentField> {
       final size = await file.length() ?? 0;
       if (size == 0) {
         widget.onError(_t('This file is empty.', 'Ce fichier est vide.'));
+        return;
+      }
+      if (BrainyPlatform.isFrozen('mediaFiles') && isMediaFileName(file.name)) {
+        widget.onError(mediaRefusedText(widget.french));
         return;
       }
       if (size <= largeFileThreshold) {

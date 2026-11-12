@@ -1,3 +1,4 @@
+import 'platform_capabilities.dart';
 import 'package:flutter/material.dart';
 
 import 'adaptive_form.dart';
@@ -234,7 +235,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: TextStyle(color: muted, fontSize: 12),
                           ),
                           const SizedBox(height: 26),
-                          ListenableBuilder(
+                          // On Vercel's free plan no picture is stored: the initial stands for the person.
+                          if (!BrainyPlatform.isFrozen('mediaFiles') || _photo != null) ListenableBuilder(
                             listenable: _name,
                             builder: (context, _) => ProfilePhotoPicker(
                               name: _name.text,

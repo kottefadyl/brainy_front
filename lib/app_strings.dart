@@ -1,3 +1,4 @@
+import 'media_file.dart';
 import 'language_flag.dart';
 import 'package:flutter/material.dart';
 
@@ -20,6 +21,7 @@ class AppStrings {
 
   String error(Object error) {
     final message = error.toString();
+    if (message.contains('not stored on this hosting plan')) return mediaRefusedText(isFrench);
     if (!isFrench) return message;
     if (_french.containsKey(message)) return text(message);
     // T47/4: single entry rule.

@@ -1,3 +1,5 @@
+import 'platform_capabilities.dart';
+import 'media_file.dart';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -77,7 +79,7 @@ class _QuickCaptureDialogState extends State<_QuickCaptureDialog> {
   Future<void> _restore() async { try { final id = await storage.read(key: preferenceKey); if (!mounted) return; for (final item in widget.collections) { if (item.id == id) { setState(() => collection = item); break; } } } catch (_) {} }
   @override void dispose() { title.dispose(); content.dispose(); note.dispose(); super.dispose(); }
   Future<void> _paste() async { try { content.text = (await Clipboard.getData('text/plain'))?.text ?? ''; setState(() { checked = false; duplicates = []; }); } catch (_) { setState(() => error = fr ? 'Presse-papiers indisponible.' : 'Clipboard unavailable.'); } }
-  Future<void> _pick() async { final file = await FilePicker.pickFile(); if (file == null) return; final length = await file.length(); if (length == null || length > 2 * 1024 * 1024) { setState(() => error = fr ? 'Fichier limité à 2 Mio.' : 'File limited to 2 MiB.'); return; } final bytes = await file.readAsBytes(); setState(() { fileName = file.name; fileBytes = bytes; }); }
+  Future<void> _pick() async { final file = await FilePicker.pickFile(); if (file == null) return; if (BrainyPlatform.isFrozen('mediaFiles') && isMediaFileName(file.name)) { setState(() => error = mediaRefusedText(fr)); return; } final length = await file.length(); if (length == null || length > 2 * 1024 * 1024) { setState(() => error = fr ? 'Fichier limité à 2 Mio.' : 'File limited to 2 MiB.'); return; } final bytes = await file.readAsBytes(); setState(() { fileName = file.name; fileBytes = bytes; }); }
   Future<void> _save([bool allowDuplicate = false]) async {
     final selected = format; if (selected == null) return;
     setState(() { busy = true; error = null; });
