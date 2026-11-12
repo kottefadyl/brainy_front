@@ -13,6 +13,7 @@ class WorkspaceMobileBar extends StatelessWidget {
     required this.onOpenCollections,
     this.themeControl,
     this.account,
+    this.onRefresh,
   });
 
   final Widget languageControl;
@@ -20,6 +21,9 @@ class WorkspaceMobileBar extends StatelessWidget {
   final Widget? account;
   final VoidCallback? onCapture;
   final VoidCallback onOpenCollections;
+
+  /// Reloads collections and entries, like the refresh button of the desktop bar and of the web.
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +69,14 @@ class WorkspaceMobileBar extends StatelessWidget {
           ),
           languageControl,
           ?themeControl,
+          if (onRefresh != null)
+            IconButton(
+              key: const Key('mobile-refresh'),
+              tooltip: fr ? 'Actualiser' : 'Refresh',
+              onPressed: onRefresh,
+              color: ink,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
           ?account,
           IconButton(
             tooltip: fr ? 'Ouvrir les collections' : 'Open collections',

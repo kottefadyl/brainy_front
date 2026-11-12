@@ -1196,6 +1196,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     themeControl: widget.themeButton == null ? null : Theme(data: Theme.of(context).copyWith(colorScheme: Theme.of(context).colorScheme.copyWith(primary: BrainyNavigationColors.ink(_dark))), child: widget.themeButton!),
     onCapture: _collections.isEmpty ? null : () => _showQuickCapture(),
     onOpenCollections: () => _scaffoldKey.currentState?.openEndDrawer(),
+    onRefresh: () => _load(),
     account: ProfileAccountButton(name: widget.user.name, onPressed: widget.onEditProfile, showName: false),
   );
 
