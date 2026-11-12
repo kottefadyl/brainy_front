@@ -126,8 +126,9 @@ void main() {
       expect(find.text('À PLACER'), findsNothing);
       expect(find.text('À placer'), findsWidgets);
       final outlineList = find.descendant(of: find.byType(width < 1000 ? Drawer : Row).first, matching: find.byType(Scrollable)).first;
-      await tester.scrollUntilVisible(find.text('Non affichés dans le livre : Notes.'), 300, scrollable: outlineList);
-      expect(find.text('Non affichés dans le livre : Notes.'), findsOneWidget);
+      // T47/3: the owner places the other data formats (here Notes) from the outline.
+      await tester.scrollUntilVisible(find.text('Formats de données dans le livre'), 300, scrollable: outlineList);
+      expect(find.text('Formats de données dans le livre'), findsOneWidget);
       await tester.scrollUntilVisible(find.widgetWithText(TextButton, 'Section').first, -300, scrollable: outlineList);
 
       await tester.tap(find.widgetWithText(TextButton, 'Section').first);
