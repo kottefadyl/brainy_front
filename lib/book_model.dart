@@ -54,10 +54,10 @@ class BookSettings {
   Map<String, dynamic> toInput() => {'enabled': enabled, 'bodyFont': bodyFont, 'headingFont': headingFont, 'fontSize': fontSize, 'lineHeight': lineHeight, 'paragraphSpacing': paragraphSpacing, 'firstLineIndent': firstLineIndent, 'marginMm': marginMm, 'textAlign': textAlign, 'pageSize': pageSize, 'showRuler': showRuler, 'chapterOnNewPage': chapterOnNewPage};
   Map<String, dynamic> toJson() => {...toInput(), 'roles': [for (final item in roles.entries) {'formatId': item.key, 'role': item.value}]};
 
-  BookSettings copyWith({bool? enabled, String? bodyFont, String? headingFont, double? fontSize, double? lineHeight, double? paragraphSpacing, double? firstLineIndent, double? marginMm, String? textAlign, String? pageSize, bool? showRuler, bool? chapterOnNewPage}) => BookSettings(
+  BookSettings copyWith({bool? enabled, String? bodyFont, String? headingFont, double? fontSize, double? lineHeight, double? paragraphSpacing, double? firstLineIndent, double? marginMm, String? textAlign, String? pageSize, bool? showRuler, bool? chapterOnNewPage, Map<String, String>? roles}) => BookSettings(
         enabled: enabled ?? this.enabled, bodyFont: bodyFont ?? this.bodyFont, headingFont: headingFont ?? this.headingFont, fontSize: fontSize ?? this.fontSize, lineHeight: lineHeight ?? this.lineHeight,
         paragraphSpacing: paragraphSpacing ?? this.paragraphSpacing, firstLineIndent: firstLineIndent ?? this.firstLineIndent, marginMm: marginMm ?? this.marginMm, textAlign: textAlign ?? this.textAlign,
-        pageSize: pageSize ?? this.pageSize, showRuler: showRuler ?? this.showRuler, chapterOnNewPage: chapterOnNewPage ?? this.chapterOnNewPage, roles: roles);
+        pageSize: pageSize ?? this.pageSize, showRuler: showRuler ?? this.showRuler, chapterOnNewPage: chapterOnNewPage ?? this.chapterOnNewPage, roles: roles ?? this.roles);
 }
 
 class BookNode {

@@ -1,5 +1,7 @@
 // T47: book view of a collection created from the Book template. Entries stay ordinary entries;
 // this screen only arranges them (roles, parent relations, order field) and edits their values.
+import 'book_format_roles.dart';
+import 'app_strings.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -327,6 +329,18 @@ class _BookViewScreenState extends State<BookViewScreen> {
     }
   }
 
+  Future<void> _setFormatRole(String formatId, String? role) async {
+    setState(() => busyId = formatId);
+    try {
+      final next = await widget.api.setBookFormatRole(widget.collection.id, formatId, role);
+      if (mounted) setState(() => settings = settings.copyWith(roles: next.roles));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.of(context).error(error))));
+    } finally {
+      if (mounted) setState(() => busyId = '');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final outline = buildBookOutline(widget.collection, settings, entries, relations);
@@ -338,6 +352,7 @@ class _BookViewScreenState extends State<BookViewScreen> {
       onCreate: (role, {parent, siblings = const []}) => _create(outline, role, parent: parent, siblings: siblings),
       onMove: _move, onDelete: _delete, onPlace: _place,
       onOpenEntry: (entry) async { await widget.onOpenEntry(entry); await _load(); },
+      formatRoles: widget.collection.sharedBy != null ? null : BookFormatRoles(formats: widget.collection.formats, roles: settings.roles, french: fr, busyFormatId: busyId, onChanged: _setFormatRole),
     );
     final paper = BookPaper.of(context);
     Widget pages;
@@ -393,7 +408,9 @@ class _BookViewScreenState extends State<BookViewScreen> {
 typedef _CreateCallback = Future<void> Function(String role, {BookNode? parent, List<BookNode> siblings});
 
 class _BookOutlinePanel extends StatelessWidget {
-  const _BookOutlinePanel({required this.outline, required this.french, required this.busyId, required this.onJump, required this.onCreate, required this.onMove, required this.onDelete, required this.onPlace, required this.onOpenEntry});
+  const _BookOutlinePanel({required this.outline, required this.french, required this.busyId, required this.onJump, required this.onCreate, required this.onMove, required this.onDelete, required this.onPlace, required this.onOpenEntry, this.formatRoles});
+  /// T47/3: owner only — choose how each data format appears in the book.
+  final Widget? formatRoles;
   final BookOutline outline;
   final bool french;
   final String busyId;
@@ -494,7 +511,7 @@ class _BookOutlinePanel extends StatelessWidget {
         const SizedBox(height: 6),
         Wrap(spacing: 6, runSpacing: 6, children: [for (final role in missing) ActionChip(avatar: const Icon(Icons.add, size: 16), label: Text(bookRoleLabel(role, fr)), onPressed: busyId == role ? null : () => onCreate(role))]),
       ],
-      if (outline.hiddenFormats.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text('${fr ? 'Non affichés dans le livre' : 'Not shown in the book'} : ${outline.hiddenFormats.map((format) => format.name).join(', ')}.', style: theme.textTheme.bodySmall?.copyWith(color: muted))),
+      if (formatRoles != null) formatRoles! else if (outline.hiddenFormats.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: Text('${fr ? 'Non affichés dans le livre' : 'Not shown in the book'} : ${outline.hiddenFormats.map((format) => format.name).join(', ')}.', style: theme.textTheme.bodySmall?.copyWith(color: muted))),
     ]);
   }
 }
