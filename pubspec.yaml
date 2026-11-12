@@ -44,6 +44,7 @@ dependencies:
   path_provider: ^2.1.6
   geolocator: ^14.0.1
   image: ^4.12.0
+  pdf: ^3.13.1
 
 # The bundled Windows implementation uses the upstream Dart DPAPI backend.
 # Its native bridge is only for legacy credential migration and needs ATL.

@@ -1,5 +1,7 @@
 // T47: book view of a collection created from the Book template. Entries stay ordinary entries;
 // this screen only arranges them (roles, parent relations, order field) and edits their values.
+import 'chart_export.dart';
+import 'book_pdf.dart';
 import 'entry_authors.dart';
 import 'book_format_roles.dart';
 import 'app_strings.dart';
@@ -343,6 +345,24 @@ class _BookViewScreenState extends State<BookViewScreen> {
     }
   }
 
+  bool exporting = false;
+
+  /// T47/1: the book as a PDF, laid out with the book view settings, saved where the person chooses.
+  Future<void> _exportPdf() async {
+    setState(() => exporting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final bytes = await buildBookPdf(outline: buildBookOutline(widget.collection, settings, entries, relations), settings: settings, bookTitle: widget.collection.name, french: fr);
+      final name = '${widget.collection.name.replaceAll(RegExp(r'[\/:*?"<>|]'), '-')}.pdf';
+      final saved = await saveChartExport(name, bytes);
+      if (saved) messenger.showSnackBar(SnackBar(content: Text(fr ? 'PDF enregistré.' : 'PDF saved.')));
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text(fr ? 'Le PDF n’a pas pu être créé : $error' : 'The PDF could not be created: $error')));
+    } finally {
+      if (mounted) setState(() => exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final outline = buildBookOutline(widget.collection, settings, entries, relations);
@@ -392,6 +412,7 @@ class _BookViewScreenState extends State<BookViewScreen> {
         actions: [
           if (!wide) IconButton(tooltip: fr ? 'Plan du livre' : 'Book outline', onPressed: () => scaffold.currentState?.openEndDrawer(), icon: const Icon(Icons.account_tree_outlined)),
           IconButton(tooltip: fr ? 'Mise en page' : 'Layout', onPressed: _openSettings, icon: const Icon(Icons.tune)),
+          IconButton(key: const Key('book-pdf'), tooltip: fr ? 'Enregistrer en PDF' : 'Save as PDF', onPressed: loading || exporting ? null : _exportPdf, icon: exporting ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.picture_as_pdf_outlined)),
           PopupMenuButton<String>(
             tooltip: fr ? 'Plus d’actions' : 'More actions',
             onSelected: (value) { if (value == 'off') _turnOff(); },
