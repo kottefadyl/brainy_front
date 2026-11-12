@@ -1159,7 +1159,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             final wide = constraints.maxWidth >= 860;
             return Row(
               children: [
-                if (wide) SizedBox(width: 280, child: _sidebar()),
+                // Wider sidebar so collection names fit (same rule as the web: 24 % between 300 and 340).
+                if (wide) SizedBox(width: (constraints.maxWidth * .24).clamp(300.0, 340.0), child: _sidebar()),
                 Expanded(
                   child: Column(
                     children: [

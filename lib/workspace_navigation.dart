@@ -99,6 +99,8 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
               ],
             ),
           ),
+          // Short windows: the tagline steps aside so the collection list keeps room (as on the web).
+          if (MediaQuery.sizeOf(context).height >= 820) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 20, 12),
             child: Text(
@@ -112,6 +114,8 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
             padding: const EdgeInsets.fromLTRB(24, 0, 20, 26),
             child: BrainyAccentBar(dark: dark),
           ),
+          ] else
+            const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.fromLTRB(26, 0, 26, 12),
             child: Row(
