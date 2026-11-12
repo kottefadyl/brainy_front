@@ -26,6 +26,7 @@ class WorkspaceEntryRow extends StatelessWidget {
   /// T53: creator and last editor, top left (shared collections only).
   final Widget? authors;
   final String color, title, formatName, created;
+
   /// Extra content under the values, such as a saved link preview (T48).
   final Widget? attachment;
   final String? preview, edited;
@@ -51,11 +52,10 @@ class WorkspaceEntryRow extends StatelessWidget {
       child: WorkspaceHoverSurface(
         color: DataFormatColors.surface(color, dark),
         marker: marker,
-        padding: const EdgeInsets.fromLTRB(12, 5, 8, 12),
+        padding: const EdgeInsets.fromLTRB(12, 5, 8, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (authors != null) Padding(padding: const EdgeInsets.only(top: 7), child: authors!),
             Row(
               children: [
                 Expanded(
@@ -92,26 +92,29 @@ class WorkspaceEntryRow extends StatelessWidget {
                       value: 'copy',
                       child: Text(copy.text('Copy entry')),
                     ),
-                    if (canWrite) PopupMenuItem(
-                      value: 'edit',
-                      child: Text(
-                        appendOnly
-                            ? copy.isFrench
-                                  ? 'Ouvrir le registre'
-                                  : 'Open register'
-                            : copy.text('Edit'),
+                    if (canWrite)
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Text(
+                          appendOnly
+                              ? copy.isFrench
+                                    ? 'Ouvrir le registre'
+                                    : 'Open register'
+                              : copy.text('Edit'),
+                        ),
                       ),
-                    ),
-                    if (reminders) PopupMenuItem(
-                      value: 'reminder',
-                      child: Text(copy.isFrench ? 'Rappels' : 'Reminders'),
-                    ),
-                    if (canWrite) PopupMenuItem(
-                      value: 'links',
-                      child: Text(
-                        copy.isFrench ? 'Liens entre entrées' : 'Entry links',
+                    if (reminders)
+                      PopupMenuItem(
+                        value: 'reminder',
+                        child: Text(copy.isFrench ? 'Rappels' : 'Reminders'),
                       ),
-                    ),
+                    if (canWrite)
+                      PopupMenuItem(
+                        value: 'links',
+                        child: Text(
+                          copy.isFrench ? 'Liens entre entrées' : 'Entry links',
+                        ),
+                      ),
                     if (!appendOnly && canWrite)
                       PopupMenuItem(
                         value: 'delete',
@@ -137,38 +140,51 @@ class WorkspaceEntryRow extends StatelessWidget {
                 ),
               ),
             ?attachment,
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: marker,
-                        shape: BoxShape.circle,
+                Expanded(
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: marker,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const SizedBox(width: 6, height: 6),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              formatName,
+                              style: TextStyle(color: ink, fontSize: 13),
+                            ),
+                          ),
+                        ],
                       ),
-                      child: const SizedBox(width: 6, height: 6),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        formatName,
-                        style: TextStyle(color: ink, fontSize: 13),
+                      Text(
+                        '${copy.text('Created')} $created',
+                        style: TextStyle(color: muted, fontSize: 13),
                       ),
-                    ),
-                  ],
+                      if (edited != null)
+                        Text(
+                          '${copy.text('Edited')} $edited',
+                          style: TextStyle(color: muted, fontSize: 13),
+                        ),
+                    ],
+                  ),
                 ),
-                Text(
-                  '${copy.text('Created')} $created',
-                  style: TextStyle(color: muted, fontSize: 13),
-                ),
-                if (edited != null)
-                  Text(
-                    '${copy.text('Edited')} $edited',
-                    style: TextStyle(color: muted, fontSize: 13),
+                // T53: creator and last editor, bottom right of the row where there is room.
+                if (authors != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: authors!,
                   ),
               ],
             ),
