@@ -1,6 +1,10 @@
 package com.example.brainy
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Intent
+import android.os.Build
+import android.os.Bundle
 import android.net.Uri
 import android.util.Base64
 import java.io.ByteArrayOutputStream
@@ -12,6 +16,20 @@ class MainActivity : FlutterActivity() {
     private val channelName = "brainy/quick_capture"
     private var channel: MethodChannel? = null
     private var pending: Map<String, String>? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // T20: reminders ring and pop up: high importance channel with the default sound and vibration.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java)
+            if (manager.getNotificationChannel("brainy_reminders") == null) {
+                val channel = NotificationChannel("brainy_reminders", "Rappels / Reminders", NotificationManager.IMPORTANCE_HIGH)
+                channel.description = "Brainy reminders"
+                channel.enableVibration(true)
+                manager.createNotificationChannel(channel)
+            }
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

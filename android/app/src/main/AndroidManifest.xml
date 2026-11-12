@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- T20: Android 13+ asks before showing reminders. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- T38/3: the position field reads the device location only when asked. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -9,6 +11,9 @@
         android:icon="@mipmap/ic_launcher">
         <meta-data android:name="firebase_messaging_installation_id_enabled"
             android:value="true" />
+        <!-- T20: reminders use the "brainy_reminders" channel (high importance, sound), created in MainActivity. -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="brainy_reminders" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
