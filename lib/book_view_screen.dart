@@ -1,5 +1,6 @@
 // T47: book view of a collection created from the Book template. Entries stay ordinary entries;
 // this screen only arranges them (roles, parent relations, order field) and edits their values.
+import 'entry_authors.dart';
 import 'book_format_roles.dart';
 import 'app_strings.dart';
 import 'dart:async';
@@ -302,6 +303,7 @@ class _BookViewScreenState extends State<BookViewScreen> {
   }
 
   BookPageContext _pageContext(BuildContext context) => BookPageContext(
+        sharedCollection: isSharedCollection(widget.collection) ? widget.collection : null,
         settings: settings,
         french: fr,
         paper: BookPaper.of(context),

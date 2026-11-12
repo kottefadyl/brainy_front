@@ -1,4 +1,5 @@
 // T47: book pages (paper sheets), light Markdown rendering and the text editor.
+import 'entry_authors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -25,7 +26,9 @@ const mmToPx = 96 / 25.4;
 
 /// Everything the pages need from the screen.
 class BookPageContext {
-  BookPageContext({required this.settings, required this.french, required this.paper, required this.edit, required this.loadImage, required this.keys});
+  BookPageContext({required this.settings, required this.french, required this.paper, required this.edit, required this.loadImage, required this.keys, this.sharedCollection});
+  /// T53/2: set in a shared collection, to show who wrote and last changed each part.
+  final BrainyCollection? sharedCollection;
   final BookSettings settings;
   final bool french;
   final BookPaper paper;
@@ -275,6 +278,7 @@ class BookPages extends StatelessWidget {
     void sheet(String id, Widget child, {bool center = false, bool bottom = false, Color? tint, bool fullHeight = false}) => sheets.add(KeyedSubtree(key: page.keyFor(id), child: BookSheet(page: page, center: center, bottom: bottom, tint: tint, fullHeight: fullHeight, child: child)));
     Widget title(BookNode node, double scale, String placeholder, {TextAlign align = TextAlign.left}) => BookEditable(page: page, node: node, kind: 'TITLE', placeholder: placeholder, builder: (value) => Text.rich(TextSpan(children: inlineSpans(value, page.heading(scale))), textAlign: align));
     Widget body(BookNode node, String placeholder, {TextAlign? align}) => BookEditable(page: page, node: node, kind: 'LONG_TEXT', placeholder: placeholder, builder: (value) => BookRichText(text: value, page: page, align: align));
+    Widget authors(BookNode node) => page.sharedCollection == null ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(bottom: 6), child: Align(alignment: Alignment.centerLeft, child: EntryAuthors(entry: node.entry, collection: page.sharedCollection!)));
     Widget matter(BookNode node) {
       if (node.role == 'DEDICATION') return Padding(padding: EdgeInsets.only(top: page.settings.fontSize * 8), child: body(node, fr ? 'À…' : 'To…', align: TextAlign.right));
       if (node.role == 'EPIGRAPH') {
@@ -285,6 +289,7 @@ class BookPages extends StatelessWidget {
       }
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         SizedBox(height: page.settings.fontSize * 2),
+        authors(node),
         title(node, 1.5, bookRoleLabel(node.role, fr)),
         SizedBox(height: page.settings.fontSize * 1.2),
         body(node, fr ? 'Écrivez ici…' : 'Write here…'),
@@ -348,17 +353,20 @@ class BookPages extends StatelessWidget {
     if (introduction != null) sheet(introduction.entry.id, matter(introduction));
     Widget chapterBody(BookNode chapter) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SizedBox(height: page.settings.fontSize * 3),
+          authors(chapter),
           Text('${bookRoleLabel('CHAPTER', fr).toUpperCase()} ${chapter.number}', style: page.kicker),
           title(chapter, 1.7, fr ? 'Titre du chapitre' : 'Chapter title'),
           SizedBox(height: page.settings.fontSize * 1.6),
           body(chapter, fr ? 'Écrivez le chapitre…' : 'Write the chapter…'),
           for (final section in chapter.children)
             KeyedSubtree(key: page.keyFor(section.entry.id), child: Padding(padding: EdgeInsets.only(top: page.settings.fontSize * 1.4), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              authors(section),
               BookEditable(page: page, node: section, kind: 'TITLE', placeholder: fr ? 'Titre de la section' : 'Section title', builder: (value) => Text.rich(TextSpan(children: [TextSpan(text: '${chapter.number}.${section.number}  ', style: page.heading(1.2, weight: FontWeight.w500).copyWith(color: page.paper.muted)), ...inlineSpans(value, page.heading(1.2))]))),
               SizedBox(height: page.settings.fontSize * .6),
               body(section, fr ? 'Texte de la section…' : 'Section text…'),
               for (final sub in section.children)
                 KeyedSubtree(key: page.keyFor(sub.entry.id), child: Padding(padding: EdgeInsets.only(top: page.settings.fontSize), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  authors(sub),
                   BookEditable(page: page, node: sub, kind: 'TITLE', placeholder: fr ? 'Titre de la sous-section' : 'Subsection title', builder: (value) => Text.rich(TextSpan(children: [TextSpan(text: '${chapter.number}.${section.number}.${sub.number}  ', style: page.heading(1.05, weight: FontWeight.w500).copyWith(color: page.paper.muted)), ...inlineSpans(value, page.heading(1.05).copyWith(fontStyle: FontStyle.italic))]))),
                   SizedBox(height: page.settings.fontSize * .4),
                   body(sub, fr ? 'Texte…' : 'Text…'),
