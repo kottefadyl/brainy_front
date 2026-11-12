@@ -186,7 +186,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
         else if (measure != null)
           'fieldId': measure,
         if (dateFieldId != null) 'dateFieldId': dateFieldId,
-        if (groupFieldId != null || groupBy == 'ZONE') 'groupFieldId': groupFieldId ?? format.fields.where((field) => field.kind == BrainyFieldKind.position).firstOrNull?.id,
+        if (groupFieldId != null || groupBy == 'ZONE' || groupBy == 'PERSON') 'groupFieldId': groupFieldId ?? format.fields.where((field) => field.kind == (groupBy == 'PERSON' ? BrainyFieldKind.collaborator : BrainyFieldKind.position)).firstOrNull?.id,
         if (groupBy == 'ZONE') ...{'zoneFormatId': zoneFormatId, 'zoneFieldId': zoneFieldId},
         if (operation == 'CROSSTAB') ...{
           'secondaryGroupBy': secondaryGroupBy,
@@ -455,6 +455,8 @@ class _InsightsDialogState extends State<_InsightsDialog> {
         .where(
           (item) => groupBy == 'OBJECT'
               ? item.kind == BrainyFieldKind.objectRef
+              : groupBy == 'PERSON'
+              ? item.kind == BrainyFieldKind.collaborator
               : groupBy == 'ZONE'
               ? item.kind == BrainyFieldKind.position
               : item.kind == BrainyFieldKind.select ||
@@ -722,13 +724,14 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                     fr ? 'Regrouper par' : 'Group by',
                     groupBy,
                     options(
-                      ['NONE', 'DAY', 'MONTH', 'CATEGORY', 'OBJECT', if (zoneFormats.isNotEmpty && format.fields.any((field) => field.kind == BrainyFieldKind.position)) 'ZONE'],
+                      ['NONE', 'DAY', 'MONTH', 'CATEGORY', 'OBJECT', if (format.fields.any((field) => field.kind == BrainyFieldKind.collaborator)) 'PERSON', if (zoneFormats.isNotEmpty && format.fields.any((field) => field.kind == BrainyFieldKind.position)) 'ZONE'],
                       labels: {
                         'NONE': fr ? 'Aucun' : 'None',
                         'DAY': fr ? 'Jour' : 'Day',
                         'MONTH': fr ? 'Mois' : 'Month',
                         'CATEGORY': fr ? 'Catégorie' : 'Category',
                         'OBJECT': fr ? 'Objet' : 'Object',
+                        'PERSON': fr ? 'Personne' : 'Person',
                         'ZONE': fr ? 'Zone' : 'Zone',
                       },
                     ),
@@ -748,7 +751,7 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                         ),
                     ], (value) => setState(() => dateFieldId = value)),
                   ],
-                  if (groupBy == 'CATEGORY' || groupBy == 'OBJECT' || groupBy == 'ZONE') ...[
+                  if (groupBy == 'CATEGORY' || groupBy == 'OBJECT' || groupBy == 'PERSON' || groupBy == 'ZONE') ...[
                     const SizedBox(height: 8),
                     select(
                       groupBy == 'ZONE' ? (fr ? 'Champ position' : 'Position field') : (fr ? 'Champ du groupe' : 'Group field'),

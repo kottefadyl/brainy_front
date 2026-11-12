@@ -426,7 +426,7 @@ class MultiSeries {
 /// drawn; the table keeps every cell. Null when the result has no period axis.
 MultiSeries? splitCrossTab(List<Map<String, dynamic>> rows, String? groupBy, String? secondaryGroupBy) {
   const periodGroups = {'DAY', 'MONTH'};
-  const seriesGroups = {'CATEGORY', 'OBJECT'};
+  const seriesGroups = {'CATEGORY', 'OBJECT', 'PERSON'};
   final periodFirst = periodGroups.contains(groupBy) && seriesGroups.contains(secondaryGroupBy);
   final periodSecond = seriesGroups.contains(groupBy) && periodGroups.contains(secondaryGroupBy);
   if (!periodFirst && !periodSecond) return null;

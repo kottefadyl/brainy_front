@@ -100,7 +100,7 @@ String correlationWords(double? r, {required bool french}) {
 
 /// A radar needs 3 to 12 categories or objects, none negative, and something above zero.
 bool canRadar(List<double> values, String? groupBy) =>
-    (groupBy == 'CATEGORY' || groupBy == 'OBJECT') && values.length >= 3 && values.length <= 12 && values.every((value) => value.isFinite && value >= 0) && values.any((value) => value > 0);
+    (groupBy == 'CATEGORY' || groupBy == 'OBJECT' || groupBy == 'PERSON') && values.length >= 3 && values.length <= 12 && values.every((value) => value.isFinite && value >= 0) && values.any((value) => value > 0);
 
 /// CSV of the plotted points, with the same protection against formulas as the other exports.
 String scatterCsv(List<ScatterPoint> points, String xName, String yName, {required bool french}) {
