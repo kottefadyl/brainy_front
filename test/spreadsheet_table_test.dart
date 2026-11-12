@@ -197,4 +197,42 @@ void main() {
     expect(find.byKey(const Key('column-error')), findsOneWidget);
     expect(result.auth.requests, isEmpty, reason: 'nothing is saved without a unit choice');
   });
+
+  // T46/1: sort, paste of a range with a new row, fill down.
+  testWidgets('a column title sorts the rows, then reverses, then restores the order', (tester) async {
+    await _pump(tester, viewId: 'sorted');
+    String firstTitle() => tester.widget<Text>(find.descendant(of: find.byKey(const Key('sheet-cell-0-0')), matching: find.byType(Text))).data ?? '';
+    expect(firstTitle(), 'Déjeuner');
+    await tester.tap(find.byKey(const Key('sheet-sort-a')));
+    await tester.pumpAndSettle();
+    expect(firstTitle(), 'Taxi', reason: '2500 before 4500');
+    await tester.tap(find.byKey(const Key('sheet-sort-a')));
+    await tester.pumpAndSettle();
+    expect(firstTitle(), 'Déjeuner');
+  });
+
+  testWidgets('pasted text fills cells from the selection and adds rows below', (tester) async {
+    final result = await _pump(tester, viewId: 'paste');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async => call.method == 'Clipboard.getData' ? {'text': '1200\n800\n300'} : null);
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    await tester.tap(find.byKey(const Key('sheet-cell-0-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('spreadsheet-paste')));
+    await tester.pumpAndSettle();
+    expect(result.saved.map((entry) => entry.values['a']), ['1200', '800', '300']);
+    expect(result.saved.first.values['t'], 'Déjeuner', reason: 'other values are kept');
+    expect(result.auth.queries.where((query) => query.contains('createEntry')).length, 1, reason: 'the third line becomes a new row');
+  });
+
+  testWidgets('fill down copies the first selected row into the rows below', (tester) async {
+    final result = await _pump(tester, viewId: 'fill');
+    await tester.tap(find.byKey(const Key('sheet-cell-0-1')));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.byKey(const Key('sheet-cell-1-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('spreadsheet-fill-down')));
+    await tester.pumpAndSettle();
+    expect(result.saved.single.values['a'], '4500');
+    expect(result.saved.single.values['t'], 'Taxi');
+  });
 }

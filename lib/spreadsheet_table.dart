@@ -9,6 +9,7 @@ import 'app_strings.dart';
 import 'collections_api.dart';
 import 'entry_clipboard.dart';
 import 'number_units.dart';
+import 'spreadsheet_range.dart';
 
 /// What a cell edits directly; the other kinds open the full entry form.
 enum SheetEditor { text, url, character, longText, number, duration, date, time, datetime, boolean, select, none }
@@ -263,6 +264,14 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
   int _row = 0, _col = 0;
   bool _editing = false, _draftRow = false, _saving = false, _cancelled = false;
   String? _problem;
+  // T46/1: range selection, sort by a column and column widths remembered per view.
+  SheetCell? _anchor;
+  SheetSort? _sort;
+  final Map<String, double> _widths = {};
+  static const _storage = FlutterSecureStorage();
+  String get _widthKey => 'brainy.spreadsheet.widths.${t.view['id']}';
+  double _widthOf(BrainyField field) => _widths[field.id] ?? _cellWidth;
+  SheetRange get _range => sheetRangeOf(_anchor, (row: _row, col: _col));
 
   SavedViewTable get t => widget.table;
   bool get _fr => AppStrings.of(context).isFrench;
@@ -278,7 +287,7 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
   }
   List<BrainyEntry> get _rows {
     final own = t.entries.where((entry) => entry.formatId == _format?.id).toList();
-    return [...own.where((entry) => !_createdIds.contains(entry.id)), for (final id in _createdIds) ...own.where((entry) => entry.id == id)];
+    return sortSheetEntries([...own.where((entry) => !_createdIds.contains(entry.id)), for (final id in _createdIds) ...own.where((entry) => entry.id == id)], _format?.fields ?? const [], _sort);
   }
   int get _rowCount => _rows.length + (_draftRow ? 1 : 0);
 
@@ -286,7 +295,18 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
   void initState() {
     super.initState();
     _editorFocus.addListener(() { if (!_editorFocus.hasFocus && _editing && !_cancelled) _commitText(); });
+    _storage.read(key: _widthKey).then((saved) {
+      if (saved == null || !mounted) return;
+      final pairs = saved.split(';').map((pair) => pair.split('=')).where((pair) => pair.length == 2);
+      setState(() { for (final pair in pairs) { final width = double.tryParse(pair[1]); if (width != null) _widths[pair[0]] = width; } });
+    }).catchError((Object _) {});
   }
+
+  void _setWidth(String fieldId, double width) {
+    setState(() => _widths[fieldId] = width.clamp(64, 640).roundToDouble());
+  }
+
+  void _saveWidths() => _storage.write(key: _widthKey, value: _widths.entries.map((item) => '${item.key}=${item.value}').join(';')).catchError((Object _) {});
 
   @override
   void dispose() { _gridFocus.dispose(); _editorFocus.dispose(); _editor.dispose(); super.dispose(); }
@@ -295,10 +315,125 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
   bool _locked(BrainyEntry? entry) => entry != null && (entry.ledgerHash != null || entry.offlinePending || (_format?.appendOnly ?? false));
   SheetEditor _editorKind(BrainyField field, BrainyEntry? entry) => _locked(entry) ? SheetEditor.none : sheetEditorFor(field, _format!);
 
-  void _select(int row, int col) {
+  void _select(int row, int col, {bool extend = false}) {
     final fields = _format?.fields ?? const <BrainyField>[];
-    setState(() { _row = row.clamp(0, (_rowCount - 1).clamp(0, 1 << 20)); _col = col.clamp(0, (fields.length - 1).clamp(0, 1 << 20)); });
+    setState(() {
+      if (extend) { _anchor ??= (row: _row, col: _col); } else { _anchor = null; }
+      _row = row.clamp(0, (_rowCount - 1).clamp(0, 1 << 20));
+      _col = col.clamp(0, (fields.length - 1).clamp(0, 1 << 20));
+    });
     _gridFocus.requestFocus();
+  }
+
+  String _fillInForm(BrainyField field) => '${field.name} : ${_fr ? 'à remplir dans le formulaire complet' : 'fill it in the full form'}';
+
+  /// Saves several cells, one request per row; rows past the last one become new entries.
+  Future<void> _saveRows(Map<int, Map<String, String>> changes, Set<String> skipped, [List<Map<String, String>> newRows = const []]) async {
+    if (_saving) return;
+    final copy = AppStrings.of(context);
+    final format = _format!;
+    final problems = [...skipped];
+    var done = 0;
+    setState(() => _saving = true);
+    Future<void> save(BrainyEntry? entry, Map<String, String> cells, String label) async {
+      final values = Map<String, String>.of(entry?.values ?? const {})..addAll(cells);
+      values.removeWhere((_, value) => value.trim().isEmpty);
+      if (values.isEmpty || (entry != null && cells.entries.every((cell) => (entry.values[cell.key] ?? '') == cell.value))) return;
+      try {
+        final saved = await t.api.saveEntry(t.collection.id, values, entryId: entry?.id, formatId: format.id, measures: entry?.measures ?? const {}, expectedUpdatedAt: entry?.updatedAt);
+        if (entry == null) _createdIds.add(saved.id);
+        t.onEntrySaved(saved);
+        done++;
+      } catch (error) {
+        problems.add('$label : ${copy.error(error)}');
+      }
+    }
+    try {
+      final rows = _rows;
+      for (final row in changes.keys.toList()..sort()) {
+        if (row < rows.length) await save(rows[row], changes[row]!, '${_fr ? 'Ligne' : 'Row'} ${row + 1}');
+      }
+      for (var index = 0; index < newRows.length; index++) {
+        if (newRows[index].isNotEmpty) await save(null, newRows[index], '${_fr ? 'Nouvelle ligne' : 'New row'} ${index + 1}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _draftRow = false;
+          _problem = problems.isEmpty ? null : '${_fr ? '$done ligne(s) enregistrée(s).' : '$done row(s) saved.'} ${problems.take(3).join(' · ')}${problems.length > 3 ? ' …' : ''}';
+        });
+      }
+    }
+  }
+
+  /// Copies the selected cells as tab-separated text.
+  Future<void> _copy() async {
+    final fields = _format?.fields ?? const <BrainyField>[];
+    final range = _range;
+    final lines = [
+      for (var row = range.top; row <= range.bottom; row++)
+        [for (var col = range.left; col <= range.right && col < fields.length; col++) sheetEditable(fields[col], _entryAt(row)?.values[fields[col].id] ?? '', _fr)],
+    ];
+    await Clipboard.setData(ClipboardData(text: sheetToClipboard(lines)));
+    if (mounted) setState(() => _problem = null);
+  }
+
+  /// Pastes tab-separated text from the selected cell; one copied value fills the whole selection.
+  Future<void> _paste() async {
+    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    if (text == null || text.isEmpty || !mounted) return;
+    final fields = _format!.fields;
+    final rows = _rows;
+    final grid = sheetParseClipboard(text).take(200).toList();
+    final range = _range;
+    final single = grid.length == 1 && grid.first.length == 1 && (range.bottom > range.top || range.right > range.left);
+    final top = single ? range.top : _row, left = single ? range.left : _col;
+    final height = single ? range.bottom - range.top + 1 : grid.length;
+    final width = single ? range.right - range.left + 1 : grid.map((line) => line.length).reduce((a, b) => a > b ? a : b);
+    final changes = <int, Map<String, String>>{};
+    final newRows = <Map<String, String>>[];
+    final skipped = <String>{};
+    for (var r = 0; r < height; r++) {
+      final row = top + r;
+      final entry = row < rows.length ? rows[row] : null;
+      final cells = <String, String>{};
+      for (var c = 0; c < width; c++) {
+        if (left + c >= fields.length) continue;
+        final line = single ? grid.first : grid[r];
+        if (!single && c >= line.length) continue;
+        final field = fields[left + c];
+        final raw = single ? grid.first.first : line[c];
+        if (_editorKind(field, entry) == SheetEditor.none) { skipped.add(_fillInForm(field)); continue; }
+        final result = sheetStored(field, field.kind == BrainyFieldKind.boolean ? sheetPastedBoolean(raw) : raw, french: _fr);
+        if (result.error != null) { skipped.add('${field.name} : ${result.error}'); continue; }
+        cells[field.id] = result.value;
+      }
+      if (row < rows.length) { changes[row] = cells; } else { newRows.add(cells..removeWhere((_, value) => value.isEmpty)); }
+    }
+    await _saveRows(changes, skipped, newRows);
+  }
+
+  /// The first row of the selection is copied into the rows below it (the fill handle of a spreadsheet).
+  Future<void> _fillDown() async {
+    final range = _range;
+    if (range.bottom == range.top) {
+      setState(() => _problem = _fr ? 'Sélectionnez plusieurs lignes avant de recopier vers le bas.' : 'Select several rows before filling down.');
+      return;
+    }
+    final fields = _format!.fields;
+    final rows = _rows;
+    final source = _entryAt(range.top);
+    final changes = <int, Map<String, String>>{};
+    final skipped = <String>{};
+    for (var row = range.top + 1; row <= range.bottom && row < rows.length; row++) {
+      for (var col = range.left; col <= range.right; col++) {
+        final field = fields[col];
+        if (_editorKind(field, rows[row]) == SheetEditor.none) { skipped.add(_fillInForm(field)); continue; }
+        (changes[row] ??= {})[field.id] = source?.values[field.id] ?? '';
+      }
+    }
+    await _saveRows(changes, skipped);
   }
 
   Future<void> _start(int row, int col, {String? initial}) async {
@@ -395,10 +530,16 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
     if (_editing || event is KeyUpEvent) return KeyEventResult.ignored;
     final fields = _format?.fields ?? const <BrainyField>[];
     final key = event.logicalKey;
-    if (key == LogicalKeyboardKey.arrowDown) { _select(_row + 1, _col); return KeyEventResult.handled; }
-    if (key == LogicalKeyboardKey.arrowUp) { _select(_row - 1, _col); return KeyEventResult.handled; }
-    if (key == LogicalKeyboardKey.arrowRight) { _select(_row, _col + 1); return KeyEventResult.handled; }
-    if (key == LogicalKeyboardKey.arrowLeft) { _select(_row, _col - 1); return KeyEventResult.handled; }
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final control = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+    if (key == LogicalKeyboardKey.arrowDown) { _select(_row + 1, _col, extend: shift); return KeyEventResult.handled; }
+    if (key == LogicalKeyboardKey.arrowUp) { _select(_row - 1, _col, extend: shift); return KeyEventResult.handled; }
+    if (key == LogicalKeyboardKey.arrowRight) { _select(_row, _col + 1, extend: shift); return KeyEventResult.handled; }
+    if (key == LogicalKeyboardKey.arrowLeft) { _select(_row, _col - 1, extend: shift); return KeyEventResult.handled; }
+    if (control && key == LogicalKeyboardKey.keyC) { _copy(); return KeyEventResult.handled; }
+    if (control && key == LogicalKeyboardKey.keyV) { _paste(); return KeyEventResult.handled; }
+    if (control && key == LogicalKeyboardKey.keyD) { _fillDown(); return KeyEventResult.handled; }
+    if (key == LogicalKeyboardKey.escape && _anchor != null) { setState(() => _anchor = null); return KeyEventResult.handled; }
     if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.f2 || (key == LogicalKeyboardKey.space && fields[_col].kind == BrainyFieldKind.boolean)) {
       if (_rowCount > 0) _start(_row, _col);
       return KeyEventResult.handled;
@@ -445,19 +586,64 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
     // a long text being edited gets room for four lines.
     double heightOf(int row) => _editing && row == _row && _editorKind(fields[_col], _entryAt(row)) == SheetEditor.longText ? 128 : _rowHeight;
 
-    Widget headerCell(BrainyField field) => Container(
-      width: _cellWidth, height: 56, padding: const EdgeInsets.symmetric(horizontal: 10),
-      alignment: Alignment.centerLeft,
-      decoration: BoxDecoration(color: scheme.surfaceContainerHigh, border: Border(right: border, bottom: border)),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(field.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-        Text('${copy.text(field.kind.label)}${field.kind == BrainyFieldKind.number && (field.unit ?? '').isNotEmpty ? ' · ${_unitSymbol(field.unit)}' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
-      ]),
-    );
+    Widget headerCell(BrainyField field) {
+      final sorted = _sort?.fieldId == field.id ? _sort : null;
+      return Container(
+        width: _widthOf(field), height: 56,
+        decoration: BoxDecoration(color: scheme.surfaceContainerHigh, border: Border(right: border, bottom: border)),
+        child: Stack(children: [
+          Positioned.fill(child: Semantics(
+            button: true,
+            label: '${field.name}, ${sorted == null ? (fr ? 'trier' : 'sort') : sorted.ascending ? (fr ? 'tri croissant' : 'sorted ascending') : (fr ? 'tri décroissant' : 'sorted descending')}',
+            excludeSemantics: true,
+            child: InkWell(
+              key: Key('sheet-sort-${field.id}'),
+              onTap: () => setState(() { _sort = nextSheetSort(_sort, field.id); _anchor = null; }),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 14, 0),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Flexible(child: Text(field.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
+                    if (sorted != null) Icon(sorted.ascending ? Icons.arrow_upward : Icons.arrow_downward, size: 14, color: scheme.primary),
+                  ]),
+                  Text('${copy.text(field.kind.label)}${field.kind == BrainyFieldKind.number && (field.unit ?? '').isNotEmpty ? ' · ${_unitSymbol(field.unit)}' : ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+                ]),
+              ),
+            ),
+          )),
+          // Drag the right edge to widen or narrow the column; arrow keys do the same once it has the focus.
+          Positioned(top: 0, bottom: 0, right: 0, width: 12, child: Semantics(
+            label: fr ? 'Largeur de ${field.name}' : 'Width of ${field.name}',
+            child: Focus(
+              onKeyEvent: (node, event) {
+                if (event is KeyUpEvent) return KeyEventResult.ignored;
+                final step = event.logicalKey == LogicalKeyboardKey.arrowRight ? 16 : event.logicalKey == LogicalKeyboardKey.arrowLeft ? -16 : 0;
+                if (step == 0) return KeyEventResult.ignored;
+                _setWidth(field.id, _widthOf(field) + step);
+                _saveWidths();
+                return KeyEventResult.handled;
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeColumn,
+                child: GestureDetector(
+                  key: Key('sheet-resize-${field.id}'),
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: (details) => _setWidth(field.id, _widthOf(field) + details.delta.dx),
+                  onHorizontalDragEnd: (_) => _saveWidths(),
+                  onDoubleTap: () { setState(() => _widths.remove(field.id)); _saveWidths(); },
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+          )),
+        ]),
+      );
+    }
 
     Widget cell(int row, int col) {
       final entry = _entryAt(row), field = fields[col];
       final selected = row == _row && col == _col;
+      final inRange = _anchor != null && sheetInRange(_range, row, col);
       final kind = _editorKind(field, entry);
       final editing = selected && _editing;
       final value = entry?.values[field.id] ?? '';
@@ -509,11 +695,16 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
         child: InkWell(
           // No double-tap handler: it would delay every single tap. A second tap on the
           // selected cell edits it, which a double click also does.
-          onTap: editing ? null : () { if (selected || field.kind == BrainyFieldKind.boolean) { _start(row, col); } else { _select(row, col); } },
+          onTap: editing ? null : () {
+            if (HardwareKeyboard.instance.isShiftPressed) { _select(row, col, extend: true); return; }
+            if (selected || field.kind == BrainyFieldKind.boolean) { _start(row, col); } else { _select(row, col); }
+          },
+          // On a touch screen, a long press extends the selection from the selected cell.
+          onLongPress: editing ? null : () => _select(row, col, extend: true),
           child: Container(
-            width: _cellWidth, height: heightOf(row),
+            width: _widthOf(field), height: heightOf(row),
             decoration: BoxDecoration(
-              color: _locked(entry) ? scheme.surfaceContainerLow : editing ? scheme.surfaceContainerHighest : scheme.surface,
+              color: _locked(entry) ? scheme.surfaceContainerLow : editing ? scheme.surfaceContainerHighest : inRange ? scheme.primaryContainer.withValues(alpha: .45) : scheme.surface,
               border: Border(right: border, bottom: border),
             ),
             foregroundDecoration: selected ? BoxDecoration(border: Border.all(color: scheme.primary, width: 2)) : null,
@@ -599,8 +790,12 @@ class _SpreadsheetGridState extends State<_SpreadsheetGrid> {
           ),
         ),
         const SizedBox(height: 10),
-        Row(children: [
+        Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
           OutlinedButton.icon(key: const Key('spreadsheet-add-row'), onPressed: _draftRow || _saving ? null : _addRow, icon: const Icon(Icons.add), label: Text(fr ? 'Ajouter une ligne' : 'Add a row')),
+          const SizedBox(width: 4),
+          IconButton(key: const Key('spreadsheet-copy'), tooltip: fr ? 'Copier la sélection (Ctrl+C)' : 'Copy the selection (Ctrl+C)', onPressed: _rowCount == 0 ? null : _copy, icon: const Icon(Icons.copy_outlined)),
+          IconButton(key: const Key('spreadsheet-paste'), tooltip: fr ? 'Coller (Ctrl+V)' : 'Paste (Ctrl+V)', onPressed: _saving ? null : _paste, icon: const Icon(Icons.content_paste_outlined)),
+          IconButton(key: const Key('spreadsheet-fill-down'), tooltip: fr ? 'Recopier vers le bas (Ctrl+D)' : 'Fill down (Ctrl+D)', onPressed: _saving || _anchor == null ? null : _fillDown, icon: const Icon(Icons.vertical_align_bottom)),
           if (_saving) ...[const SizedBox(width: 12), Text(fr ? 'Enregistrement…' : 'Saving…', style: Theme.of(context).textTheme.bodySmall)],
         ]),
       ],
