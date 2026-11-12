@@ -1438,7 +1438,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     final view = _selectedView;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final phone = screenWidth < 600;
-    final canWrite = _canWrite(collection);
+    // T52/2: saved views are managed by the owner; collaborators choose and use them.
+    final canWrite = collection.sharedBy == null;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -2010,7 +2011,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     return WorkspaceEntryRow(
       key: ValueKey(entry.id), color: format.color, title: title,
       authors: isSharedCollection(collection) && entry.createdBy != null ? EntryAuthors(entry: entry, collection: collection) : null,
-      formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders'), canWrite: _canWrite(collection),
+      formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders') && _canWrite(collection), canWrite: _canWrite(collection),
       preview: previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
       attachment: linkPreviewFor(_api, collection, format, entry, french: _copy.isFrench),
       created: _formatTimestamp(entry.createdAt, compact: true),
