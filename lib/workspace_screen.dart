@@ -1,3 +1,4 @@
+import 'realtime_sync.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -70,6 +71,7 @@ import 'platform_capabilities.dart';
 import 'profile_photo.dart';
 
 part 'workspace_entry_pagination.dart';
+part 'workspace_live_sync.dart';
 
 const _ink = Color(0xFF20242C);
 const _muted = Color(0xFF545E6D);
@@ -145,6 +147,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   AppStrings get _copy => AppStrings.of(context);
   late final CollectionsApi _api = CollectionsApi(widget.api);
   late final PushRegistration _push = PushRegistration(_api);
+  late final RealtimeSync _realtime = RealtimeSync(_api, widget.user.id, (ids) { if (mounted) _liveSync(ids); });
   List<BrainyCollection> _collections = [];
   List<BrainyEntry> _entries = [];
   String? _pageCursor;
@@ -191,6 +194,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     if (widget.openTemplatesOnStart) WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _createCollection(); });
     BrainyPlatform.load(widget.api).then((_) { if (mounted) setState(() {}); });
     _push.refreshIfAuthorized().catchError((Object _) {});
+    _realtime.start();
   }
 
   @override
@@ -198,6 +202,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     QuickCaptureBridge.clear();
     _filterDebounce?.cancel();
     _push.dispose();
+    _realtime.dispose();
     _searchController.dispose();
     _filterController.dispose();
     super.dispose();
