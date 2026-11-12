@@ -2185,6 +2185,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
   final List<_DraftField> _fields = [];
   bool _saving = false;
   bool _objectModel = false;
+  late bool _singleEntry = widget.editingFormat?.singleEntry ?? false;
   String? _error;
 
   String? _selectedColor;
@@ -2348,7 +2349,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
       _error = null;
     });
     try {
-      final collection = widget.editingFormat != null
+      var collection = widget.editingFormat != null
           ? await widget.api.updateFormat(
               widget.collection!.id,
               widget.editingFormat!,
@@ -2386,6 +2387,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
           : _fields.any((field) => field.kind == BrainyFieldKind.code)
           ? await widget.api.addFormatWithCode(widget.collection!.id, formatName, _selectedColor!, [for (var index = 0; index < fields.length; index++) {'name': fields[index].name, 'kind': fields[index].kind.wireName, if (fields[index].unit != null) 'unit': fields[index].unit, if (fields[index].options != null) 'options': fields[index].options, if (_fields[index].kind == BrainyFieldKind.code) 'codeListId': _fields[index].codeListId}], objectModel: _objectModel)
           : await widget.api.addFormat(widget.collection!.id, formatName, _selectedColor!, fields, objectModel: _objectModel);
+      final edited = widget.editingFormat;
+      if (edited != null && _singleEntry != edited.singleEntry) collection = await widget.api.setFormatEntryRules(widget.collection!.id, edited, _singleEntry);
       if (mounted) Navigator.pop(context, collection);
     } catch (error) {
       if (mounted) {
@@ -2883,6 +2886,13 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                     icon: const Icon(Icons.add),
                     label: Text(_t('Add field')),
                   ),
+                  if (widget.editingFormat != null && !widget.editingFormat!.appendOnly)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _singleEntry,
+                      onChanged: (value) => setState(() => _singleEntry = value ?? false),
+                      title: Text(AppStrings.of(context).isFrench ? 'Une seule entrée pour ce format de données (par exemple une couverture ou une préface)' : 'A single entry for this data format (for example a cover or a preface)'),
+                    ),
                   if (widget.editingFormat == null)
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,

@@ -21,6 +21,9 @@ class AppStrings {
     final message = error.toString();
     if (!isFrench) return message;
     if (_french.containsKey(message)) return text(message);
+    // T47/4: single entry rule.
+    if (message.contains('already has several entries')) return 'Ce format de données a déjà plusieurs entrées. Gardez-en une seule avant d’activer cette règle.';
+    if (message.contains('can only have one entry')) return 'Ce format de données n’accepte qu’une seule entrée : modifiez celle qui existe.';
     // T52: refusals in a collection shared with me.
     if (message.contains('Read-only members cannot modify collection data')) {
       return 'Cette collection vous est partagée en lecture seule : vous ne pouvez pas la modifier.';

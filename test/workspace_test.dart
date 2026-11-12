@@ -138,6 +138,12 @@ class _FakeAuthApi extends AuthApi {
         },
       };
     }
+    if (query.contains('setFormatEntryRules')) {
+      final collection = collections.singleWhere((item) => item['id'] == variables['collectionId']);
+      final format = (collection['formats'] as List<dynamic>).cast<Map<String, dynamic>>().singleWhere((item) => item['id'] == variables['formatId']);
+      format['singleEntry'] = variables['singleEntry'];
+      return {'setFormatEntryRules': collection};
+    }
     if (query.contains('updateCollectionFormat')) {
       final collection = collections.singleWhere(
         (item) => item['id'] == variables['collectionId'],
@@ -702,6 +708,9 @@ void main() {
     dialogScroll(tester).position
         .jumpTo(dialogScroll(tester).position.maxScrollExtent);
     await tester.pumpAndSettle();
+    // T47/4: the single entry rule is set from the editor.
+    await tester.tap(find.textContaining('A single entry for this data format'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save').last);
     await tester.pumpAndSettle();
 
@@ -711,6 +720,7 @@ void main() {
     expect(format['name'], 'Journal notes');
     expect((format['fields'] as List<dynamic>).length, 2);
     expect((format['fields'] as List<dynamic>).first['id'], 'field-0-0');
+    expect(format['singleEntry'], true);
     await tester.tap(find.text('Entries').first);
     await tester.pumpAndSettle();
     expect(find.text('First note'), findsOneWidget);

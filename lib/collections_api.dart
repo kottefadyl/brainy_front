@@ -617,17 +617,17 @@ class CollectionsApi {
   final AuthApi auth;
 
   Future<BrainyCollection> setFormatSensitivity(String collectionId, String formatId, String level, int expectedVersion) async {
-    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$level:SensitivityLevel!,\$expectedVersion:Int!){setFormatSensitivity(collectionId:\$collectionId,formatId:\$formatId,level:\$level,expectedVersion:\$expectedVersion){\$_collectionFields}}', {'collectionId': collectionId, 'formatId': formatId, 'level': level, 'expectedVersion': expectedVersion});
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$level:SensitivityLevel!,\$expectedVersion:Int!){setFormatSensitivity(collectionId:\$collectionId,formatId:\$formatId,level:\$level,expectedVersion:\$expectedVersion){$_collectionFields}}', {'collectionId': collectionId, 'formatId': formatId, 'level': level, 'expectedVersion': expectedVersion});
     return BrainyCollection.fromJson(data['setFormatSensitivity'] as Map<String, dynamic>);
   }
 
   Future<BrainyCollection> setFieldSensitivity(String collectionId, String formatId, String fieldId, String level, int expectedVersion) async {
-    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$fieldId:String!,\$level:SensitivityLevel!,\$expectedVersion:Int!){setFieldSensitivity(collectionId:\$collectionId,formatId:\$formatId,fieldId:\$fieldId,level:\$level,expectedVersion:\$expectedVersion){\$_collectionFields}}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'level': level, 'expectedVersion': expectedVersion});
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$fieldId:String!,\$level:SensitivityLevel!,\$expectedVersion:Int!){setFieldSensitivity(collectionId:\$collectionId,formatId:\$formatId,fieldId:\$fieldId,level:\$level,expectedVersion:\$expectedVersion){$_collectionFields}}', {'collectionId': collectionId, 'formatId': formatId, 'fieldId': fieldId, 'level': level, 'expectedVersion': expectedVersion});
     return BrainyCollection.fromJson(data['setFieldSensitivity'] as Map<String, dynamic>);
   }
 
   Future<BrainyCollection> setMinimumAggregateSize(String collectionId, int minimum) async {
-    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$minimum:Int!){setMinimumAggregateSize(collectionId:\$collectionId,minimum:\$minimum){\$_collectionFields}}', {'collectionId': collectionId, 'minimum': minimum});
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$minimum:Int!){setMinimumAggregateSize(collectionId:\$collectionId,minimum:\$minimum){$_collectionFields}}', {'collectionId': collectionId, 'minimum': minimum});
     return BrainyCollection.fromJson(data['setMinimumAggregateSize'] as Map<String, dynamic>);
   }
 
@@ -1551,6 +1551,12 @@ class CollectionsApi {
       populatedFieldIds: (impact['populatedFieldIds'] as List<dynamic>)
           .cast<String>(),
     );
+  }
+
+  /// T47/4: at most one entry for this data format; keeps the allowed parents unchanged.
+  Future<BrainyCollection> setFormatEntryRules(String collectionId, BrainyFormat format, bool singleEntry) async {
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$singleEntry:Boolean!,\$parentFormatIds:[String!]!){setFormatEntryRules(collectionId:\$collectionId,formatId:\$formatId,singleEntry:\$singleEntry,parentFormatIds:\$parentFormatIds){$_collectionFields}}', {'collectionId': collectionId, 'formatId': format.id, 'singleEntry': singleEntry, 'parentFormatIds': format.parentFormatIds});
+    return BrainyCollection.fromJson(data['setFormatEntryRules'] as Map<String, dynamic>);
   }
 
   Future<BrainyCollection> updateFormat(
