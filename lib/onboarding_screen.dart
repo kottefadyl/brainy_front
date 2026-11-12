@@ -1,4 +1,5 @@
 // T50: five-page welcome guide shown once after sign-up. Illustrations are small Brainy UI mock-ups.
+import 'format_color_names.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_api.dart';
@@ -254,18 +255,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         CheckboxListTile(contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading, value: withDate, onChanged: (value) => setState(() => withDate = value ?? false), title: Text(fr ? 'Ajouter un champ Date en plus du Titre' : 'Add a Date field next to the Title')),
         Text(fr ? 'Couleur' : 'Color', style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
+        Text(formatColorName(color, french: fr), style: TextStyle(color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 6),
         Wrap(spacing: 6, runSpacing: 6, children: [
-          for (final option in brainyFormatColors.take(12))
-            Semantics(
+          for (final option in brainyFormatColors)
+            Tooltip(message: formatColorName(option, french: fr), child: Semantics(
               button: true,
               selected: option == color,
-              label: '${fr ? 'Couleur' : 'Color'} ${brainyFormatColors.indexOf(option) + 1}',
+              label: '${fr ? 'Couleur' : 'Color'} ${formatColorName(option, french: fr)}',
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: () => setState(() => color = option),
                 child: Container(width: 40, height: 40, decoration: BoxDecoration(color: DataFormatColors.surface(option, dark), shape: BoxShape.circle, border: Border.all(color: option == color ? scheme.primary : DataFormatColors.marker(option, dark).withValues(alpha: .4), width: option == color ? 3 : 1)), child: option == color ? Icon(Icons.check, size: 18, color: DataFormatColors.marker(option, dark)) : null),
               ),
-            ),
+            )),
         ]),
       ]),
       step(3, fr ? 'Écrivez votre première entrée' : 'Write your first entry', [

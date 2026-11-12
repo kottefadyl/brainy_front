@@ -1,3 +1,4 @@
+import 'package:brainy/collections_api.dart';
 import 'package:brainy/auth_api.dart';
 import 'package:brainy/brainy_theme.dart';
 import 'package:brainy/onboarding_screen.dart';
@@ -69,6 +70,10 @@ void main() {
     await tester.tap(find.widgetWithText(ActionChip, 'Maison'));
     await tester.ensureVisible(find.widgetWithText(ActionChip, 'Dépense'));
     await tester.tap(find.widgetWithText(ActionChip, 'Dépense'));
+    // T50/1: the 24 colors, named; the last one can be chosen.
+    final celadon = find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.label == 'Couleur Céladon');
+    await tester.ensureVisible(celadon);
+    await tester.tap(celadon);
     await tester.enterText(find.widgetWithText(TextField, 'Titre de la première entrée'), 'Pain, 500 FCFA');
     await tester.pumpAndSettle();
     expect(find.text('Maison'), findsWidgets, reason: 'the preview follows the typing');
@@ -80,6 +85,7 @@ void main() {
     expect(input['name'], 'Maison');
     final format = (input['formats'] as List<dynamic>).single as Map<String, dynamic>;
     expect(format['name'], 'Dépense');
+    expect(format['color'], brainyFormatColors.last);
     expect((format['fields'] as List<dynamic>).map((field) => (field as Map)['kind']), ['TITLE', 'DATE']);
     final entry = auth.variables[auth.queries.indexWhere((query) => query.contains('createEntry'))]['input'] as Map<String, dynamic>;
     expect((entry['values'] as List<dynamic>).first, containsPair('value', 'Pain, 500 FCFA'));
