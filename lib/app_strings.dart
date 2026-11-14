@@ -22,6 +22,14 @@ class AppStrings {
   String error(Object error) {
     final message = error.toString();
     if (message.contains('not stored on this hosting plan')) return mediaRefusedText(isFrench);
+    if (message.contains('This account is blocked')) return isFrench ? 'Ce compte est bloqué. Contactez l’administrateur de Brainy.' : 'This account is blocked. Contact the Brainy administrator.';
+    // Required fields and the most entries a data format accepts.
+    final requiredMissing = RegExp(r'Required fields are empty: (.+)').firstMatch(message);
+    if (requiredMissing != null) return isFrench ? 'Champs obligatoires à remplir : ${requiredMissing[1]}.' : 'Fill in the required fields: ${requiredMissing[1]}.';
+    final limitReached = RegExp(r'can only have (\d+) entries').firstMatch(message);
+    if (limitReached != null) return isFrench ? 'Ce format de données accepte au plus ${limitReached[1]} entrées.' : 'This data format accepts at most ${limitReached[1]} entries.';
+    final limitTooLow = RegExp(r'already has more than (\d+) entries').firstMatch(message);
+    if (limitTooLow != null) return isFrench ? 'Ce format de données a déjà plus de ${limitTooLow[1]} entrées. Choisissez une limite plus haute ou supprimez des entrées.' : 'This data format already has more than ${limitTooLow[1]} entries. Choose a higher limit or delete entries.';
     if (!isFrench) return message;
     if (_french.containsKey(message)) return text(message);
     // T47/4: single entry rule.

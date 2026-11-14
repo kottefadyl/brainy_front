@@ -62,7 +62,7 @@ void main() {
                         formatName: 'Mes observations personnelles',
                         created: '06/11/2026 · 09:15',
                         edited: '06/11/2026 · 10:30',
-                        preview: 'Un aperçu lisible',
+                        facts: const [(label: 'Lieu', value: 'Un aperçu lisible')],
                         onDetails: () {},
                         onAction: (_) {},
                       ),

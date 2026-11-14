@@ -69,6 +69,9 @@ import 'entry_authors.dart';
 import 'geo_field_input.dart';
 import 'platform_capabilities.dart';
 import 'profile_photo.dart';
+import 'entries_pager.dart';
+import 'view_memory.dart';
+import 'format_entry_rules_inputs.dart';
 
 part 'workspace_entry_pagination.dart';
 part 'workspace_live_sync.dart';
@@ -151,8 +154,45 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   List<BrainyCollection> _collections = [];
   List<BrainyEntry> _entries = [];
   String? _pageCursor;
-  String? _pageAfter;
-  final List<String?> _previousPages = [];
+  // Large lists: position of the page shown, total of matching entries, page size (remembered).
+  int _pageOffset = 0;
+  int? _totalCount;
+  int _pageSize = entryPageSizes.first;
+  final _entriesTop = GlobalKey();
+  /// Entries per data format over all pages (server), for the data format cards.
+  ({String collectionId, Map<String, int> counts, int signature})? _formatCounts;
+  bool _countingFormats = false;
+  Object? _formatCountsAsked;
+  void _refreshFormatCounts(String collectionId) {
+    final signature = Object.hash(_totalCount, _entries.length, _entries.firstOrNull?.updatedAt);
+    // One request per state of the list, even when it fails (offline): the cards then show the page counts.
+    final asked = Object.hash(collectionId, signature);
+    if (_countingFormats || _formatCountsAsked == asked) return;
+    _formatCountsAsked = asked;
+    _countingFormats = true;
+    _api.formatEntryCounts(collectionId).then((counts) {
+      if (mounted) setState(() => _formatCounts = (collectionId: collectionId, counts: counts, signature: signature));
+    }).catchError((Object _) {}).whenComplete(() => _countingFormats = false);
+  }
+  /// "/" outside a text field puts the cursor in the entry search (keyboards on computers and tablets).
+  final _searchFocus = FocusNode(debugLabel: 'entry search');
+  bool _slashToSearch(KeyEvent event) {
+    if (event is! KeyDownEvent || event.character != '/' || !mounted || _searchFocus.context == null) return false;
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed || keyboard.isMetaPressed || keyboard.isAltPressed) return false;
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused != null && (focused.widget is EditableText || focused.findAncestorWidgetOfExactType<EditableText>() != null)) return false;
+    if (ModalRoute.of(context)?.isCurrent == false) return false;
+    _searchFocus.requestFocus();
+    return true;
+  }
+  late final ViewMemory _viewMemory = ViewMemory(
+    widget.user.id,
+    saveToAccount: (preferences) => _api.auth.authenticatedRequest(
+      'mutation(\$input: ViewPreferencesInput!) { saveViewPreferences(input: \$input) { id } }',
+      {'input': preferences},
+    ),
+  );
   bool _loadingMore = false;
   final _searchController = TextEditingController();
   final _filterController = TextEditingController();
@@ -195,11 +235,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     BrainyPlatform.load(widget.api).then((_) { if (mounted) setState(() {}); });
     _push.refreshIfAuthorized().catchError((Object _) {});
     _realtime.start();
+    HardwareKeyboard.instance.addHandler(_slashToSearch);
   }
 
   @override
   void dispose() {
     QuickCaptureBridge.clear();
+    _viewMemory.dispose();
+    HardwareKeyboard.instance.removeHandler(_slashToSearch);
+    _searchFocus.dispose();
     _filterDebounce?.cancel();
     _push.dispose();
     _realtime.dispose();
@@ -222,13 +266,21 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Future<void> _load() async {
     try {
+      final memory = _viewMemory.load();
       final collections = await _api.collections();
+      await memory;
+      // The account's copy wins: another device may have changed the view since.
+      if (_selectedId == null) _viewMemory.adopt(widget.user.viewPreferences);
       if (!mounted) return;
       setState(() {
         _collections = collections;
-        _selectedId = collections.any((item) => item.id == _selectedId)
-            ? _selectedId
-            : collections.firstOrNull?.id;
+        if (!collections.any((item) => item.id == _selectedId)) {
+          // Reopen where the person left: last collection, the view chosen there, the page size.
+          final remembered = collections.where((item) => item.id == _viewMemory.collectionId).firstOrNull ?? collections.firstOrNull;
+          _selectedId = remembered?.id;
+          _selectedViewId = remembered == null ? null : _viewMemory.viewIdFor(remembered.id, remembered.savedViews);
+          _pageSize = _viewMemory.pageSize;
+        }
         _loading = false;
         _error = null;
       });
@@ -307,7 +359,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       _filterFieldId = null;
       _filterValue = '';
       _search = '';
-      _selectedViewId = null;
+      _selectedViewId = _viewMemory.viewIdFor(collection.id, collection.savedViews);
     });
     _searchController.clear();
     _filterController.clear();
@@ -1252,6 +1304,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     final tab = !owner && _collectionTab == WorkspaceCollectionTab.formats ? WorkspaceCollectionTab.entries : _collectionTab;
     final showEntries = tab == WorkspaceCollectionTab.entries;
     final showFormats = tab == WorkspaceCollectionTab.formats;
+    if (showFormats) _refreshFormatCounts(collection.id);
     final showTools = tab == WorkspaceCollectionTab.tools;
     return RefreshIndicator(
       onRefresh: _loadEntries,
@@ -1281,8 +1334,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   const SizedBox(height: 20),
                   if (showEntries) ...[
                   WorkspaceEntriesHeading(
-                    count: _entries.length,
-                    partial: _pageCursor != null,
+                    count: _totalCount ?? _entries.length,
+                    partial: _totalCount == null && _pageCursor != null,
                     onQuickEntry: _canWrite(collection) ? _showQuickEntry : null,
                   ),
                   const SizedBox(height: 14),
@@ -1362,32 +1415,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         ],
                       ),
                     )
-                  else
+                  else ...[
+                    KeyedSubtree(key: _entriesTop, child: _selectedView != null && const {'TASK_DAY', 'TASK_CALENDAR', 'CALENDAR'}.contains(_selectedView!['layout']) ? const SizedBox.shrink() : _entriesPager(collection)),
                     _entryPresentation(collection),
-                  if (!_loadingEntries &&
-                      (_pageCursor != null || _previousPages.isNotEmpty))
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Wrap(runSpacing: 8, 
-                          spacing: 8,
-                          children: [
-                            if (_previousPages.isNotEmpty)
-                              OutlinedButton(
-                                onPressed: _loadingMore ? null : _loadPreviousEntries,
-                                child: Text(_copy.isFrench ? 'Page précédente' : 'Previous page'),
-                              ),
-                            if (_pageCursor != null)
-                              OutlinedButton(
-                                onPressed: _loadingMore ? null : _loadMoreEntries,
-                                child: Text(_loadingMore
-                                    ? _t('Loading...')
-                                    : _copy.isFrench ? 'Page suivante' : 'Next page'),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
+                  ],
+                  if (!_loadingEntries && _entries.length >= 10) _entriesPager(collection),
                   ],
                   if (showFormats) ...[
                     _collectionFormat(collection),
@@ -1748,9 +1780,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             width: _filterWidth(240),
             child: TextField(
               controller: _searchController,
+              focusNode: _searchFocus,
               onChanged: (_) => _scheduleEntries(),
               decoration: InputDecoration(
                 labelText: _t('Search entries'),
+                hintText: _copy.isFrench ? 'Titre, valeur, mot… (touche /)' : 'Title, value, word… (press /)',
                 prefixIcon: const Icon(Icons.search),
                 isDense: true,
                 border: const OutlineInputBorder(),
@@ -1919,8 +1953,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _overviewBanner(BrainyCollection collection) => WorkspaceCollectionHeader(
     name: collection.name,
-    entryCount: _entries.length,
-    partialEntryCount: _pageCursor != null,
+    entryCount: _totalCount ?? _entries.length,
+    partialEntryCount: _totalCount == null && _pageCursor != null,
     formatCount: collection.formats.length,
     onNewEntry: () => _editEntry(),
     onInsights: () => _showInsights(collection),
@@ -1941,8 +1975,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _collectionFormat(BrainyCollection collection) => WorkspaceFormatCards(
     collection: collection,
-    entryCounts: {for (final format in collection.formats) format.id: _entries.where((entry) => entry.formatId == format.id).length},
-    partialCounts: _loadingEntries || _pageCursor != null || _previousPages.isNotEmpty || _search.isNotEmpty || _filterFormatId != null || _filterFieldId != null || _selectedViewId != null,
+    entryCounts: _formatCounts?.collectionId == collection.id ? _formatCounts!.counts : {for (final format in collection.formats) format.id: _entries.where((entry) => entry.formatId == format.id).length},
+    partialCounts: _formatCounts?.collectionId != collection.id && (_loadingEntries || (_totalCount ?? _entries.length) > _entries.length || _search.isNotEmpty || _filterFormatId != null || _filterFieldId != null || _selectedViewId != null),
     onAdd: _addFormat, onAddEntry: (format) => _editEntry(null, format.id),
     onEdit: _editFormat, onColor: _changeFormatColor,
     onCopy: (format) async { if (await showCopyToCollection(context, api: _api, source: collection, formatId: format.id)) await _load(); },
@@ -2012,14 +2046,20 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     final visible = format.fields.where((field) => entry.values[field.id]?.trim().isNotEmpty ?? false);
     final titleField = visible.where((field) => field.kind == BrainyFieldKind.title).firstOrNull;
     final firstField = visible.firstOrNull;
-    final previewField = visible.where((field) => field.id != (titleField ?? firstField)?.id && field.kind != BrainyFieldKind.attachment && field.kind != BrainyFieldKind.objectRef).firstOrNull;
+    // Up to three labelled values after the title; the rest stays in the details.
+    // The link preview already shows the link: its raw address is not repeated among the values.
+    final linkField = previewedLinkField(collection, format, entry);
+    // The fields chosen for the list in the data format (3 at most), otherwise the first filled ones.
+    final chosen = format.fields.where((field) => field.showInList).take(3).map((field) => field.id).toSet();
+    final factFields = visible.where((field) => (chosen.isEmpty || chosen.contains(field.id)) && field.id != (titleField ?? firstField)?.id && field.id != linkField?.id && field.kind != BrainyFieldKind.objectRef).toList();
+    final facts = [for (final field in factFields.take(linkField != null ? 1 : 3)) (label: field.name, value: displayEntryValue(field, entry.values[field.id]!, _copy, snapshot: entry.unitSnapshots[field.id], collection: collection))];
     final title = titleField != null ? entry.values[titleField.id]! : firstField != null ? displayEntryValue(firstField, entry.values[firstField.id]!, _copy, snapshot: entry.unitSnapshots[firstField.id], collection: collection) : _displayFormatName(context, format);
     return WorkspaceEntryRow(
       key: ValueKey(entry.id), color: format.color, title: title,
       authors: isSharedCollection(collection) && entry.createdBy != null ? EntryAuthors(entry: entry, collection: collection) : null,
       formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders') && _canWrite(collection), canWrite: _canWrite(collection),
-      preview: previewField != null ? displayEntryValue(previewField, entry.values[previewField.id]!, _copy, snapshot: entry.unitSnapshots[previewField.id], collection: collection) : null,
-      attachment: linkPreviewFor(_api, collection, format, entry, french: _copy.isFrench),
+      facts: facts, hiddenFacts: factFields.length - facts.length,
+      attachment: linkPreviewFor(_api, collection, format, entry, french: _copy.isFrench, compact: true),
       created: _formatTimestamp(entry.createdAt, compact: true),
       edited: entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2))) ? _formatTimestamp(entry.updatedAt, compact: true) : null,
       onDetails: () => _showEntryDetails(collection, entry),
@@ -2159,6 +2199,8 @@ class _DraftField {
   bool multiple = false;
   String referenceMode = 'SNAPSHOT';
   String? codeListId;
+  bool isRequired = false;
+  bool showInList = false;
   String unitChoice = '';
   String? get unit => unitChoice == 'custom'
       ? customUnit.text.trim()
@@ -2194,7 +2236,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
   final List<_DraftField> _fields = [];
   bool _saving = false;
   bool _objectModel = false;
-  late bool _singleEntry = widget.editingFormat?.singleEntry ?? false;
+  late final int? _savedLimit = widget.editingFormat?.entryLimit;
+  late final _maxEntries = TextEditingController(text: _savedLimit?.toString() ?? '');
   String? _error;
 
   String? _selectedColor;
@@ -2217,7 +2260,9 @@ class _CollectionEditorState extends State<_CollectionEditor> {
             name: field.name,
             kind: field.kind,
             options: field.options.join('\n'),
-          );
+          )
+            ..isRequired = field.isRequired
+            ..showInList = field.showInList;
           if (field.unit != null) {
             if (numberUnit(field.unit) == null &&
                 !field.unit!.startsWith('local:')) {
@@ -2256,6 +2301,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
   void dispose() {
     _name.dispose();
     _formatName.dispose();
+    _maxEntries.dispose();
     for (final field in _fields) {
       field.dispose();
     }
@@ -2353,6 +2399,13 @@ class _CollectionEditorState extends State<_CollectionEditor> {
       setState(() => _error = _copyText('Choisissez une liste de codes de cette collection.', 'Choose a code list in this collection.'));
       return;
     }
+    final limit = parseMaxEntries(_maxEntries.text);
+    if (!limit.ok) {
+      setState(() => _error = maxEntriesError(AppStrings.of(context).isFrench));
+      return;
+    }
+    final requiredFields = {for (var index = 0; index < _fields.length; index++) if (_fields[index].isRequired) index};
+    final listFields = {for (var index = 0; index < _fields.length; index++) if (_fields[index].showInList) index};
     setState(() {
       _saving = true;
       _error = null;
@@ -2367,6 +2420,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                 for (var index = 0; index < _fields.length; index++)
                   {
                     if (_fields[index].id != null) 'id': _fields[index].id,
+                    if (_fields[index].isRequired) 'required': true,
+                    if (_fields[index].showInList) 'showInList': true,
                     'name': fields[index].name,
                     'kind': fields[index].kind.wireName,
                     if (fields[index].unit != null) 'unit': fields[index].unit,
@@ -2392,12 +2447,15 @@ class _CollectionEditorState extends State<_CollectionEditor> {
               formatName: formatName,
               color: _selectedColor!,
               objectModel: _objectModel,
+              requiredFields: requiredFields,
+              listFields: listFields,
+              maxEntries: limit.value,
             )
           : _fields.any((field) => field.kind == BrainyFieldKind.code)
-          ? await widget.api.addFormatWithCode(widget.collection!.id, formatName, _selectedColor!, [for (var index = 0; index < fields.length; index++) {'name': fields[index].name, 'kind': fields[index].kind.wireName, if (fields[index].unit != null) 'unit': fields[index].unit, if (fields[index].options != null) 'options': fields[index].options, if (_fields[index].kind == BrainyFieldKind.code) 'codeListId': _fields[index].codeListId}], objectModel: _objectModel)
-          : await widget.api.addFormat(widget.collection!.id, formatName, _selectedColor!, fields, objectModel: _objectModel);
+          ? await widget.api.addFormatWithCode(widget.collection!.id, formatName, _selectedColor!, [for (var index = 0; index < fields.length; index++) {'name': fields[index].name, 'kind': fields[index].kind.wireName, if (fields[index].unit != null) 'unit': fields[index].unit, if (fields[index].options != null) 'options': fields[index].options, if (_fields[index].kind == BrainyFieldKind.code) 'codeListId': _fields[index].codeListId, if (_fields[index].isRequired) 'required': true, if (_fields[index].showInList) 'showInList': true}], objectModel: _objectModel, maxEntries: limit.value)
+          : await widget.api.addFormat(widget.collection!.id, formatName, _selectedColor!, fields, objectModel: _objectModel, requiredFields: requiredFields, listFields: listFields, maxEntries: limit.value);
       final edited = widget.editingFormat;
-      if (edited != null && _singleEntry != edited.singleEntry) collection = await widget.api.setFormatEntryRules(widget.collection!.id, edited, _singleEntry);
+      if (edited != null && !edited.appendOnly && limit.value != _savedLimit) collection = await widget.api.setFormatEntryRules(widget.collection!.id, edited, limit.value);
       if (mounted) Navigator.pop(context, collection);
     } catch (error) {
       if (mounted) {
@@ -2666,6 +2724,18 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
+                                  Expanded(
+                                    child: Wrap(
+                                      children: [
+                                        FieldRequiredSwitch(value: field.isRequired, onChanged: (value) => setState(() => field.isRequired = value)),
+                                        FieldListSwitch(
+                                          value: field.showInList,
+                                          enabled: field.showInList || _fields.where((item) => item.showInList).length < 3,
+                                          onChanged: (value) => setState(() => field.showInList = value),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                   IconButton(
                                     tooltip: _t('Move up'),
                                     onPressed: index == 0
@@ -2895,12 +2965,10 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                     icon: const Icon(Icons.add),
                     label: Text(_t('Add field')),
                   ),
-                  if (widget.editingFormat != null && !widget.editingFormat!.appendOnly)
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      value: _singleEntry,
-                      onChanged: (value) => setState(() => _singleEntry = value ?? false),
-                      title: Text(AppStrings.of(context).isFrench ? 'Une seule entrée pour ce format de données (par exemple une couverture ou une préface)' : 'A single entry for this data format (for example a cover or a preface)'),
+                  if (!(widget.editingFormat?.appendOnly ?? false))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: MaxEntriesField(controller: _maxEntries),
                     ),
                   if (widget.editingFormat == null)
                     CheckboxListTile(
@@ -3231,6 +3299,16 @@ class _EntryEditorState extends State<_EntryEditor> {
     if (values.values.every((value) => value.isEmpty) &&
         !measures.values.any((details) => details['status'] == 'ABSENT')) {
       setState(() => _error = _t('Write something before saving.'));
+      return;
+    }
+    final hiddenFields = hiddenTaskFieldIds(widget.collection, _activeFormat.id, {for (final item in _controllers.entries) item.key: item.value.text});
+    final missingRequired = missingRequiredMessage([
+      for (final field in _activeFormat.fields)
+        if (!hiddenFields.contains(field.id))
+          (name: field.name, required: field.isRequired, filled: (values[field.id] ?? '').isNotEmpty || measures[field.id]?['status'] == 'ABSENT'),
+    ], _copy.isFrench);
+    if (missingRequired != null) {
+      setState(() => _error = missingRequired);
       return;
     }
     if (_uploadingFiles > 0) {
@@ -3647,8 +3725,13 @@ class _EntryEditorState extends State<_EntryEditor> {
                 shrinkWrap: true,
                 padding: const EdgeInsets.only(top: 8),
                 children: [
+                  if (_activeFormat.fields.any((field) => field.isRequired))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Text(_copy.isFrench ? 'Les champs marqués * sont obligatoires.' : 'Fields marked * are required.', style: Theme.of(context).textTheme.bodySmall),
+                    ),
                   for (final field in _activeFormat.fields)
-                    if (!hiddenTaskFieldIds(widget.collection, _activeFormat.id, {for (final item in _controllers.entries) item.key: item.value.text}).contains(field.id)) _field(field),
+                    if (!hiddenTaskFieldIds(widget.collection, _activeFormat.id, {for (final item in _controllers.entries) item.key: item.value.text}).contains(field.id)) _field(field.isRequired ? field.withName(requiredLabel(field.name, true)) : field),
                 ],
               ),
             ),

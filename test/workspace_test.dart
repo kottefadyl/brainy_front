@@ -21,7 +21,7 @@ class _FakeAuthApi extends AuthApi {
     }
     if (query.contains('collectionEntriesPage')) {
       final first = variables['first'] as int? ?? 30;
-      final after = int.tryParse(variables['after'] as String? ?? '') ?? 0;
+      final after = variables['offset'] as int? ?? int.tryParse(variables['after'] as String? ?? '') ?? 0;
       final formatId = variables['formatId'] as String?;
       final search = (variables['search'] as String? ?? '').toLowerCase();
       final matching = entries
@@ -44,6 +44,8 @@ class _FakeAuthApi extends AuthApi {
           'entries': page,
           'hasMore': next < matching.length,
           'nextCursor': next < matching.length ? '$next' : null,
+          'totalCount': matching.length,
+          'offset': after,
         },
       };
     }
@@ -142,6 +144,7 @@ class _FakeAuthApi extends AuthApi {
       final collection = collections.singleWhere((item) => item['id'] == variables['collectionId']);
       final format = (collection['formats'] as List<dynamic>).cast<Map<String, dynamic>>().singleWhere((item) => item['id'] == variables['formatId']);
       format['singleEntry'] = variables['singleEntry'];
+      format['maxEntries'] = variables['maxEntries'];
       return {'setFormatEntryRules': collection};
     }
     if (query.contains('updateCollectionFormat')) {
@@ -245,11 +248,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Entry 0'), findsOneWidget);
     expect(find.text('Entry 30'), findsNothing);
-    tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Next page')).onPressed!();
+    // Large lists: the pager shows the range and the total, and opens any page.
+    expect(find.textContaining('of 31', findRichText: true), findsWidgets);
+    tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.chevron_right).first).onPressed!();
     await tester.pumpAndSettle();
     expect(find.text('Entry 0'), findsNothing);
     expect(find.text('Entry 30'), findsOneWidget);
-    tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'Previous page')).onPressed!();
+    tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.first_page).first).onPressed!();
     await tester.pumpAndSettle();
     expect(find.text('Entry 0'), findsOneWidget);
     expect(find.text('Entry 30'), findsNothing);
@@ -708,9 +713,11 @@ void main() {
     dialogScroll(tester).position
         .jumpTo(dialogScroll(tester).position.maxScrollExtent);
     await tester.pumpAndSettle();
-    // T47/4: the single entry rule is set from the editor.
-    await tester.tap(find.textContaining('A single entry for this data format'));
+    // T47/4: the entry limit is set from the editor; 1 keeps the single-entry rule, and a field
+    // becomes required with its switch.
+    await tester.enterText(find.widgetWithText(TextField, 'Maximum number of entries'), '1');
     await tester.pumpAndSettle();
+    expect(find.textContaining('A single entry, for example'), findsOneWidget);
     await tester.tap(find.text('Save').last);
     await tester.pumpAndSettle();
 
@@ -721,6 +728,7 @@ void main() {
     expect((format['fields'] as List<dynamic>).length, 2);
     expect((format['fields'] as List<dynamic>).first['id'], 'field-0-0');
     expect(format['singleEntry'], true);
+    expect(format['maxEntries'], 1);
     await tester.tap(find.text('Entries').first);
     await tester.pumpAndSettle();
     expect(find.text('First note'), findsOneWidget);

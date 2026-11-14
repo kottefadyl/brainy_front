@@ -3,7 +3,7 @@ import 'format_color_names.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_api.dart';
-import 'brainy_logo.dart';
+import 'brand_assets.dart';
 import 'collections_api.dart';
 import 'data_format_colors.dart';
 import 'design_tokens.dart';
@@ -136,7 +136,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
               child: Row(children: [
-                BrainyLogo(size: 34, ink: dark ? Colors.white : const Color(0xFF0E1116), chip: const Color(0xFF2454E6), chipLine: Colors.white, node: const Color(0xFFD92D3A)),
+                const BrainyMark(size: 34),
                 const SizedBox(width: 8),
                 if (wide) Text('brainy', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22, color: scheme.onSurface)),
                 Expanded(child: Align(alignment: Alignment.centerRight, child: TextButton(onPressed: busy ? null : _skip, child: Text(fr ? 'Passer le guide' : 'Skip the guide', maxLines: 1, overflow: TextOverflow.ellipsis)))),

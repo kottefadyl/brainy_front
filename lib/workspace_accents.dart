@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'brainy_logo.dart';
+import 'brand_assets.dart';
 
 /// Colour accents of the workspace shell, same values as the web client
 /// (`blue-light-shell.css` in light, `design-accents.css` in dark).
@@ -56,7 +56,7 @@ abstract final class BrainyAccents {
   }
 }
 
-/// The Brainy mark in the colours of the navigation surface.
+/// The Brainy mark on the navigation surface: it carries its own blue tile, so it reads in both themes.
 class ShellLogo extends StatelessWidget {
   const ShellLogo({super.key, required this.dark, this.size = 40});
 
@@ -64,13 +64,7 @@ class ShellLogo extends StatelessWidget {
   final double size;
 
   @override
-  Widget build(BuildContext context) => BrainyLogo(
-    size: size,
-    ink: dark ? const Color(0xFFF3F4F6) : Colors.white,
-    chip: dark ? const Color(0xFF4C7DF5) : const Color(0xFFA9C2FF),
-    chipLine: dark ? Colors.white : const Color(0xFF084BC4),
-    node: dark ? const Color(0xFFFF5A5F) : const Color(0xFFFF9AA0),
-  );
+  Widget build(BuildContext context) => BrainyMark(size: size);
 }
 
 /// The collection icon: a folder carrying a heart, drawn like the web's.

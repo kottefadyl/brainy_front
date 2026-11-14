@@ -17,6 +17,7 @@ class AppUser {
     this.profileCompleted = false,
     this.hasProfilePhoto = false,
     this.onboardingCompleted = false,
+    this.viewPreferences,
   });
 
   final String id;
@@ -31,6 +32,8 @@ class AppUser {
   final bool hasProfilePhoto;
   /// T50: the welcome guide was finished or skipped.
   final bool onboardingCompleted;
+  /// Where the person left Brainy (last collection, view per collection, page size), kept on the account.
+  final Map<String, dynamic>? viewPreferences;
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
     id: json['id'] as String,
@@ -44,6 +47,7 @@ class AppUser {
     profileCompleted: json['profileCompleted'] as bool? ?? false,
     hasProfilePhoto: json['hasProfilePhoto'] as bool? ?? false,
     onboardingCompleted: json['onboardingCompleted'] as bool? ?? false,
+    viewPreferences: json['viewPreferences'] as Map<String, dynamic>?,
   );
 }
 
@@ -56,7 +60,7 @@ class AuthApi {
   static const _configuredUrl = String.fromEnvironment('API_URL');
   static const _userFields = userFields;
   static const userFields =
-      'id name email profession job fieldOfStudy interests hobbies profileCompleted hasProfilePhoto onboardingCompleted';
+      'id name email profession job fieldOfStudy interests hobbies profileCompleted hasProfilePhoto onboardingCompleted viewPreferences { lastCollectionId pageSize views { collectionId viewId } }';
   final http.Client _client;
   final FlutterSecureStorage _storage;
 

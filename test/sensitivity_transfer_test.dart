@@ -19,6 +19,9 @@ class _ExportApi extends Fake implements CollectionsApi {
     String? filterValue,
     String? viewId,
     int first = 30,
+    int? offset,
+    String? atDate,
+    String? timeZone,
   }) async => page;
 
   @override

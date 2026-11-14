@@ -65,17 +65,30 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
           error = null;
         });
       }
+      _poll();
     } catch (cause) {
       if (mounted) setState(() => error = '$cause');
     }
   }
 
-  void expanded(bool value) {
-    timer?.cancel();
-    if (value) {
-      refresh();
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => refresh());
+  bool open = false;
+  bool get working => jobs.any((job) => job['state'] == 'QUEUED' || job['state'] == 'RUNNING');
+
+  /// Polls every 3 s only while the panel is open and a job is queued or running: an idle panel uses no data.
+  void _poll() {
+    if (!mounted || !open || !working) {
+      timer?.cancel();
+      timer = null;
+    } else {
+      timer ??= Timer.periodic(const Duration(seconds: 3), (_) => refresh());
     }
+  }
+
+  void expanded(bool value) {
+    open = value;
+    timer?.cancel();
+    timer = null;
+    if (value) refresh();
   }
 
   Future<void> run(Future<Map<String, dynamic>> Function() action) async {
@@ -91,6 +104,7 @@ class _BackgroundJobsPanelState extends State<BackgroundJobsPanel> {
           jobs = [job, ...jobs.where((item) => item['id'] != job['id'])];
         });
       }
+      _poll();
     } catch (cause) {
       if (mounted) setState(() => error = '$cause');
     } finally {

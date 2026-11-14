@@ -161,8 +161,11 @@ class _FormatCardState extends State<_FormatCard> {
             : format.fields.length == 1
             ? 'field'
             : 'fields'}';
-    final entries =
-        '${widget.count} ${fr
+    // With an entry limit: "2 / 5 entries", so the room left is visible.
+    final limit = format.entryLimit;
+    final entries = limit != null && !widget.partial
+        ? '${widget.count} / $limit ${fr ? (limit == 1 ? 'entrée' : 'entrées') : (limit == 1 ? 'entry' : 'entries')}'
+        : '${widget.count} ${fr
             ? widget.count == 1
                   ? 'entrée'
                   : 'entrées'

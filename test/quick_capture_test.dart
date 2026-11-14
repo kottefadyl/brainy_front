@@ -24,7 +24,7 @@ class CaptureApi extends CollectionsApi {
 
 class SaleApi extends CaptureApi {
   @override
-  Future<BrainyEntryPage> entriesPage(String collectionId, {String? after, String? search, String? formatId, String? fieldId, String? operatorName, String? filterValue, String? viewId, int first = 30}) async => const BrainyEntryPage(entries: [], hasMore: false);
+  Future<BrainyEntryPage> entriesPage(String collectionId, {String? after, String? search, String? formatId, String? fieldId, String? operatorName, String? filterValue, String? viewId, int first = 30, int? offset, String? atDate, String? timeZone}) async => const BrainyEntryPage(entries: [], hasMore: false);
 }
 
 void main() {

@@ -95,10 +95,16 @@ class BrainyField {
     this.sourceFieldId,
     this.codeListId,
     this.sensitivity,
+    this.isRequired = false,
+    this.showInList = false,
   });
   final String id;
   final String name;
   final BrainyFieldKind kind;
+  /// Shown in the entry list rows (3 at most per data format).
+  final bool showInList;
+  /// An entry of this data format must fill this field (off unless chosen).
+  final bool isRequired;
   final String? unit;
   final List<String> options;
   final String? targetObjectFormatId;
@@ -124,6 +130,15 @@ class BrainyField {
     sourceFieldId: json['sourceFieldId'] as String?,
     codeListId: json['codeListId'] as String?,
     sensitivity: json['sensitivity'] as String?,
+    isRequired: json['required'] as bool? ?? false,
+    showInList: json['showInList'] as bool? ?? false,
+  );
+
+  /// The same field under another displayed name (a required field shows " *" in entry forms).
+  BrainyField withName(String displayName) => BrainyField(
+    id: id, name: displayName, kind: kind, unit: unit, options: options, targetObjectFormatId: targetObjectFormatId,
+    multiple: multiple, variableName: variableName, referenceMode: referenceMode, sourceFieldId: sourceFieldId,
+    codeListId: codeListId, sensitivity: sensitivity, isRequired: isRequired, showInList: showInList,
   );
 }
 
@@ -219,6 +234,7 @@ class BrainyFormat {
     this.workflow,
     this.sensitivity = 'ORDINARY',
     this.singleEntry = false,
+    this.maxEntries,
     this.parentFormatIds = const [],
   });
   final String id;
@@ -227,6 +243,10 @@ class BrainyFormat {
   final List<BrainyField> fields;
   /// T47: at most one entry may use this data format.
   final bool singleEntry;
+  /// Most entries this data format accepts (1 or more); null = no limit.
+  final int? maxEntries;
+  /// The limit in force: `maxEntries`, or 1 for an older single-entry rule.
+  int? get entryLimit => maxEntries ?? (singleEntry ? 1 : null);
   /// T47: allowed parent data formats for a parent relation (empty = any).
   final List<String> parentFormatIds;
   final int version;
@@ -252,6 +272,7 @@ class BrainyFormat {
     workflow: json['workflow'] as Map<String, dynamic>?,
     sensitivity: json['sensitivity'] as String? ?? 'ORDINARY',
     singleEntry: json['singleEntry'] as bool? ?? false,
+    maxEntries: (json['maxEntries'] as num?)?.toInt(),
     parentFormatIds: (json['parentFormatIds'] as List<dynamic>?)?.cast<String>() ?? const [],
   );
 }
@@ -588,10 +609,16 @@ class BrainyEntryPage {
     required this.entries,
     required this.hasMore,
     this.nextCursor,
+    this.totalCount,
+    this.offset,
   });
   final List<BrainyEntry> entries;
   final bool hasMore;
   final String? nextCursor;
+  /// Matching entries in all pages, given for a page asked by position.
+  final int? totalCount;
+  /// Position of this page's first entry (0-based), given for a page asked by position.
+  final int? offset;
 
   factory BrainyEntryPage.fromJson(Map<String, dynamic> json) =>
       BrainyEntryPage(
@@ -600,6 +627,8 @@ class BrainyEntryPage {
             .toList(),
         hasMore: json['hasMore'] as bool,
         nextCursor: json['nextCursor'] as String?,
+        totalCount: (json['totalCount'] as num?)?.toInt(),
+        offset: (json['offset'] as num?)?.toInt(),
       );
 }
 
@@ -632,7 +661,7 @@ class CollectionsApi {
   }
 
   static const _collectionFields =
-      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } formats { id name color version objectModel appendOnly sensitivity singleEntry parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } sharedBy { userId name }';
+      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList } formats { id name color version objectModel appendOnly sensitivity singleEntry maxEntries parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } sharedBy { userId name }';
   static const _entryFields =
       'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds personIds personNames objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt createdBy { userId name hasPhoto } updatedBy { userId name hasPhoto }';
 
@@ -1015,6 +1044,18 @@ class CollectionsApi {
         .toList();
   }
 
+  /// Only these collections (a live update reloads what changed, not the whole list). An id I can no
+  /// longer open is simply missing from the answer.
+  Future<List<BrainyCollection>> collectionsById(Iterable<String> ids) async {
+    final data = await auth.authenticatedRequest(
+      'query(\$ids: [String!]) { collectionsList(ids: \$ids) { $_collectionFields } }',
+      {'ids': ids.toList()},
+    );
+    return (data['collectionsList'] as List<dynamic>)
+        .map((item) => BrainyCollection.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<BrainyCollection> createCollection(
     String name,
     List<
@@ -1024,6 +1065,9 @@ class CollectionsApi {
     String formatName = 'Data format 1',
     required String color,
     bool objectModel = false,
+    Set<int> requiredFields = const {},
+    Set<int> listFields = const {},
+    int? maxEntries,
   }) async {
     final data = await auth.authenticatedRequest(
       'mutation Create(\$input: CreateCollectionInput!) { createCollection(input: \$input) { $_collectionFields } }',
@@ -1035,7 +1079,8 @@ class CollectionsApi {
               'name': formatName,
               'color': color,
               'objectModel': objectModel,
-              'fields': _fieldInputs(fields),
+              'fields': _fieldInputs(fields, requiredFields, listFields),
+              'maxEntries': ?maxEntries,
             },
           ],
         },
@@ -1488,10 +1533,14 @@ class CollectionsApi {
     List<
       ({String name, BrainyFieldKind kind, String? unit, List<String>? options})
     >
-    fields,
-  ) => [
-    for (final field in fields)
+    fields, [
+    Set<int> requiredFields = const {},
+    Set<int> listFields = const {},
+  ]) => [
+    for (final (index, field) in fields.indexed)
       {
+        if (requiredFields.contains(index)) 'required': true,
+        if (listFields.contains(index)) 'showInList': true,
         'name': field.name,
         'kind': field.kind.wireName,
         if ((field.kind == BrainyFieldKind.number ||
@@ -1514,6 +1563,9 @@ class CollectionsApi {
     >
     fields, {
     bool objectModel = false,
+    Set<int> requiredFields = const {},
+    Set<int> listFields = const {},
+    int? maxEntries,
   }) async {
     final data = await auth.authenticatedRequest(
       'mutation AddFormat(\$id: String!, \$input: CollectionFormatInput!) { addCollectionFormat(collectionId: \$id, input: \$input) { $_collectionFields } }',
@@ -1522,8 +1574,9 @@ class CollectionsApi {
         'input': {
           'name': name,
           'color': color,
-          'fields': _fieldInputs(fields),
+          'fields': _fieldInputs(fields, requiredFields, listFields),
           'objectModel': objectModel,
+          'maxEntries': ?maxEntries,
         },
       },
     );
@@ -1532,9 +1585,15 @@ class CollectionsApi {
     );
   }
 
-  Future<BrainyCollection> addFormatWithCode(String collectionId, String name, String color, List<Map<String, dynamic>> fields, {bool objectModel = false}) async {
-    final data = await auth.authenticatedRequest('mutation(\$id:String!,\$input:CollectionFormatInput!){addCollectionFormat(collectionId:\$id,input:\$input){$_collectionFields}}', {'id': collectionId, 'input': {'name': name, 'color': color, 'fields': fields, 'objectModel': objectModel}});
+  Future<BrainyCollection> addFormatWithCode(String collectionId, String name, String color, List<Map<String, dynamic>> fields, {bool objectModel = false, int? maxEntries}) async {
+    final data = await auth.authenticatedRequest('mutation(\$id:String!,\$input:CollectionFormatInput!){addCollectionFormat(collectionId:\$id,input:\$input){$_collectionFields}}', {'id': collectionId, 'input': {'name': name, 'color': color, 'fields': fields, 'objectModel': objectModel, 'maxEntries': ?maxEntries}});
     return BrainyCollection.fromJson(data['addCollectionFormat'] as Map<String, dynamic>);
+  }
+
+  /// Entries per data format, counted over all pages.
+  Future<Map<String, int>> formatEntryCounts(String collectionId) async {
+    final data = await auth.authenticatedRequest('query(\$collectionId: String!) { formatEntryCounts(collectionId: \$collectionId) { formatId count } }', {'collectionId': collectionId});
+    return {for (final row in (data['formatEntryCounts'] as List<dynamic>).cast<Map<String, dynamic>>()) row['formatId'] as String: (row['count'] as num).toInt()};
   }
 
   Future<({int entryCount, List<String> populatedFieldIds})> formatImpact(
@@ -1553,9 +1612,9 @@ class CollectionsApi {
     );
   }
 
-  /// T47/4: at most one entry for this data format; keeps the allowed parents unchanged.
-  Future<BrainyCollection> setFormatEntryRules(String collectionId, BrainyFormat format, bool singleEntry) async {
-    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$singleEntry:Boolean!,\$parentFormatIds:[String!]!){setFormatEntryRules(collectionId:\$collectionId,formatId:\$formatId,singleEntry:\$singleEntry,parentFormatIds:\$parentFormatIds){$_collectionFields}}', {'collectionId': collectionId, 'formatId': format.id, 'singleEntry': singleEntry, 'parentFormatIds': format.parentFormatIds});
+  /// Most entries for this data format (1 or more; null = no limit); keeps the allowed parents unchanged.
+  Future<BrainyCollection> setFormatEntryRules(String collectionId, BrainyFormat format, int? maxEntries) async {
+    final data = await auth.authenticatedRequest('mutation(\$collectionId:String!,\$formatId:String!,\$singleEntry:Boolean!,\$maxEntries:Int,\$parentFormatIds:[String!]!){setFormatEntryRules(collectionId:\$collectionId,formatId:\$formatId,singleEntry:\$singleEntry,maxEntries:\$maxEntries,parentFormatIds:\$parentFormatIds){$_collectionFields}}', {'collectionId': collectionId, 'formatId': format.id, 'singleEntry': maxEntries == 1, 'maxEntries': maxEntries, 'parentFormatIds': format.parentFormatIds});
     return BrainyCollection.fromJson(data['setFormatEntryRules'] as Map<String, dynamic>);
   }
 
@@ -1643,12 +1702,18 @@ class CollectionsApi {
     String? filterValue,
     String? viewId,
     int first = 30,
+    int? offset,
+    String? atDate,
+    String? timeZone,
   }) async {
     final data = await auth.authenticatedRequest(
-      'query Page(\$id: String!, \$first: Int!, \$after: String, \$search: String, \$formatId: String, \$filters: [EntryFieldFilterInput!], \$viewId: String) { collectionEntriesPage(collectionId: \$id, first: \$first, after: \$after, search: \$search, formatId: \$formatId, filters: \$filters, viewId: \$viewId) { entries { $_entryFields } nextCursor hasMore } }',
+      'query Page(\$id: String!, \$first: Int!, \$after: String, \$search: String, \$formatId: String, \$filters: [EntryFieldFilterInput!], \$viewId: String, \$offset: Int, \$atDate: String, \$timeZone: String) { collectionEntriesPage(collectionId: \$id, first: \$first, after: \$after, search: \$search, formatId: \$formatId, filters: \$filters, viewId: \$viewId, offset: \$offset, atDate: \$atDate, timeZone: \$timeZone) { entries { $_entryFields } nextCursor hasMore totalCount offset } }',
       {
         'id': collectionId,
         'first': first,
+        'offset': ?offset,
+        'atDate': ?atDate,
+        'timeZone': ?timeZone,
         if (after?.isNotEmpty == true) 'after': after,
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
         if (formatId?.isNotEmpty == true) 'formatId': formatId,

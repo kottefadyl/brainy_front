@@ -50,20 +50,26 @@ extension LinkPreviewApi on CollectionsApi {
 }
 
 /// The card for an entry, or null when the collection is not a Saved links one or no link is set.
-Widget? linkPreviewFor(CollectionsApi api, BrainyCollection collection, BrainyFormat format, BrainyEntry entry, {required bool french}) {
+Widget? linkPreviewFor(CollectionsApi api, BrainyCollection collection, BrainyFormat format, BrainyEntry entry, {required bool french, bool compact = false}) {
+  final field = previewedLinkField(collection, format, entry);
+  if (field == null) return null;
+  final url = previewableUrl(entry.values[field.id])!;
+  return LinkPreviewCard(key: ValueKey('preview-$url'), api: api, url: url, french: french, compact: compact);
+}
+
+/// The link field shown as a preview (Saved links collections only), or null.
+BrainyField? previewedLinkField(BrainyCollection collection, BrainyFormat format, BrainyEntry entry) {
   if (collection.templateId != 'links') return null;
-  for (final field in format.fields.where((item) => item.kind == BrainyFieldKind.link)) {
-    final url = previewableUrl(entry.values[field.id]);
-    if (url != null) return LinkPreviewCard(key: ValueKey('preview-$url'), api: api, url: url, french: french);
-  }
-  return null;
+  return format.fields.where((item) => item.kind == BrainyFieldKind.link && previewableUrl(entry.values[item.id]) != null).firstOrNull;
 }
 
 class LinkPreviewCard extends StatefulWidget {
-  const LinkPreviewCard({super.key, required this.api, required this.url, required this.french});
+  const LinkPreviewCard({super.key, required this.api, required this.url, required this.french, this.compact = false});
   final CollectionsApi api;
   final String url;
   final bool french;
+  /// One slim line inside an entry row: small thumbnail, title and site, no description.
+  final bool compact;
   @override
   State<LinkPreviewCard> createState() => _LinkPreviewCardState();
 }
@@ -93,6 +99,7 @@ class _LinkPreviewCardState extends State<LinkPreviewCard> {
         final site = (data?.siteName?.isNotEmpty ?? false) ? data!.siteName! : linkHost(widget.url);
         Widget box(Widget child, {double width = 56}) => ClipRRect(borderRadius: BorderRadius.circular(8), child: Container(width: width, height: width == 56 ? 56 : thumb, color: scheme.surfaceContainerHighest, child: child));
         final siteLine = Row(mainAxisSize: MainAxisSize.min, children: [Flexible(child: Text(site, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: muted, fontSize: 13))), const SizedBox(width: 4), Icon(Icons.open_in_new, size: 12, color: muted)]);
+        if (widget.compact) return _compact(context, data, waiting, rich, site);
         Widget content;
         if (waiting) {
           content = Row(children: [box(const SizedBox.shrink(), width: thumb), const SizedBox(width: 12), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(height: 12, width: 200, decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(6))), const SizedBox(height: 8), Container(height: 12, width: 120, decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(6)))]))]);
@@ -138,6 +145,55 @@ class _LinkPreviewCardState extends State<LinkPreviewCard> {
           ),
         );
       },
+    );
+  }
+
+  Widget _compact(BuildContext context, LinkPreviewData? data, bool waiting, bool rich, String site) {
+    final scheme = Theme.of(context).colorScheme;
+    final muted = scheme.onSurfaceVariant;
+    final image = rich ? data!.image : null;
+    final thumb = ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        width: image != null ? 54 : 30,
+        height: 30,
+        color: scheme.surfaceContainerHighest,
+        child: image != null
+            ? Stack(fit: StackFit.expand, children: [
+                Image.memory(image, fit: BoxFit.cover, errorBuilder: (_, _, _) => Icon(Icons.link, size: 16, color: scheme.primary)),
+                if (data!.video) const Center(child: Icon(Icons.play_circle_fill, size: 16, color: Colors.white)),
+              ])
+            : waiting ? null : Icon(Icons.link, size: 16, color: scheme.primary),
+      ),
+    );
+    final title = rich && (data!.title?.isNotEmpty ?? false) ? data.title! : site;
+    return Semantics(
+      link: true,
+      label: '${widget.french ? 'Ouvrir le lien' : 'Open link'} : $title',
+      excludeSemantics: true,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Material(
+          color: scheme.surface.withValues(alpha: .85),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9), side: BorderSide(color: scheme.outlineVariant)),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _open,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(2, 2, 10, 2),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                thumb,
+                const SizedBox(width: 8),
+                Flexible(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: scheme.onSurface))),
+                if (rich && title != site) ...[
+                  const SizedBox(width: 8),
+                  Flexible(flex: 0, child: Text(site, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: muted))),
+                ],
+              ]),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
