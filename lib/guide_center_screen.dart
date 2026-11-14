@@ -21,6 +21,8 @@ const _icons = <String, IconData>{
   'users': Icons.group_outlined,
   'shield': Icons.verified_user_outlined,
   'database': Icons.storage_outlined,
+  'rocket': Icons.rocket_launch_outlined,
+  'briefcase': Icons.work_outline,
 };
 
 /// Tile colors by category, as on the web: violet = structure, teal = governance, green = analysis and operations.

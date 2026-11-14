@@ -23,7 +23,9 @@ Future<void> _pump(WidgetTester tester, Widget home, {double width = 390, bool d
 
 void main() {
   test('every chapter has English and French texts', () {
-    expect(guideChapters.length, 12);
+    expect(guideChapters.length, 14);
+    // The guided start opens the guide, then what Brainy brings at home and at work.
+    expect(guideChapters.take(2).map((chapter) => chapter.id), ['start', 'benefits']);
     for (final chapter in guideChapters) {
       for (final text in [chapter.title, chapter.summary, for (final section in chapter.sections) ...[section.title, section.text]]) {
         expect(text.en.trim(), isNotEmpty);
