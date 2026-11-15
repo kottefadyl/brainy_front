@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import 'auth_api.dart';
 import 'firebase_config.dart';
+import 'google_desktop_auth.dart';
 
 class GoogleAuthCancelled implements Exception {}
 
@@ -51,8 +52,11 @@ class GoogleAuthService extends ChangeNotifier {
     try {
       UserCredential credential;
       if (defaultTargetPlatform == TargetPlatform.windows) {
-        credential = await FirebaseAuth.instance.signInWithProvider(
-          GoogleAuthProvider(),
+        // Firebase's Windows SDK refuses signInWithProvider ("not supported on
+        // non-mobile systems"): Google's page opens in the browser instead.
+        final idToken = await GoogleDesktopAuth.signIn();
+        credential = await FirebaseAuth.instance.signInWithCredential(
+          GoogleAuthProvider.credential(idToken: idToken),
         );
       } else {
         final account = await GoogleSignIn.instance.authenticate();
@@ -68,6 +72,8 @@ class GoogleAuthService extends ChangeNotifier {
         throw const AuthApiException('Google did not return a valid session.');
       }
       return idToken;
+    } on GoogleDesktopAuthCancelled {
+      throw GoogleAuthCancelled();
     } on GoogleSignInException catch (error) {
       if (error.code == GoogleSignInExceptionCode.canceled) {
         throw GoogleAuthCancelled();
