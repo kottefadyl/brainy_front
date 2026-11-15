@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:brainy/auth_api.dart';
 import 'package:brainy/brainy_theme.dart';
+import 'package:brainy/app_strings.dart';
 import 'package:brainy/collections_api.dart';
+import 'package:brainy/entry_details_dialog.dart';
 import 'package:brainy/link_preview_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,4 +82,27 @@ void main() {
     expect(find.text('httpbin.org'), findsOneWidget);
     expect(find.text('Aperçu indisponible pour ce site'), findsOneWidget);
   });
+
+  // The details show the full card above the address in every collection, not only Saved links.
+  for (final (width, dark) in [(390.0, false), (390.0, true), (1280.0, false), (1280.0, true)]) {
+    testWidgets('entry details show the full preview above the address at $width px (${dark ? 'dark' : 'light'})', (tester) async {
+      tester.view.physicalSize = Size(width, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      final api = CollectionsApi(_Auth());
+      const notes = BrainyCollection(id: 'n', name: 'Notes', fields: [], formats: [_format], templateId: 'notes');
+      final url = 'https://youtube.com/shorts/details-$width-$dark';
+      await tester.pumpWidget(MaterialApp(theme: dark ? BrainyTheme.dark : BrainyTheme.light, home: Scaffold(body: Builder(builder: (context) => TextButton(
+        onPressed: () => showEntryDetailsDialog(context, collection: notes, entry: _entry(url), formatName: 'Lien', created: '11 nov.', copy: AppStrings('fr'), onCopy: () {}, onReference: (_) {}, onAttachment: (_) {}, onLink: (_) {}, api: api),
+        child: const Text('open'),
+      )))));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LinkPreviewCard), findsOneWidget);
+      expect(find.text('This Is Why You’ll Never Achieve Your Goals'), findsOneWidget);
+      expect(find.text(url), findsOneWidget);
+      expect(tester.getTopLeft(find.byType(LinkPreviewCard)).dy, lessThan(tester.getTopLeft(find.text(url)).dy));
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
