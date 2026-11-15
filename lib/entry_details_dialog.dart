@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'app_strings.dart';
 import 'collections_api.dart';
 import 'entry_clipboard.dart';
+import 'link_preview_card.dart';
 
 Future<bool> showEntryDetailsDialog(
   BuildContext context, {
@@ -18,6 +19,8 @@ Future<bool> showEntryDetailsDialog(
   required void Function(BrainyField) onAttachment,
   required void Function(String) onLink,
   bool canEdit = true,
+  /// Shows a rich preview (image, title, description, site) above each web address, as in a chat app.
+  CollectionsApi? api,
 }) async {
   final format = collection.formatFor(entry);
   final fields = format.fields
@@ -98,13 +101,20 @@ Future<bool> showEntryDetailsDialog(
                           onPressed: () => onAttachment(field),
                           child: Text(entry.values[field.id]!),
                         )
-                      else if (field.kind == BrainyFieldKind.link)
+                      else if (field.kind == BrainyFieldKind.link) ...[
+                        if (api != null && previewableUrl(entry.values[field.id]) != null)
+                          LinkPreviewCard(
+                            key: ValueKey('detail-preview-${field.id}'),
+                            api: api,
+                            url: previewableUrl(entry.values[field.id])!,
+                            french: copy.isFrench,
+                          ),
                         _LinkValue(
                           url: entry.values[field.id]!,
                           copy: copy,
                           onOpen: onLink,
-                        )
-                      else
+                        ),
+                      ] else
                         SelectableText(
                           displayEntryValue(
                             field,

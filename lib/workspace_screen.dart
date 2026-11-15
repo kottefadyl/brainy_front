@@ -2037,6 +2037,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       onAttachment: (field) => _downloadAttachment(entry, field),
       onLink: _openSavedLink,
       canEdit: _canWrite(collection),
+      api: _api,
     );
     if (shouldEdit && mounted) await _editEntry(entry);
   }
