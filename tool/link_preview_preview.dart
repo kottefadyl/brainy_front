@@ -73,7 +73,7 @@ class _PreviewState extends State<_Preview> {
     exit(0);
   }
 
-  Widget _row(String title, String url) => WorkspaceEntryRow(color: '#EDF9F3', title: title, formatName: 'Lien', created: '11 nov. 2026, 10:01', preview: url, onDetails: () {}, onAction: (_) {}, attachment: LinkPreviewCard(api: _api, url: url, french: true));
+  Widget _row(String title, String url) => WorkspaceEntryRow(color: '#EDF9F3', title: title, formatName: 'Lien', created: '11 nov. 2026, 10:01', onDetails: () {}, onAction: (_) {}, attachment: LinkPreviewCard(api: _api, url: url, french: true));
 
   @override
   Widget build(BuildContext context) => MaterialApp(
