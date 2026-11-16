@@ -97,8 +97,12 @@ class BrainyField {
     this.sensitivity,
     this.isRequired = false,
     this.showInList = false,
+    this.face,
   });
   final String id;
+
+  /// T56: FRONT or BACK side of a two-sided card (Two-sided cards collections).
+  final String? face;
   final String name;
   final BrainyFieldKind kind;
   /// Shown in the entry list rows (3 at most per data format).
@@ -132,13 +136,14 @@ class BrainyField {
     sensitivity: json['sensitivity'] as String?,
     isRequired: json['required'] as bool? ?? false,
     showInList: json['showInList'] as bool? ?? false,
+    face: json['face'] as String?,
   );
 
   /// The same field under another displayed name (a required field shows " *" in entry forms).
   BrainyField withName(String displayName) => BrainyField(
     id: id, name: displayName, kind: kind, unit: unit, options: options, targetObjectFormatId: targetObjectFormatId,
     multiple: multiple, variableName: variableName, referenceMode: referenceMode, sourceFieldId: sourceFieldId,
-    codeListId: codeListId, sensitivity: sensitivity, isRequired: isRequired, showInList: showInList,
+    codeListId: codeListId, sensitivity: sensitivity, isRequired: isRequired, showInList: showInList, face: face,
   );
 }
 
@@ -230,6 +235,7 @@ class BrainyFormat {
     this.objectModel = false,
     this.appendOnly = false,
     this.copiedFromFormatId,
+    this.speechLanguage,
     this.linkedSource,
     this.workflow,
     this.sensitivity = 'ORDINARY',
@@ -253,6 +259,9 @@ class BrainyFormat {
   final bool objectModel;
   final bool appendOnly;
   final String? copiedFromFormatId;
+
+  /// T56: language read aloud on this data format's cards (en-GB, fr-FR…); null = device language.
+  final String? speechLanguage;
   final Map<String, dynamic>? linkedSource;
   final Map<String, dynamic>? workflow;
   final String sensitivity;
@@ -268,6 +277,7 @@ class BrainyFormat {
     objectModel: json['objectModel'] as bool? ?? false,
     appendOnly: json['appendOnly'] as bool? ?? false,
     copiedFromFormatId: json['copiedFromFormatId'] as String?,
+    speechLanguage: json['speechLanguage'] as String?,
     linkedSource: json['linkedSource'] as Map<String, dynamic>?,
     workflow: json['workflow'] as Map<String, dynamic>?,
     sensitivity: json['sensitivity'] as String? ?? 'ORDINARY',
@@ -672,7 +682,7 @@ class CollectionsApi {
   }
 
   static const _collectionFields =
-      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId estimateFieldId spentFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList } formats { id name color version objectModel appendOnly sensitivity singleEntry maxEntries parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } memberCount calculations sharedBy { userId name }';
+      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId estimateFieldId spentFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList face } formats { id name color version speechLanguage objectModel appendOnly sensitivity singleEntry maxEntries parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList face } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } memberCount calculations sharedBy { userId name }';
   static const _entryFields =
       'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds personIds personNames objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt createdBy { userId name hasPhoto } updatedBy { userId name hasPhoto }';
 

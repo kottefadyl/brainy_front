@@ -18,6 +18,7 @@ import 'workspace_format_cards.dart';
 import 'workspace_entry_row.dart';
 import 'duration.dart';
 import 'calculations_choice.dart';
+import 'card_review_screen.dart';
 import 'duration_widgets.dart';
 
 import 'auth_api.dart';
@@ -1326,6 +1327,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   _overviewBanner(collection),
                   if (collection.sharedBy != null) SharedCollectionBanner(ownerName: collection.sharedBy!.name, canWrite: _myRole(collection) == BrainyCollectionRole.editor),
                   BookViewLauncher(key: ValueKey('book-${collection.id}'), api: _api, collection: collection, french: _copy.isFrench, onOpenEntry: (entry) => _editEntry(entry), onChanged: _load),
+                  if (isFlashCards(collection)) CardReviewBanner(key: ValueKey('cards-${collection.id}-${_entries.length}'), api: _api, collection: collection, onStart: () => openCardReview(context, api: _api, collection: collection, owner: collection.sharedBy == null, onCollectionChanged: _load)),
                   if (collection.periodTotals != null && collection.hasCalculations) PeriodTotalsPanel(key: ValueKey(collection.id), api: _api, collection: collection, entries: _entries, french: _copy.isFrench, onSaved: () { _loadEntries(); }),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
                   const SizedBox(height: 12),
@@ -2228,6 +2230,8 @@ class _DraftField {
   String? codeListId;
   bool isRequired = false;
   bool showInList = false;
+  /// T56: FRONT or BACK side of a two-sided card.
+  String? face;
   String unitChoice = '';
   String? get unit => kind == BrainyFieldKind.duration
       ? (isDurationUnit(unitChoice) ? unitChoice : null)
@@ -2295,7 +2299,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
             options: field.options.join('\n'),
           )
             ..isRequired = field.isRequired
-            ..showInList = field.showInList;
+            ..showInList = field.showInList
+            ..face = field.face;
           if (field.kind == BrainyFieldKind.duration) {
             draft.unitChoice = isDurationUnit(field.unit) ? field.unit! : '';
           } else if (field.unit != null) {
@@ -2457,6 +2462,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                     if (_fields[index].id != null) 'id': _fields[index].id,
                     if (_fields[index].isRequired) 'required': true,
                     if (_fields[index].showInList) 'showInList': true,
+                    if (isFlashCards(widget.collection)) 'face': cardFaceOf(_fields[index].kind, _fields[index].face),
                     'name': fields[index].name,
                     'kind': fields[index].kind.wireName,
                     if (fields[index].unit != null) 'unit': fields[index].unit,
@@ -2769,6 +2775,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                           enabled: field.showInList || _fields.where((item) => item.showInList).length < 3,
                                           onChanged: (value) => setState(() => field.showInList = value),
                                         ),
+                                        if (isFlashCards(widget.collection))
+                                          CardFaceSelector(value: cardFaceOf(field.kind, field.face), french: AppStrings.of(context).isFrench, onChanged: (face) => setState(() => field.face = face)),
                                       ],
                                     ),
                                   ),
