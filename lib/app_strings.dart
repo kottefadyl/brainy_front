@@ -65,6 +65,20 @@ class AppStrings {
     if (message.contains('Data format changed')) {
       return text('This data format changed. Refresh and try again.');
     }
+    // The API names the field (and the choice): say exactly what blocks the change.
+    final usedChoice = RegExp(r'Field (.+) has saved values using the choice (.+)\. Keep that choice').firstMatch(message);
+    if (usedChoice != null) {
+      final field = usedChoice.group(1)!, choices = usedChoice.group(2)!;
+      return isFrench
+          ? 'Le champ « $field » a des entrées qui utilisent le choix ${choices.replaceAllMapped(RegExp(r'"([^"]*)"'), (match) => '« ${match.group(1)} »')}. Gardez ce choix (vous pouvez en ajouter d’autres), ou modifiez d’abord ces entrées.'
+          : 'Field “$field” has entries that use the choice ${choices.replaceAllMapped(RegExp(r'"([^"]*)"'), (match) => '“${match.group(1)}”')}. Keep that choice (you can add others), or change those entries first.';
+    }
+    final savedField = RegExp(r'Field (.+) has saved values\.').firstMatch(message);
+    if (savedField != null) {
+      return isFrench
+          ? 'Le champ « ${savedField.group(1)} » contient des valeurs enregistrées : son type et son unité ne peuvent pas changer et il ne peut pas être supprimé.'
+          : 'Field “${savedField.group(1)}” has saved values: its type and unit cannot change and it cannot be removed.';
+    }
     if (message.contains('has saved values')) {
       return text(
         'A field with saved values cannot be removed or change its type, unit or choices.',
