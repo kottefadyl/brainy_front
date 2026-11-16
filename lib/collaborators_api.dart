@@ -20,6 +20,25 @@ class BrainyCollaborator {
       );
 }
 
+/// One person a collection is shared with, as listed for its owner.
+class BrainyCollectionMemberSummary {
+  const BrainyCollectionMemberSummary({required this.userId, required this.name, required this.email, required this.role, required this.hasPhoto});
+
+  final String userId, name, email;
+  final BrainyCollectionRole role;
+  final bool hasPhoto;
+
+  factory BrainyCollectionMemberSummary.fromJson(Map<String, dynamic> json) => BrainyCollectionMemberSummary(
+        userId: json['userId'] as String,
+        name: json['name'] as String,
+        email: json['email'] as String,
+        role: json['role'] == 'EDITOR' ? BrainyCollectionRole.editor : BrainyCollectionRole.reader,
+        hasPhoto: json['hasPhoto'] as bool? ?? false,
+      );
+}
+
+typedef CollectionMembersPage = ({int total, int offset, List<BrainyCollectionMemberSummary> items});
+
 typedef CollaborationInvitePreview = ({String inviterName, bool isSelf, bool alreadyCollaborator});
 
 /// Address of the web app, where collaboration links open (same rule as contribution links).
@@ -88,6 +107,19 @@ class CollaboratorsApi {
     return auth.authenticatedRequest(
       'mutation(\$c:String!,\$u:String!,\$r:CollectionRole!,\$s:[String!],\$p:[String!]){addCollectionMember(collectionId:\$c,memberUserId:\$u,role:\$r,sharedFieldIds:\$s,sensitiveFieldIds:\$p){id}}',
       {'c': collection.id, 'u': userId, 'r': role == BrainyCollectionRole.editor ? 'EDITOR' : 'READER', 's': member?.sharedFieldIds, 'p': member?.sensitiveFieldIds},
+    );
+  }
+
+  /// People [collectionId] is shared with, sorted by name, searched and paged on the server (owner only).
+  Future<CollectionMembersPage> members(String collectionId, {String search = '', int offset = 0, int limit = 50}) async {
+    final data = (await auth.authenticatedRequest(
+      'query(\$c:String!,\$s:String,\$o:Int,\$l:Int){collectionMembers(collectionId:\$c,search:\$s,offset:\$o,limit:\$l){total offset items{userId name email role hasPhoto}}}',
+      {'c': collectionId, 's': search, 'o': offset, 'l': limit},
+    ))['collectionMembers'] as Map<String, dynamic>;
+    return (
+      total: data['total'] as int,
+      offset: data['offset'] as int,
+      items: [for (final item in data['items'] as List<dynamic>) BrainyCollectionMemberSummary.fromJson(item as Map<String, dynamic>)],
     );
   }
 

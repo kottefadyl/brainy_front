@@ -20,9 +20,13 @@ class WorkspaceCollectionHeader extends StatelessWidget {
     this.onShare,
     this.owner = true,
     this.canWrite = true,
+    this.memberCount = 0,
   });
 
   final String name;
+
+  /// Number of people the owner shared the collection with; the chip opens the share sheet.
+  final int memberCount;
   final int entryCount, formatCount;
   final bool partialEntryCount;
   final VoidCallback onNewEntry, onInsights, onRename, onDelete;
@@ -85,6 +89,8 @@ class WorkspaceCollectionHeader extends StatelessWidget {
                     entryCount: entryCount,
                     partialEntryCount: partialEntryCount,
                     formatCount: formatCount,
+                    memberCount: owner ? memberCount : 0,
+                    onMembers: onShare,
                     dark: dark,
                   );
                   final actions = _Actions(
@@ -212,11 +218,14 @@ class _Identity extends StatelessWidget {
     required this.partialEntryCount,
     required this.formatCount,
     required this.dark,
+    this.memberCount = 0,
+    this.onMembers,
   });
 
   final String name;
-  final int entryCount, formatCount;
+  final int entryCount, formatCount, memberCount;
   final bool partialEntryCount, dark;
+  final VoidCallback? onMembers;
 
   @override
   Widget build(BuildContext context) {
@@ -288,6 +297,22 @@ class _Identity extends StatelessWidget {
                     fill: dark ? BrainyAccents.darkGreenTint : BrainyAccents.mintFill,
                     ink: dark ? BrainyAccents.darkGreenInk : BrainyAccents.mintInk,
                   ),
+                  if (memberCount > 0)
+                    Semantics(
+                      button: onMembers != null,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: onMembers,
+                        child: _Chip(
+                          icon: Icons.group_outlined,
+                          label: copy.isFrench
+                              ? 'Partagée avec $memberCount personne${memberCount > 1 ? 's' : ''}'
+                              : 'Shared with $memberCount ${memberCount > 1 ? 'people' : 'person'}',
+                          fill: dark ? const Color(0x24F59E0B) : BrainyAccents.amberFill,
+                          ink: dark ? const Color(0xFFFCD34D) : BrainyAccents.amberInk,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ],

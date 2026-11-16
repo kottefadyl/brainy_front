@@ -377,6 +377,15 @@ class _CollectionRow extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if ((collection.memberCount ?? 0) > 0) ...[
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message: AppStrings.of(context).isFrench
+                                ? 'Partagée avec ${collection.memberCount} personne(s)'
+                                : 'Shared with ${collection.memberCount} people',
+                            child: Icon(Icons.group_outlined, size: 16, color: ink),
+                          ),
+                        ],
                         const SizedBox(width: 8),
                         _Count(
                           count: collection.formats.length,

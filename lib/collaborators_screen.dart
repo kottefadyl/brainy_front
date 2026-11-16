@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'app_strings.dart';
 import 'auth_api.dart';
 import 'collaborators_api.dart';
+import 'collection_members_panel.dart';
 import 'collections_api.dart';
 
 const _teal = Color(0xFF0E6E66), _tealSoft = Color(0xFFE3F6F4), _tealDark = Color(0xFF5EEAD4), _tealDarkSoft = Color(0x242DD4BF);
@@ -320,6 +321,9 @@ class _ShareSheetState extends State<_ShareSheet> {
   String? _error, _saving, _saved;
   bool _changed = false;
   String _query = '';
+  // Opens on the people who already have access once the collection is shared.
+  late bool _peopleTab = _memberCount > 0;
+  int get _memberCount => _access.values.where((role) => role != null).length;
 
   bool get _fr => AppStrings.of(context).isFrench;
   String _t(String en, String fr) => _fr ? fr : en;
@@ -362,7 +366,25 @@ class _ShareSheetState extends State<_ShareSheet> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             children: [
               Text(_t('Share “${widget.collection.name}”', 'Partager « ${widget.collection.name} »'), style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
+              SegmentedButton<bool>(
+                showSelectedIcon: false,
+                segments: [
+                  ButtonSegment(value: true, icon: const Icon(Icons.group_outlined), label: Text(_t('People with access ($_memberCount)', 'Personnes ayant accès ($_memberCount)'))),
+                  ButtonSegment(value: false, icon: const Icon(Icons.person_add_alt_1_outlined), label: Text(_t('Add people', 'Ajouter des personnes'))),
+                ],
+                selected: {_peopleTab},
+                onSelectionChanged: (value) => setState(() => _peopleTab = value.first),
+              ),
+              const SizedBox(height: 14),
+              if (_peopleTab)
+                CollectionMembersPanel(
+                  api: _api,
+                  collection: widget.collection,
+                  onAddPeople: () => setState(() => _peopleTab = false),
+                  onChanged: (userId, role) => setState(() { _access[userId] = role; _changed = true; }),
+                ),
+              if (!_peopleTab) ...[
               _Help(_t('Read only: they see the entries. Read and write: they can also add, edit and delete entries. Data formats, the collection name and sharing stay yours.', 'Lecture seule : la personne voit les entrées. Lecture et écriture : elle peut aussi ajouter, modifier et supprimer des entrées. Les formats de données, le nom de la collection et le partage restent à vous.')),
               if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: theme.colorScheme.error))),
               const SizedBox(height: 12),
@@ -403,6 +425,7 @@ class _ShareSheetState extends State<_ShareSheet> {
                     ),
                   ]),
                 ),
+              ],
             ],
           ),
         ),

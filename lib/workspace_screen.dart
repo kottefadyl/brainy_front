@@ -1962,6 +1962,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     onDelete: _deleteCollection,
     onPackages: _openPackages,
     owner: collection.sharedBy == null,
+    memberCount: collection.memberCount ?? 0,
     canWrite: collection.sharedBy == null || _myRole(collection) == BrainyCollectionRole.editor,
     onShare: collection.sharedBy == null
         ? () async { if (await showCollectionShareSheet(context, auth: widget.api, collection: collection, onOpenCollaborators: () => openCollaborators(context, widget.api, onChanged: _load))) await _load(); }

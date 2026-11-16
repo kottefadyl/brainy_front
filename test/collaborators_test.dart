@@ -16,6 +16,7 @@ const _token = 'abcdefghijklmnopqrstuv';
 class _Auth extends AuthApi {
   final calls = <(String, Map<String, dynamic>)>[];
   var people = <Map<String, dynamic>>[];
+  var members = <Map<String, dynamic>>[];
 
   @override
   Future<Map<String, dynamic>> authenticatedRequest(String query, Map<String, dynamic> variables, {Duration timeout = const Duration(seconds: 12)}) async {
@@ -23,9 +24,15 @@ class _Auth extends AuthApi {
     final bruno = {'userId': 'u2', 'name': 'Bruno', 'email': 'bruno@example.test', 'since': '2026-11-11T10:00:00Z', 'hasPhoto': false};
     if (query.contains('collaborationInviteToken')) return {'collaborationInviteToken': _token};
     if (query.contains('collaborators{')) return {'collaborators': people};
+    if (query.contains('collectionMembers(')) {
+      final search = (variables['s'] as String? ?? '').toLowerCase();
+      final items = members.where((item) => (item['name'] as String).toLowerCase().contains(search)).toList();
+      return {'collectionMembers': {'total': items.length, 'offset': variables['o'] ?? 0, 'items': items}};
+    }
     if (query.contains('collaborationInvite(')) return {'collaborationInvite': {'inviterName': 'Awa', 'isSelf': false, 'alreadyCollaborator': false}};
     if (query.contains('acceptCollaboration')) { people = [bruno]; return {'acceptCollaboration': bruno}; }
     if (query.contains('addCollectionMember')) return {'addCollectionMember': {'id': 'c1'}};
+    if (query.contains('removeCollectionMember')) members.removeWhere((item) => item['userId'] == variables['u']);
     if (query.contains('removeCollectionMember')) return {'removeCollectionMember': {'id': 'c1'}};
     if (query.contains('endCollaboration')) { people = []; return {'endCollaboration': true}; }
     throw StateError(query);
@@ -47,7 +54,8 @@ Future<void> _pump(WidgetTester tester, Widget home, {double width = 390, bool d
   await tester.pumpAndSettle();
 }
 
-BrainyCollection _collection({List<Map<String, dynamic>> members = const [], Map<String, dynamic>? sharedBy}) => BrainyCollection.fromJson({
+BrainyCollection _collection({List<Map<String, dynamic>> members = const [], Map<String, dynamic>? sharedBy, int? memberCount}) => BrainyCollection.fromJson({
+      'memberCount': memberCount,
       'id': 'c1',
       'name': 'Maison',
       'fields': [],
@@ -112,6 +120,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(auth.calls.last.$1, contains('removeCollectionMember'));
     expect(tester.takeException(), isNull);
+  });
+
+  for (final (width, dark) in [(390.0, false), (1280.0, true)]) {
+    testWidgets('a shared collection opens on the people with access, searchable and removable at $width px', (tester) async {
+      final auth = _Auth()
+        ..members = [
+          {'userId': 'u2', 'name': 'Bruno', 'email': 'bruno@example.test', 'role': 'EDITOR', 'hasPhoto': false},
+          {'userId': 'u3', 'name': 'Dan', 'email': 'dan@example.test', 'role': 'READER', 'hasPhoto': false},
+        ];
+      final collection = _collection(memberCount: 2, members: [
+        {'userId': 'u2', 'email': 'bruno@example.test', 'name': 'Bruno', 'role': 'EDITOR', 'addedAt': '2026-11-11T10:00:00Z'},
+        {'userId': 'u3', 'email': 'dan@example.test', 'name': 'Dan', 'role': 'READER', 'addedAt': '2026-11-11T10:00:00Z'},
+      ]);
+      expect(collection.memberCount, 2);
+      await _pump(tester, Builder(builder: (context) => Scaffold(body: Center(child: FilledButton(onPressed: () => showCollectionShareSheet(context, auth: auth, collection: collection), child: const Text('open'))))), width: width, dark: dark);
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('Personnes ayant accès (2)'), findsOneWidget);
+      expect(find.text('Bruno'), findsOneWidget);
+      expect(find.text('Dan'), findsOneWidget);
+      expect(find.text('1–2 sur 2'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'da');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(find.text('Bruno'), findsNothing);
+      await tester.tap(find.byTooltip('Retirer l’accès de Dan'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Retirer l’accès'));
+      await tester.pumpAndSettle();
+      expect(auth.calls.last.$1, contains('collectionMembers'));
+      expect(auth.calls.any((call) => call.$1.contains('removeCollectionMember') && call.$2['u'] == 'u3'), isTrue);
+      expect(find.text('Personnes ayant accès (1)'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('the owner sees how many people a collection is shared with', (tester) async {
+    var opened = false;
+    await _pump(tester, Scaffold(body: SingleChildScrollView(child: WorkspaceCollectionHeader(name: 'Maison', entryCount: 3, partialEntryCount: false, formatCount: 1, memberCount: 1200, onNewEntry: () {}, onInsights: () {}, onRename: () {}, onDelete: () {}, onShare: () => opened = true))));
+    await tester.tap(find.text('Partagée avec 1200 personnes'));
+    expect(opened, isTrue);
+    await _pump(tester, Scaffold(body: SingleChildScrollView(child: WorkspaceCollectionHeader(name: 'Maison', entryCount: 3, partialEntryCount: false, formatCount: 1, memberCount: 1200, owner: false, onNewEntry: () {}, onInsights: () {}, onRename: () {}, onDelete: () {}))));
+    expect(find.textContaining('Partagée avec'), findsNothing);
   });
 
   for (final (canWrite, label) in [(false, 'read only'), (true, 'read and write')]) {
