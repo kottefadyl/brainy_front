@@ -17,6 +17,7 @@ import 'workspace_top_bar.dart';
 import 'workspace_format_cards.dart';
 import 'workspace_entry_row.dart';
 import 'duration.dart';
+import 'calculations_choice.dart';
 import 'duration_widgets.dart';
 
 import 'auth_api.dart';
@@ -1325,7 +1326,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   _overviewBanner(collection),
                   if (collection.sharedBy != null) SharedCollectionBanner(ownerName: collection.sharedBy!.name, canWrite: _myRole(collection) == BrainyCollectionRole.editor),
                   BookViewLauncher(key: ValueKey('book-${collection.id}'), api: _api, collection: collection, french: _copy.isFrench, onOpenEntry: (entry) => _editEntry(entry), onChanged: _load),
-                  if (collection.periodTotals != null) PeriodTotalsPanel(key: ValueKey(collection.id), api: _api, collection: collection, entries: _entries, french: _copy.isFrench, onSaved: () { _loadEntries(); }),
+                  if (collection.periodTotals != null && collection.hasCalculations) PeriodTotalsPanel(key: ValueKey(collection.id), api: _api, collection: collection, entries: _entries, french: _copy.isFrench, onSaved: () { _loadEntries(); }),
                   OfflineSyncPanel(api: _api, userId: widget.user.id, collections: _collections, onSynced: () { _loadEntries(); }),
                   const SizedBox(height: 12),
                   WorkspaceCollectionTabs(
@@ -1965,6 +1966,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     onPackages: _openPackages,
     owner: collection.sharedBy == null,
     memberCount: collection.memberCount ?? 0,
+    calculations: collection.hasCalculations,
+    onCalculations: (enabled) async {
+      try {
+        await _api.setCollectionCalculations(collection.id, enabled);
+        await _load();
+      } catch (error) {
+        if (mounted) setState(() => _error = _copy.error(error));
+      }
+    },
     canWrite: collection.sharedBy == null || _myRole(collection) == BrainyCollectionRole.editor,
     onShare: collection.sharedBy == null
         ? () async { if (await showCollectionShareSheet(context, auth: widget.api, collection: collection, onOpenCollaborators: () => openCollaborators(context, widget.api, onChanged: _load))) await _load(); }
@@ -2257,6 +2267,8 @@ class _CollectionEditorState extends State<_CollectionEditor> {
   final List<_DraftField> _fields = [];
   bool _saving = false;
   bool _objectModel = false;
+  // A collection created by hand starts simple; the person can ask for calculations right away.
+  bool _calculations = false;
   late final int? _savedLimit = widget.editingFormat?.entryLimit;
   late final _maxEntries = TextEditingController(text: _savedLimit?.toString() ?? '');
   String? _error;
@@ -2473,6 +2485,7 @@ class _CollectionEditorState extends State<_CollectionEditor> {
               requiredFields: requiredFields,
               listFields: listFields,
               maxEntries: limit.value,
+              calculations: _calculations,
             )
           : _fields.any((field) => field.kind == BrainyFieldKind.code)
           ? await widget.api.addFormatWithCode(widget.collection!.id, formatName, _selectedColor!, [for (var index = 0; index < fields.length; index++) {'name': fields[index].name, 'kind': fields[index].kind.wireName, if (fields[index].unit != null) 'unit': fields[index].unit, if (fields[index].options != null) 'options': fields[index].options, if (_fields[index].kind == BrainyFieldKind.code) 'codeListId': _fields[index].codeListId, if (_fields[index].isRequired) 'required': true, if (_fields[index].showInList) 'showInList': true}], objectModel: _objectModel, maxEntries: limit.value)
@@ -3001,6 +3014,11 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: MaxEntriesField(controller: _maxEntries),
+                    ),
+                  if (widget.collection == null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: CalculationsChoice(value: _calculations, french: AppStrings.of(context).isFrench, onChanged: (value) => setState(() => _calculations = value)),
                     ),
                   if (widget.editingFormat == null)
                     CheckboxListTile(

@@ -64,6 +64,8 @@ class _SensitivityScreenState extends State<_SensitivityScreen> {
         Text(t('Les champs personnels et sensibles sont masqués aux membres et exclus des exports par défaut. Une inclusion explicite est nécessaire.',
           'Personal and sensitive fields are hidden from members and excluded from exports by default. Explicit inclusion is required.')),
         const SizedBox(height: 12),
+        // Analysis limits only matter when the collection has calculations and statistics.
+        if (current.hasCalculations) ...[
         Text(t('Un seuil d’agrégat réduit certains risques de déduction. Il ne garantit pas l’anonymat.',
           'An aggregate threshold reduces some inference risks. It does not guarantee anonymity.')),
         const SizedBox(height: 16),
@@ -73,6 +75,7 @@ class _SensitivityScreenState extends State<_SensitivityScreen> {
         Align(alignment: Alignment.centerLeft, child: FilledButton(
           onPressed: busy ? null : () { final value = int.tryParse(minimum.text); if (value == null || value < 2 || value > 100) { setState(() => error = t('Choisissez un nombre de 2 à 100.', 'Choose a number from 2 to 100.')); return; } save(() => widget.api.setMinimumAggregateSize(current.id, value)); },
           child: Text(t('Enregistrer le seuil', 'Save threshold')))),
+        ],
         const SizedBox(height: 20),
         for (final format in current.formats) ...[
           Text(format.name, style: Theme.of(context).textTheme.titleMedium),

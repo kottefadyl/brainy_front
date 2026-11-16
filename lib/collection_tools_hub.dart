@@ -73,7 +73,9 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
     final fr = widget.isFrench;
     final isOwner = widget.collection.ownerId == widget.userId;
     final canSend = widget.onDataSources != null && (isOwner || widget.collection.members.any((member) => member.userId == widget.userId && member.role != BrainyCollectionRole.reader));
-    final totalCount = (isOwner ? 10 : 9) + (canSend ? 1 : 0);
+    // Without calculations, insights, stock and measures are never offered (simple collection).
+    final calc = widget.collection.hasCalculations;
+    final totalCount = (isOwner ? 10 : 9) + (canSend ? 1 : 0) - (calc ? 0 : 3);
 
     return Container(
       decoration: BoxDecoration(
@@ -162,9 +164,9 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          fr
-                              ? 'Statistiques, stocks, cartes, nomenclatures, flux et registre'
-                              : 'Analytics, stocks, maps, code lists, workflows, and ledger',
+                          calc
+                              ? (fr ? 'Statistiques, stocks, cartes, nomenclatures, flux et registre' : 'Analytics, stocks, maps, code lists, workflows, and ledger')
+                              : (fr ? 'Cartes, nomenclatures, flux et registre' : 'Maps, code lists, workflows, and ledger'),
                           style: TextStyle(
                             fontSize: 12,
                             color: _mutedColor,
@@ -207,14 +209,14 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                     children: [
                       // Groupe 1 : Analyse & Métier
                       _sectionTitle(
-                        fr ? 'Analyse & Métier' : 'Analytics & Operations',
+                        calc ? (fr ? 'Analyse & Métier' : 'Analytics & Operations') : (fr ? 'Lieux' : 'Places'),
                       ),
                       const SizedBox(height: 10),
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
                         children: [
-                          _toolCard(
+                          if (calc) _toolCard(
                             0,
                             cardWidth,
                             Icons.auto_graph_rounded,
@@ -223,7 +225,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                             widget.onInsights,
                             featured: true,
                           ),
-                          _toolCard(
+                          if (calc) _toolCard(
                             0,
                             cardWidth,
                             Icons.inventory_2_outlined,
@@ -254,7 +256,7 @@ class _CollectionToolsHubState extends State<CollectionToolsHub> {
                         spacing: 10,
                         runSpacing: 10,
                         children: [
-                          _toolCard(
+                          if (calc) _toolCard(
                             1,
                             cardWidth,
                             Icons.straighten_rounded,

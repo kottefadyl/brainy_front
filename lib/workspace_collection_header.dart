@@ -13,7 +13,7 @@ class WorkspaceCollectionHeader extends StatelessWidget {
     required this.partialEntryCount,
     required this.formatCount,
     required this.onNewEntry,
-    required this.onInsights,
+    this.onInsights,
     required this.onRename,
     required this.onDelete,
     this.onPackages,
@@ -21,7 +21,13 @@ class WorkspaceCollectionHeader extends StatelessWidget {
     this.owner = true,
     this.canWrite = true,
     this.memberCount = 0,
+    this.calculations = true,
+    this.onCalculations,
   });
+
+  /// Calculations and statistics: when off, "Insights" is not shown; the owner switches it in "Manage".
+  final bool calculations;
+  final ValueChanged<bool>? onCalculations;
 
   final String name;
 
@@ -29,8 +35,8 @@ class WorkspaceCollectionHeader extends StatelessWidget {
   final int memberCount;
   final int entryCount, formatCount;
   final bool partialEntryCount;
-  final VoidCallback onNewEntry, onInsights, onRename, onDelete;
-  final VoidCallback? onPackages;
+  final VoidCallback onNewEntry, onRename, onDelete;
+  final VoidCallback? onPackages, onInsights;
 
   /// T52: only the owner shares, renames and deletes; a read-only collaborator cannot add entries.
   final VoidCallback? onShare;
@@ -97,7 +103,9 @@ class WorkspaceCollectionHeader extends StatelessWidget {
                     dark: dark,
                     stretched: compact,
                     onNewEntry: onNewEntry,
-                    onInsights: onInsights,
+                    onInsights: calculations ? onInsights : null,
+                    calculations: calculations,
+                    onCalculations: owner ? onCalculations : null,
                     onRename: onRename,
                     onDelete: onDelete,
                     onPackages: onPackages,
@@ -372,18 +380,21 @@ class _Actions extends StatelessWidget {
     required this.dark,
     required this.stretched,
     required this.onNewEntry,
-    required this.onInsights,
+    this.onInsights,
     required this.onRename,
     required this.onDelete,
     this.onPackages,
     this.onShare,
     this.owner = true,
     this.canWrite = true,
+    this.calculations = true,
+    this.onCalculations,
   });
 
-  final bool dark, stretched, owner, canWrite;
-  final VoidCallback onNewEntry, onInsights, onRename, onDelete;
-  final VoidCallback? onPackages, onShare;
+  final bool dark, stretched, owner, canWrite, calculations;
+  final VoidCallback onNewEntry, onRename, onDelete;
+  final VoidCallback? onPackages, onShare, onInsights;
+  final ValueChanged<bool>? onCalculations;
 
   @override
   Widget build(BuildContext context) {
@@ -405,7 +416,7 @@ class _Actions extends StatelessWidget {
         textStyle: labelStyle,
       ),
     );
-    final insights = OutlinedButton.icon(
+    final Widget? insights = onInsights == null ? null : OutlinedButton.icon(
       onPressed: onInsights,
       icon: Icon(
         Icons.auto_graph_rounded,
@@ -430,6 +441,7 @@ class _Actions extends StatelessWidget {
         'rename' => onRename(),
         'share' => onShare?.call(),
         'packages' => onPackages?.call(),
+        'calculations' => onCalculations?.call(!calculations),
         _ => onDelete(),
       },
       itemBuilder: (context) {
@@ -442,6 +454,21 @@ class _Actions extends StatelessWidget {
               'packages',
               Icons.inventory_2_outlined,
               fr ? 'Paquets de domaine' : 'Domain packages',
+            ),
+          if (onCalculations != null)
+            PopupMenuItem(
+              value: 'calculations',
+              child: Row(children: [
+                const Icon(Icons.calculate_outlined, size: 18),
+                const SizedBox(width: 12),
+                Flexible(child: Text(fr ? 'Calculs' : 'Calculations')),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                  decoration: BoxDecoration(color: (calculations ? const Color(0xFF16A34A) : Theme.of(context).colorScheme.outline).withValues(alpha: .18), borderRadius: BorderRadius.circular(99)),
+                  child: Text(calculations ? (fr ? 'Oui' : 'On') : (fr ? 'Non' : 'Off'), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: calculations ? const Color(0xFF15803D) : Theme.of(context).colorScheme.onSurfaceVariant)),
+                ),
+              ]),
             ),
           _menuItem(
             'delete',
@@ -484,8 +511,8 @@ class _Actions extends StatelessWidget {
           if (canWrite) ...[newEntry, const SizedBox(height: 8)],
           Row(
             children: [
-              Expanded(child: insights),
-              if (owner) ...[const SizedBox(width: 8), Expanded(child: manage)],
+              if (insights != null) Expanded(child: insights),
+              if (owner) ...[if (insights != null) const SizedBox(width: 8), Expanded(child: manage)],
             ],
           ),
         ],
@@ -495,8 +522,8 @@ class _Actions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (canWrite) ...[newEntry, const SizedBox(width: 8)],
-        insights,
-        if (owner) ...[const SizedBox(width: 8), manage],
+        ?insights,
+        if (owner) ...[if (insights != null) const SizedBox(width: 8), manage],
       ],
     );
   }

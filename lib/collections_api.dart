@@ -384,6 +384,7 @@ class BrainyCollection {
     this.allowNegativeStock = false,
     this.members = const [],
     this.memberCount,
+    this.calculations,
     this.sharedBy,
     this.minAggregateSize = 5,
     this.periodTotals,
@@ -414,6 +415,10 @@ class BrainyCollection {
 
   /// Number of people the collection is shared with; null when I am not the owner.
   final int? memberCount;
+
+  /// Calculations and statistics (insights, formulas, charts, totals, stock, measures) for this collection.
+  final bool? calculations;
+  bool get hasCalculations => calculations != false;
 
   /// T52: owner of a collection shared with me; null for my own collections.
   final ({String userId, String name})? sharedBy;
@@ -483,6 +488,7 @@ class BrainyCollection {
               .toList() ??
           const [],
       memberCount: json['memberCount'] as int?,
+      calculations: json['calculations'] as bool?,
       sharedBy: json['sharedBy'] is Map<String, dynamic>
           ? (userId: (json['sharedBy'] as Map<String, dynamic>)['userId'] as String, name: (json['sharedBy'] as Map<String, dynamic>)['name'] as String)
           : null,
@@ -666,7 +672,7 @@ class CollectionsApi {
   }
 
   static const _collectionFields =
-      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId estimateFieldId spentFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList } formats { id name color version objectModel appendOnly sensitivity singleEntry maxEntries parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } memberCount sharedBy { userId name }';
+      'id ownerId name minAggregateSize templateId taskPlanner { formatId doneFieldId startFieldId endFieldId repeatFieldId intervalFieldId weekdaysFieldId completedFieldId estimateFieldId spentFieldId } bookView { enabled bodyFont headingFont fontSize lineHeight paragraphSpacing firstLineIndent marginMm textAlign pageSize showRuler chapterOnNewPage roles { formatId role } } periodTotals { formatId dateFieldId amountFieldId } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList } formats { id name color version objectModel appendOnly sensitivity singleEntry maxEntries parentFormatIds copiedFromFormatId linkedSource { sourceCollectionId sourceFormatId acceptedVersion targetVersion } workflow { stateFieldId initialState transitions { from to minimumRole } requirements { state fieldIds } } fields { id name kind unit options codeListId targetObjectFormatId multiple variableName referenceMode sourceFieldId sensitivity required showInList } } codeLists { id name version external codeCount levels codes { code labelEn labelFr parentCode active mergedInto } } units { id name symbol dimension baseUnitId factor objectFormatId version } exchangeRates { id from to rate effectiveAt } sharedObjects { id sourceCollectionId sourceFormatId sourceFormatVersion objectId sourceName objectName propertyFieldIds sensitiveFieldIds mode snapshot { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt revokedAt } savedViews { id name layout formatIds columnFieldIds search filterFieldId filterOperator filterValue sort manualOrderFieldIds groupByFormat taskDoneFieldId taskDueFieldId taskCompletedFieldId taskPriorityFieldId calendarStartFieldId calendarEndFieldId calendarTimeZone } formulas { id name formatId expression version dependencies } stockRules { id name formatId kind productFieldId quantityFieldId version } allowNegativeStock members { userId email name role addedAt sharedFieldIds sensitiveFieldIds } memberCount calculations sharedBy { userId name }';
   static const _entryFields =
       'id formatId correctionOf ledgerHash ledgerSequence sourceObjectId contributionLinkId contributionReceivedAt recurrence { startFieldId endFieldId timeZone frequency interval untilDate excludedDates } workflow { assigneeUserId dueAt reminderMinutesBefore history { kind from to actorUserId at assigneeUserId dueAt } } values { fieldId value measureValue { status uncertainty uncertaintyType quality instrument observedAt } largeFileId attachmentSize objectIds personIds personNames objectSnapshots { objectId capturedAt properties { fieldId name kind value unitSnapshot { id version symbol dimension factor root objectFormatId } } } unitSnapshot { id version symbol dimension factor root objectFormatId } } createdAt updatedAt createdBy { userId name hasPhoto } updatedBy { userId name hasPhoto }';
 
@@ -819,7 +825,7 @@ class CollectionsApi {
 
   Future<List<Map<String, dynamic>>> starterTemplates(String language) async {
     final data = await auth.authenticatedRequest(
-      'query(\$language:String) { starterTemplates(language:\$language) { id name description } }',
+      'query(\$language:String) { starterTemplates(language:\$language) { id name description calculations } }',
       {'language': language},
     );
     return (data['starterTemplates'] as List<dynamic>)
@@ -830,20 +836,31 @@ class CollectionsApi {
     String templateId,
     String name,
     String language,
-    String timeZone,
-  ) async {
+    String timeZone, {
+    bool? calculations,
+  }) async {
     final data = await auth.authenticatedRequest(
-      'mutation(\$templateId:String!,\$name:String!,\$language:String,\$timeZone:String) { createCollectionFromTemplate(templateId:\$templateId,name:\$name,language:\$language,timeZone:\$timeZone) { $_collectionFields } }',
+      'mutation(\$templateId:String!,\$name:String!,\$language:String,\$timeZone:String,\$calculations:Boolean) { createCollectionFromTemplate(templateId:\$templateId,name:\$name,language:\$language,timeZone:\$timeZone,calculations:\$calculations) { $_collectionFields } }',
       {
         'templateId': templateId,
         'name': name,
         'language': language,
         'timeZone': timeZone,
+        'calculations': calculations,
       },
     );
     return BrainyCollection.fromJson(
       data['createCollectionFromTemplate'] as Map<String, dynamic>,
     );
+  }
+
+  /// Turns calculations and statistics on or off for a collection (owner only).
+  Future<BrainyCollection> setCollectionCalculations(String collectionId, bool enabled) async {
+    final data = await auth.authenticatedRequest(
+      'mutation(\$collectionId:String!,\$enabled:Boolean!) { setCollectionCalculations(collectionId:\$collectionId,enabled:\$enabled) { $_collectionFields } }',
+      {'collectionId': collectionId, 'enabled': enabled},
+    );
+    return BrainyCollection.fromJson(data['setCollectionCalculations'] as Map<String, dynamic>);
   }
 
   Future<BrainyCollection> saveFormula(
@@ -1073,12 +1090,14 @@ class CollectionsApi {
     Set<int> requiredFields = const {},
     Set<int> listFields = const {},
     int? maxEntries,
+    bool calculations = false,
   }) async {
     final data = await auth.authenticatedRequest(
       'mutation Create(\$input: CreateCollectionInput!) { createCollection(input: \$input) { $_collectionFields } }',
       {
         'input': {
           'name': name,
+          'calculations': calculations,
           'formats': [
             {
               'name': formatName,

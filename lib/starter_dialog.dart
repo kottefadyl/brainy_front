@@ -1,3 +1,4 @@
+import 'calculations_choice.dart';
 import 'package:flutter/material.dart';
 
 import 'adaptive_form.dart';
@@ -30,6 +31,8 @@ class _StarterDialogState extends State<_StarterDialog> {
   String? selected;
   String? error;
   bool busy = false;
+  // Starts at the template's default; the person can change it before creating.
+  bool calculations = false;
 
   @override
   void didChangeDependencies() {
@@ -42,6 +45,7 @@ class _StarterDialogState extends State<_StarterDialog> {
             setState(() {
               templates = items;
               selected = items.firstOrNull?['id'] as String?;
+              calculations = items.firstOrNull?['calculations'] as bool? ?? false;
               name.text = items.firstOrNull?['name'] as String? ?? '';
             });
           })
@@ -70,6 +74,7 @@ class _StarterDialogState extends State<_StarterDialog> {
         name.text.trim(),
         language,
         DateTime.now().timeZoneName == 'WAT' ? 'Africa/Lagos' : 'UTC',
+        calculations: calculations,
       );
       if (mounted) Navigator.pop(context, result);
     } catch (cause) {
@@ -175,6 +180,7 @@ class _StarterDialogState extends State<_StarterDialog> {
                                     name.text = template['name'] as String;
                                   }
                                   selected = template['id'] as String;
+                                  calculations = template['calculations'] as bool? ?? false;
                                 }),
                                 child: Padding(
                                   padding: const EdgeInsets.all(15),
@@ -219,6 +225,10 @@ class _StarterDialogState extends State<_StarterDialog> {
                   );
                 },
               ),
+              if (selected != null) ...[
+                const SizedBox(height: 14),
+                CalculationsChoice(value: calculations, french: fr, onChanged: (value) => setState(() => calculations = value)),
+              ],
               if (error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
