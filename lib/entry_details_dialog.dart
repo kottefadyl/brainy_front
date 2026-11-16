@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'app_strings.dart';
 import 'collections_api.dart';
+import 'entry_authors.dart';
 import 'entry_clipboard.dart';
 import 'link_preview_card.dart';
 
@@ -56,18 +57,35 @@ Future<bool> showEntryDetailsDialog(
                 ),
               ),
               const SizedBox(height: 5),
-              Text(
-                '${copy.isFrench ? 'Créée' : 'Created'} $created',
-                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
-              ),
-              if (edited != null)
-                Text(
-                  '${copy.isFrench ? 'Modifiée' : 'Edited'} $edited',
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
+              // Who created the entry and, once it was changed, who changed it last, in every collection.
+              if (entry.createdBy != null) ...[
+                const SizedBox(height: 6),
+                EntryDetailsPerson(
+                  label: copy.isFrench ? 'Créée par' : 'Created by',
+                  icon: Icons.event_outlined,
+                  person: entry.createdBy!,
+                  when: created,
                 ),
+                if (edited != null && entry.updatedBy != null) ...[
+                  const SizedBox(height: 10),
+                  EntryDetailsPerson(
+                    label: copy.isFrench ? 'Dernière modification par' : 'Last modified by',
+                    icon: Icons.edit_outlined,
+                    person: entry.updatedBy!,
+                    when: edited,
+                  ),
+                ],
+              ] else ...[
+                Text(
+                  '${copy.isFrench ? 'Créée' : 'Created'} $created',
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+                ),
+                if (edited != null)
+                  Text(
+                    '${copy.isFrench ? 'Modifiée' : 'Edited'} $edited',
+                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+                  ),
+              ],
               const SizedBox(height: 14),
               for (final field in fields) ...[
                 Divider(color: colors.outlineVariant),
@@ -202,6 +220,43 @@ class _LinkValue extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+/// One line of the entry details: "Created by" or "Last modified by", with photo, name and date.
+class EntryDetailsPerson extends StatelessWidget {
+  const EntryDetailsPerson({super.key, required this.label, required this.icon, required this.person, required this.when});
+  final String label, when;
+  final IconData icon;
+  final BrainyPerson person;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Semantics(
+      label: '$label ${person.name}, $when',
+      excludeSemantics: true,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 14, color: muted),
+          const SizedBox(width: 6),
+          Flexible(child: Text(label, style: TextStyle(color: muted, fontSize: 12, fontWeight: FontWeight.w600))),
+        ]),
+        const SizedBox(height: 4),
+        Row(children: [
+          PersonAvatar(person, size: 28),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: person.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                TextSpan(text: '  $when', style: TextStyle(color: muted, fontSize: 12)),
+              ]),
+            ),
+          ),
+        ]),
+      ]),
     );
   }
 }
