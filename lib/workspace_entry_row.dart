@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_strings.dart';
+import 'collections_api.dart';
 import 'data_format_colors.dart';
 import 'design_tokens.dart';
 import 'workspace_hover_surface.dart';
@@ -25,7 +26,15 @@ class WorkspaceEntryRow extends StatelessWidget {
     this.canWrite = true,
     this.attachment,
     this.authors,
+    this.checkboxes = const {},
+    this.onCheck,
   });
+
+  /// Yes/no values among [facts], by fact label: shown as a checkbox that changes the entry in one tap.
+  final Map<String, ({String fieldId, bool checked})> checkboxes;
+
+  /// Null when the entry cannot be changed here (read only, register, offline): the boxes are then shown disabled.
+  final void Function(String fieldId, bool checked)? onCheck;
 
   /// T53: creator and last editor (shared collections only).
   final Widget? authors;
@@ -80,7 +89,13 @@ class WorkspaceEntryRow extends StatelessWidget {
                 for (final (index, fact) in facts.indexed) ...[
                   if (index > 0) const TextSpan(text: '    '),
                   TextSpan(text: '${fact.label} ', style: TextStyle(color: muted)),
-                  TextSpan(text: fact.value),
+                  if (checkboxes[fact.label] case final box?)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: EntryRowCheckbox(label: fact.label, checked: box.checked, onChanged: onCheck == null ? null : (value) => onCheck!(box.fieldId, value)),
+                    )
+                  else
+                    TextSpan(text: fact.value),
                 ],
                 if (hiddenFacts > 0) TextSpan(text: '    +$hiddenFacts', style: TextStyle(color: muted, fontWeight: FontWeight.w600)),
               ],
@@ -210,3 +225,50 @@ class WorkspaceEntryRow extends StatelessWidget {
     );
   }
 }
+
+/// A yes/no value in the entry list: a real checkbox, with "Yes"/"No" next to it.
+class EntryRowCheckbox extends StatelessWidget {
+  const EntryRowCheckbox({super.key, required this.label, required this.checked, this.onChanged});
+  final String label;
+  final bool checked;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final fr = AppStrings.of(context).isFrench;
+    final state = checked ? (fr ? 'Oui' : 'Yes') : (fr ? 'Non' : 'No');
+    return Semantics(
+      label: '$label : $state',
+      checked: checked,
+      enabled: onChanged != null,
+      excludeSemantics: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onChanged == null ? null : () => onChanged!(!checked),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Checkbox(
+                value: checked,
+                onChanged: onChanged == null ? null : (value) => onChanged!(value ?? false),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(state),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Checkbox state of the yes/no fields among [fields], by field name (names are unique in a data format).
+Map<String, ({String fieldId, bool checked})> entryCheckboxes(Iterable<BrainyField> fields, BrainyEntry entry) => {
+      for (final field in fields)
+        if (field.kind == BrainyFieldKind.boolean) field.name: (fieldId: field.id, checked: entry.values[field.id] == 'true'),
+    };

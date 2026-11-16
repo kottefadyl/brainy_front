@@ -1951,6 +1951,15 @@ class CollectionsApi {
     );
   }
 
+  /// Checks or unchecks one yes/no field of an entry from the entry list.
+  Future<BrainyEntry> setEntryCheckbox(String entryId, String fieldId, bool checked, {DateTime? expectedUpdatedAt}) async {
+    final data = await auth.authenticatedRequest(
+      'mutation(\$e:String!,\$f:String!,\$v:Boolean!,\$x:String){setEntryCheckbox(entryId:\$e,fieldId:\$f,checked:\$v,expectedUpdatedAt:\$x){$_entryFields}}',
+      {'e': entryId, 'f': fieldId, 'v': checked, 'x': expectedUpdatedAt?.toUtc().toIso8601String()},
+    );
+    return BrainyEntry.fromJson(data['setEntryCheckbox'] as Map<String, dynamic>);
+  }
+
   Future<({String fileName, Uint8List bytes, String mimeType})> entryAttachment(
     String entryId,
     String fieldId,

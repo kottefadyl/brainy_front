@@ -2045,22 +2045,25 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _entryCard(BrainyCollection collection, BrainyEntry entry) {
     final format = collection.formatFor(entry);
-    final visible = format.fields.where((field) => entry.values[field.id]?.trim().isNotEmpty ?? false);
+    final chosen = format.fields.where((field) => field.showInList).take(3).map((field) => field.id).toSet();
+    // A yes/no field chosen for the list shows its checkbox even before it was ever ticked.
+    final visible = format.fields.where((field) => (entry.values[field.id]?.trim().isNotEmpty ?? false) || (field.kind == BrainyFieldKind.boolean && chosen.contains(field.id)));
     final titleField = visible.where((field) => field.kind == BrainyFieldKind.title).firstOrNull;
-    final firstField = visible.firstOrNull;
+    final firstField = visible.where((field) => field.kind != BrainyFieldKind.boolean || (entry.values[field.id]?.isNotEmpty ?? false)).firstOrNull;
     // Up to three labelled values after the title; the rest stays in the details.
     // The link preview already shows the link: its raw address is not repeated among the values.
     final linkField = previewedLinkField(collection, format, entry);
     // The fields chosen for the list in the data format (3 at most), otherwise the first filled ones.
-    final chosen = format.fields.where((field) => field.showInList).take(3).map((field) => field.id).toSet();
     final factFields = visible.where((field) => (chosen.isEmpty || chosen.contains(field.id)) && field.id != (titleField ?? firstField)?.id && field.id != linkField?.id && field.kind != BrainyFieldKind.objectRef).toList();
-    final facts = [for (final field in factFields.take(linkField != null ? 1 : 3)) (label: field.name, value: displayEntryValue(field, entry.values[field.id]!, _copy, snapshot: entry.unitSnapshots[field.id], collection: collection))];
+    final facts = [for (final field in factFields.take(linkField != null ? 1 : 3)) (label: field.name, value: displayEntryValue(field, entry.values[field.id] ?? '', _copy, snapshot: entry.unitSnapshots[field.id], collection: collection))];
     final title = titleField != null ? entry.values[titleField.id]! : firstField != null ? displayEntryValue(firstField, entry.values[firstField.id]!, _copy, snapshot: entry.unitSnapshots[firstField.id], collection: collection) : _displayFormatName(context, format);
     return WorkspaceEntryRow(
       key: ValueKey(entry.id), color: format.color, title: title,
       authors: isSharedCollection(collection) && entry.createdBy != null ? EntryAuthors(entry: entry, collection: collection) : null,
       formatName: _displayFormatName(context, format), appendOnly: format.appendOnly, reminders: !BrainyPlatform.isFrozen('reminders') && _canWrite(collection), canWrite: _canWrite(collection),
       facts: facts, hiddenFacts: factFields.length - facts.length,
+      checkboxes: entryCheckboxes(factFields.take(facts.length), entry),
+      onCheck: _canWrite(collection) && !format.appendOnly && entry.ledgerHash == null && !entry.id.startsWith('offline:') ? (fieldId, checked) => _setCheckbox(entry, fieldId, checked) : null,
       attachment: linkPreviewFor(_api, collection, format, entry, french: _copy.isFrench, compact: true),
       created: _formatTimestamp(entry.createdAt, compact: true),
       edited: entry.updatedAt.isAfter(entry.createdAt.add(const Duration(seconds: 2))) ? _formatTimestamp(entry.updatedAt, compact: true) : null,
@@ -2073,6 +2076,16 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         if (action == 'delete') _deleteEntry(entry);
       },
     );
+  }
+
+  /// One-tap yes/no from the entry list: the row then shows the saved entry.
+  Future<void> _setCheckbox(BrainyEntry entry, String fieldId, bool checked) async {
+    try {
+      final saved = await _api.setEntryCheckbox(entry.id, fieldId, checked, expectedUpdatedAt: entry.updatedAt);
+      if (mounted) setState(() => _entries = [for (final item in _entries) item.id == saved.id ? saved : item]);
+    } catch (error) {
+      if (mounted) setState(() => _error = _copy.error(error));
+    }
   }
 
   Future<void> _showObjectReferences(
