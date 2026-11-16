@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 
 import 'collections_api.dart';
 import 'data_format_colors.dart';
+import 'duration.dart';
 import 'entry_authors.dart';
+import 'task_durations.dart';
 
 typedef TaskOccurrence = ({String entryId, String date, bool done, bool overdue, bool repeating});
 
@@ -45,7 +47,7 @@ extension TaskPlannerApi on CollectionsApi {
 String deviceTimeZone() => deviceZoneOrOffset();
 
 class TaskAgendaView extends StatefulWidget {
-  const TaskAgendaView({super.key, required this.api, required this.collection, required this.calendar, required this.french, required this.onEdit, required this.onNewTask, this.today});
+  const TaskAgendaView({super.key, required this.api, required this.collection, required this.calendar, required this.french, required this.onEdit, required this.onNewTask, this.today, this.onCollectionChanged});
   final CollectionsApi api;
   final BrainyCollection collection;
   final bool calendar, french;
@@ -53,6 +55,8 @@ class TaskAgendaView extends StatefulWidget {
   final Future<void> Function() onNewTask;
   /// For tests and previews; defaults to the device's local day.
   final String? today;
+  /// Reloads the collection after the owner added the duration fields to an older task list.
+  final Future<void> Function()? onCollectionChanged;
   @override
   State<TaskAgendaView> createState() => _TaskAgendaViewState();
 }
@@ -99,6 +103,27 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
     await _load();
   }
 
+  late TaskDurations _durations = TaskDurations(widget.collection);
+
+  @override
+  void didUpdateWidget(TaskAgendaView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.collection != widget.collection) _durations = TaskDurations(widget.collection);
+  }
+
+  /// Time of a day: estimates of its tasks (all, then those not done yet) and time spent on them.
+  ({int planned, int remaining, int spent}) _dayTime(List<TaskOccurrence> items) {
+    var planned = 0, remaining = 0, spent = 0;
+    for (final item in items) {
+      final entry = entries[item.entryId];
+      final estimate = _durations.estimate(entry) ?? 0;
+      planned += estimate;
+      if (!item.done) remaining += estimate;
+      if (!item.repeating) spent += _durations.spent(entry) ?? 0;
+    }
+    return (planned: planned, remaining: remaining, spent: spent);
+  }
+
   BrainyFormat? get _format => widget.collection.formats.where((item) => item.id == planner['formatId']).firstOrNull;
   String _title(BrainyEntry? entry) {
     final titleId = _format?.fields.where((field) => field.kind == BrainyFieldKind.title).firstOrNull?.id;
@@ -139,7 +164,9 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
         ]),
       );
     }
+    final time = _dayTime(items);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      DayTimeSummary(planned: time.planned, remaining: time.remaining, spent: time.spent, french: fr),
       Semantics(
         liveRegion: true,
         child: Row(children: [
@@ -171,7 +198,14 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
                         if (entry != null) EntryAuthors(entry: entry, collection: widget.collection, compact: true),
                         Text(name, style: TextStyle(fontWeight: FontWeight.w600, decoration: item.done ? TextDecoration.lineThrough : null, color: item.done ? scheme.onSurfaceVariant : null)),
                       ]),
-                      subtitle: info.isEmpty ? null : Row(children: [if (item.repeating) Icon(Icons.repeat, size: 14, color: scheme.onSurfaceVariant), if (item.repeating) const SizedBox(width: 4), Flexible(child: Text(info, style: TextStyle(color: item.overdue ? scheme.error : scheme.onSurfaceVariant)))]),
+                      subtitle: Builder(builder: (context) {
+                        final estimate = _durations.estimate(entry), spent = item.repeating ? null : _durations.spent(entry);
+                        if (info.isEmpty && estimate == null && spent == null) return const SizedBox.shrink();
+                        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          if (info.isNotEmpty) Row(children: [if (item.repeating) Icon(Icons.repeat, size: 14, color: scheme.onSurfaceVariant), if (item.repeating) const SizedBox(width: 4), Flexible(child: Text(info, style: TextStyle(color: item.overdue ? scheme.error : scheme.onSurfaceVariant)))]),
+                          TaskTimeChip(estimate: estimate, spent: spent, french: fr),
+                        ]);
+                      }),
                     ),
                   ),
                   if (entry != null) IconButton(tooltip: '${fr ? 'Modifier' : 'Edit'} : $name', onPressed: () async { await widget.onEdit(entry); _load(); }, icon: const Icon(Icons.edit_outlined)),
@@ -202,6 +236,9 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
                 final outside = date.substring(0, 7) != month.substring(0, 7);
                 final late = items.any((item) => item.overdue && !item.done);
                 final complete = items.isNotEmpty && done == items.length;
+                // The planned time takes one line of the cell: one task title fewer is listed.
+                final planned = _dayTime(items).planned;
+                final shown = planned > 0 ? 2 : 3;
                 return Semantics(
                   button: true,
                   selected: date == day,
@@ -227,10 +264,11 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
                           if (!narrow && items.isNotEmpty) _count(done, items.length, complete, late),
                         ]),
                         if (narrow && items.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: _count(done, items.length, complete, late)),
+                        if (!narrow && planned > 0) Padding(padding: const EdgeInsets.only(top: 2), child: Text(formatDuration(planned, fr, short: true), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: scheme.primary))),
                         if (!narrow)
-                          for (final item in items.take(items.length > 3 ? 2 : 3))
+                          for (final item in items.take(items.length > 3 ? shown - 1 : shown))
                             Padding(padding: const EdgeInsets.only(top: 2), child: Text(_title(entries[item.entryId]), maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, decoration: item.done ? TextDecoration.lineThrough : null, color: item.done ? scheme.onSurfaceVariant : null))),
-                        if (!narrow && items.length > 3) Text('+${items.length - 2}', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                        if (!narrow && items.length > 3) Text('+${items.length - (shown - 1)}', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
                       ]),
                     ),
                   ),
@@ -285,7 +323,12 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
           ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 8, child: _calendar()), const SizedBox(width: 20), Expanded(flex: 5, child: dayPanel)])
           : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [_calendar(), const SizedBox(height: 16), dayPanel]);
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [header, const SizedBox(height: 12), body]);
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      header,
+      const SizedBox(height: 12),
+      if (widget.onCollectionChanged != null) AddTaskDurationsBanner(api: widget.api, collection: widget.collection, french: fr, onAdded: widget.onCollectionChanged!),
+      body,
+    ]);
   }
 }
 

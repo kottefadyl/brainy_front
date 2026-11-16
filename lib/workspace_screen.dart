@@ -16,6 +16,8 @@ import 'workspace_navigation.dart';
 import 'workspace_top_bar.dart';
 import 'workspace_format_cards.dart';
 import 'workspace_entry_row.dart';
+import 'duration.dart';
+import 'duration_widgets.dart';
 
 import 'auth_api.dart';
 import 'app_strings.dart';
@@ -1541,7 +1543,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Widget _entryPresentation(BrainyCollection collection) {
     final view = _selectedView;
     if ((view?['layout'] == 'TASK_DAY' || view?['layout'] == 'TASK_CALENDAR') && collection.taskPlanner != null) {
-      return TaskAgendaView(key: ValueKey('agenda-${view!['id']}-$_entryRequest'), api: _api, collection: collection, calendar: view['layout'] == 'TASK_CALENDAR', french: _copy.isFrench, onEdit: (entry) => _editEntry(entry), onNewTask: () => _editEntry());
+      return TaskAgendaView(key: ValueKey('agenda-${view!['id']}-$_entryRequest'), api: _api, collection: collection, calendar: view['layout'] == 'TASK_CALENDAR', french: _copy.isFrench, onEdit: (entry) => _editEntry(entry), onNewTask: () => _editEntry(), onCollectionChanged: collection.sharedBy == null ? _load : null);
     }
     if (view?['layout'] == 'CALENDAR') {
       return CalendarView(
@@ -2217,7 +2219,11 @@ class _DraftField {
   bool isRequired = false;
   bool showInList = false;
   String unitChoice = '';
-  String? get unit => unitChoice == 'custom'
+  String? get unit => kind == BrainyFieldKind.duration
+      ? (isDurationUnit(unitChoice) ? unitChoice : null)
+      : kind != BrainyFieldKind.number
+      ? null
+      : unitChoice == 'custom'
       ? customUnit.text.trim()
       : (unitChoice.isEmpty ? null : unitChoice);
 
@@ -2278,7 +2284,9 @@ class _CollectionEditorState extends State<_CollectionEditor> {
           )
             ..isRequired = field.isRequired
             ..showInList = field.showInList;
-          if (field.unit != null) {
+          if (field.kind == BrainyFieldKind.duration) {
+            draft.unitChoice = isDurationUnit(field.unit) ? field.unit! : '';
+          } else if (field.unit != null) {
             if (numberUnit(field.unit) == null &&
                 !field.unit!.startsWith('local:')) {
               draft.unitChoice = 'custom';
@@ -2904,6 +2912,15 @@ class _CollectionEditorState extends State<_CollectionEditor> {
                                         ),
                                 ),
                               ],
+                              // A duration's unit only changes how it is typed and shown: it stays editable.
+                              if (field.kind == BrainyFieldKind.duration) ...[
+                                const SizedBox(height: 10),
+                                DurationUnitDropdown(
+                                  value: field.unitChoice,
+                                  french: AppStrings.of(context).isFrench,
+                                  onChanged: (unit) => setState(() => field.unitChoice = unit),
+                                ),
+                              ],
                               if (field.kind == BrainyFieldKind.number) ...[
                                 const SizedBox(height: 10),
                                 DropdownButtonFormField<String>(
@@ -3369,8 +3386,8 @@ class _EntryEditorState extends State<_EntryEditor> {
       }
       if (field.kind == BrainyFieldKind.duration &&
           value.isNotEmpty &&
-          !RegExp(r'^\d{1,6}:[0-5]\d$').hasMatch(value)) {
-        setState(() => _error = _t('Enter a duration as hours:minutes.'));
+          parseDuration(value, field.unit) == null) {
+        setState(() => _error = _copy.isFrench ? 'Saisissez une durée comme 45, 1:30, 2 h 30 ou 1 j 4 h (les mois ne sont pas acceptés : leur longueur varie).' : 'Enter a duration such as 45, 1:30, 2 h 30 or 1 d 4 h (months are not accepted: their length varies).');
         return;
       }
     }
@@ -3591,6 +3608,8 @@ class _EntryEditorState extends State<_EntryEditor> {
       padding: const EdgeInsets.only(bottom: 16),
       child: TextField(
         controller: _controllers[field.id],
+        // A duration shows what it understood ("= 1 h 30 min") while typing.
+        onChanged: kind == BrainyFieldKind.duration ? (_) => setState(() {}) : null,
         minLines: kind == BrainyFieldKind.longText
             ? 4
             : kind == BrainyFieldKind.text
@@ -3608,9 +3627,7 @@ class _EntryEditorState extends State<_EntryEditor> {
                   : kind == BrainyFieldKind.text
                   ? 10000
                   : 500), buildCounter: quietFormCounter,
-        keyboardType: kind == BrainyFieldKind.duration
-            ? TextInputType.datetime
-            : kind == BrainyFieldKind.number
+        keyboardType: kind == BrainyFieldKind.number
             ? const TextInputType.numberWithOptions(decimal: true, signed: true)
             : kind == BrainyFieldKind.link
             ? TextInputType.url
@@ -3622,10 +3639,10 @@ class _EntryEditorState extends State<_EntryEditor> {
               : kind == BrainyFieldKind.link
               ? 'https://example.com'
               : kind == BrainyFieldKind.duration
-              ? (_copy.isFrench ? 'Heures:minutes' : 'Hours:minutes')
+              ? durationHelp(_controllers[field.id]?.text ?? '', field.unit, _copy.isFrench)
               : null,
           hintText: kind == BrainyFieldKind.duration
-              ? '1:30'
+              ? durationPlaceholder(field.unit, _copy.isFrench)
               : kind == BrainyFieldKind.number
               ? _t(_copy.isFrench ? 'Number example French' : 'Number example')
               : null,

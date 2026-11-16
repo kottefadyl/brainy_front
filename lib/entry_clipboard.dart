@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'app_strings.dart';
 import 'collections_api.dart';
+import 'duration.dart';
 import 'number_units.dart';
 
 String entryClipboardText(
@@ -102,6 +103,7 @@ String displayEntryValue(
   }
   if (field.kind == BrainyFieldKind.date) return displayStoredDate(value, copy);
   if (field.kind == BrainyFieldKind.datetime) return _displayStoredDateTime(value, copy);
+  if (field.kind == BrainyFieldKind.duration) return displayDuration(value, field.unit, copy.isFrench);
   if (field.kind == BrainyFieldKind.boolean) {
     return copy.text(value == 'true' ? 'Yes' : 'No');
   }

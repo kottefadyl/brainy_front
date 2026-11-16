@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'app_strings.dart';
 import 'collections_api.dart';
+import 'duration.dart';
 import 'entry_clipboard.dart';
 import 'number_units.dart';
 import 'spreadsheet_range.dart';
@@ -55,7 +56,7 @@ String sheetEditable(BrainyField field, String stored, bool french) =>
       final date = DateTime.tryParse(value);
       return date == null ? (value: value, error: m('Saisissez une date et une heure valides.', 'Enter a valid date and time.')) : (value: date.toUtc().toIso8601String(), error: null);
     case BrainyFieldKind.duration:
-      return RegExp(r'^\d{1,6}:[0-5]\d$').hasMatch(value) ? (value: value, error: null) : (value: value, error: m('Saisissez une durée comme 1:30.', 'Enter a duration such as 1:30.'));
+      return parseDuration(value, field.unit) != null ? (value: value, error: null) : (value: value, error: m('Saisissez une durée comme 45, 1:30 ou 2 h 30.', 'Enter a duration such as 45, 1:30 or 2 h 30.'));
     case BrainyFieldKind.character:
       return value.characters.length == 1 ? (value: value, error: null) : (value: value, error: m('Saisissez un seul caractère.', 'Enter exactly one character.'));
     case BrainyFieldKind.link:

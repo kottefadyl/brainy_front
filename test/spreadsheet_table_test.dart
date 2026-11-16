@@ -104,7 +104,8 @@ void main() {
     });
     test('durations, links, characters and choices follow the entry form', () {
       expect(sheetStored(const BrainyField(id: 'd', name: 'D', kind: BrainyFieldKind.duration), '1:30').error, isNull);
-      expect(sheetStored(const BrainyField(id: 'd', name: 'D', kind: BrainyFieldKind.duration), '90').error, isNotNull);
+      expect(sheetStored(const BrainyField(id: 'd', name: 'D', kind: BrainyFieldKind.duration, unit: 'min'), '90').error, isNull);
+      expect(sheetStored(const BrainyField(id: 'd', name: 'D', kind: BrainyFieldKind.duration), '2 mois').error, isNotNull);
       expect(sheetStored(const BrainyField(id: 'l', name: 'L', kind: BrainyFieldKind.link), 'ftp://x').error, isNotNull);
       expect(sheetStored(const BrainyField(id: 'c', name: 'C', kind: BrainyFieldKind.character), 'ab').error, isNotNull);
       expect(sheetStored(const BrainyField(id: 's', name: 'S', kind: BrainyFieldKind.select, options: ['A', 'B']), 'C').error, isNotNull);
