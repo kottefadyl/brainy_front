@@ -22,12 +22,25 @@ Map<String, dynamic> _card(String id, String word, String definition) => {
       'preview': {'again': 10, 'hard': 1440, 'good': 1440, 'easy': 5760},
     };
 
+Map<String, dynamic> _stats({int? goal, int? newLimit, int newCards = 0}) => {
+      'total': 2, 'fresh': 1, 'learning': 1, 'mature': 0, 'reviewed7': 3, 'reviewed30': 3, 'successRate30': 2 / 3,
+      'days': [for (var i = 29; i >= 0; i--) {'day': DateTime.utc(2026, 11, 18).subtract(Duration(days: i)).toIso8601String().substring(0, 10), 'answers': i == 0 ? 3 : 0, 'remembered': i == 0 ? 2 : 0}],
+      'forecast': [0, 1, 0, 0, 0, 0, 0],
+      'hardest': [{'entryId': 'e2', 'title': 'gracias', 'forgotten': 1}],
+      'today': {'reviewed': 2, 'newCards': newCards, 'goal': goal, 'newLimit': newLimit, 'streak': 4},
+    };
+
 class _Auth extends AuthApi {
+  _Auth({this.stats});
+  final Map<String, dynamic>? stats;
   final grades = <(String, String)>[];
+  final goals = <(Object?, Object?)>[];
   @override
   Future<Map<String, dynamic>> authenticatedRequest(String query, Map<String, dynamic> variables, {Duration timeout = const Duration(seconds: 12)}) async {
     if (query.contains('cardDecks')) return {'cardDecks': [{'formatId': 'card', 'total': 2, 'due': 0, 'fresh': 2}]};
     if (query.contains('cardReviewSession')) return {'cardReviewSession': [_card('e1', 'hola', 'bonjour'), _card('e2', 'gracias', 'merci')]};
+    if (query.contains('cardStats')) return {'cardStats': stats ?? _stats()};
+    if (query.contains('setCardGoal')) { goals.add((variables['r'], variables['n'])); return {'setCardGoal': {'reviewsPerDay': variables['r']}}; }
     if (query.contains('gradeCard')) { grades.add((variables['e'] as String, variables['g'] as String)); return {'gradeCard': {'entryId': variables['e']}}; }
     throw StateError(query);
   }
@@ -111,5 +124,31 @@ void main() {
     expect(find.text('0 à revoir aujourd’hui · 2 nouvelle(s) · 2 au total'), findsOneWidget);
     await tester.tap(find.text('Réviser'));
     expect(started, isTrue);
+  });
+
+  testWidgets('T57: progress, goal and the daily limit of new cards', (tester) async {
+    // Goal 5 a day, at most 1 new card a day, already used today: only the due cards are left (none).
+    final auth = _Auth(stats: _stats(goal: 5, newLimit: 1, newCards: 1));
+    await _pump(tester, CardReviewScreen(api: CollectionsApi(auth), collection: _collection, owner: true), width: 390, dark: true);
+    expect(find.text('Rien à revoir pour l’instant'), findsOneWidget, reason: 'the new-card limit of today is reached');
+    await tester.scrollUntilVisible(find.text('Mes progrès'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('2 / 5 aujourd’hui'), findsOneWidget);
+    expect(find.text('4 jours de suite'), findsOneWidget);
+    expect(find.text('67 %'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Enregistrer l’objectif'), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.textContaining('gracias'), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('card-goal-reviews')), '20');
+    await tester.enterText(find.byKey(const ValueKey('card-goal-new')), '');
+    await tester.tap(find.text('Enregistrer l’objectif'));
+    await tester.pumpAndSettle();
+    expect(auth.goals, [(20, null)]);
+    expect(find.text('Objectif enregistré.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('T57: the banner shows today’s goal and the streak', (tester) async {
+    await _pump(tester, Scaffold(body: CardReviewBanner(api: CollectionsApi(_Auth(stats: _stats(goal: 5))), collection: _collection, onStart: () {})), width: 390, dark: false);
+    expect(find.text('2 / 5 aujourd’hui'), findsOneWidget);
+    expect(find.text('4 jours de suite'), findsOneWidget);
   });
 }

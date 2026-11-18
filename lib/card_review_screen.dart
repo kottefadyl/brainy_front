@@ -1,5 +1,6 @@
 // T56: review of two-sided cards (same meaning as the web's card-review.tsx). The front is shown, the person turns
 // the card, then answers how well they knew it; Brainy schedules when it comes back (spaced repetition, per person).
+import 'card_progress.dart';
 import 'flip_card.dart';
 import 'link_media.dart';
 import 'package:flutter/material.dart';
@@ -29,8 +30,8 @@ extension FlashCardsApi on CollectionsApi {
 
   Future<List<ReviewCard>> cardSession(String collectionId, String formatId, int count, String order) async {
     final data = await auth.authenticatedRequest(
-      'query(\$c:String!,\$f:String!,\$n:Int!,\$o:CardReviewOrder!){cardReviewSession(collectionId:\$c,formatId:\$f,count:\$n,order:\$o){entry{id formatId createdAt updatedAt values{fieldId value}} preview{again hard good easy}}}',
-      {'c': collectionId, 'f': formatId, 'n': count, 'o': order},
+      'query(\$c:String!,\$f:String!,\$n:Int!,\$o:CardReviewOrder!,\$z:Int){cardReviewSession(collectionId:\$c,formatId:\$f,count:\$n,order:\$o,utcOffsetMinutes:\$z){entry{id formatId createdAt updatedAt values{fieldId value}} preview{again hard good easy}}}',
+      {'c': collectionId, 'f': formatId, 'n': count, 'o': order, 'z': cardUtcOffset()},
     );
     return [
       for (final item in data['cardReviewSession'] as List<dynamic>)
@@ -39,8 +40,8 @@ extension FlashCardsApi on CollectionsApi {
   }
 
   Future<void> gradeCard(String collectionId, String entryId, String grade) => auth.authenticatedRequest(
-        'mutation(\$c:String!,\$e:String!,\$g:CardGrade!){gradeCard(collectionId:\$c,entryId:\$e,grade:\$g){entryId}}',
-        {'c': collectionId, 'e': entryId, 'g': grade},
+        'mutation(\$c:String!,\$e:String!,\$g:CardGrade!,\$z:Int){gradeCard(collectionId:\$c,entryId:\$e,grade:\$g,utcOffsetMinutes:\$z){entryId}}',
+        {'c': collectionId, 'e': entryId, 'g': grade, 'z': cardUtcOffset()},
       );
 
   Future<void> setCardSpeechLanguage(String collectionId, String formatId, String? language) => auth.authenticatedRequest(
@@ -97,11 +98,13 @@ class CardReviewBanner extends StatefulWidget {
 
 class _CardReviewBannerState extends State<CardReviewBanner> {
   List<CardDeck>? _decks;
+  CardStats? _stats;
 
   @override
   void initState() {
     super.initState();
     widget.api.cardDecks(widget.collection.id).then((value) { if (mounted) setState(() => _decks = value); }).catchError((Object _) {});
+    widget.api.cardStats(widget.collection.id).then((value) { if (mounted) setState(() => _stats = value); }).catchError((Object _) {});
   }
 
   @override
@@ -127,6 +130,7 @@ class _CardReviewBannerState extends State<CardReviewBanner> {
                 decks == null ? (fr ? 'Chargement…' : 'Loading…') : total == 0 ? (fr ? 'Ajoutez des cartes pour commencer à réviser.' : 'Add cards to start reviewing.') : fr ? '$due à revoir aujourd’hui · $fresh nouvelle(s) · $total au total' : '$due due today · $fresh new · $total in all',
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
+              if (_stats != null && total > 0) Padding(padding: const EdgeInsets.only(top: 4), child: CardGoalLine(stats: _stats!)),
             ]),
           ),
         ]),
@@ -172,7 +176,16 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
   bool get _fr => AppStrings.of(context).isFrench;
   BrainyFormat get _format => widget.collection.formats.firstWhere((item) => item.id == _formatId, orElse: () => widget.collection.formats.first);
   CardDeck? get _deck => _decks?.where((item) => item.formatId == _format.id).firstOrNull;
-  int get _available => _deck == null ? 0 : _order == 'DUE' ? _deck!.due + _deck!.fresh : _deck!.total;
+  /// T57: my daily limit of new cards caps the new cards of a "due then new" review.
+  CardStats? _progress;
+  int _sessions = 0;
+  int get _available {
+    final deck = _deck;
+    if (deck == null) return 0;
+    if (_order != 'DUE') return deck.total;
+    final left = _progress?.newLeft;
+    return deck.due + (left == null || left > deck.fresh ? deck.fresh : left);
+  }
 
   @override
   void initState() {
@@ -190,7 +203,9 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
   Future<void> _loadDecks() async {
     try {
       final decks = await widget.api.cardDecks(widget.collection.id);
+      final progress = await widget.api.cardStats(widget.collection.id).then<CardStats?>((value) => value, onError: (Object _) => null);
       if (!mounted) return;
+      _progress = progress;
       setState(() {
         _decks = decks;
         if (!decks.any((item) => item.formatId == _formatId && item.total > 0)) _formatId = decks.where((item) => item.total > 0).firstOrNull?.formatId ?? _formatId;
@@ -234,6 +249,7 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
         if (grade == 'AGAIN' && _repeated.add(card.entry.id)) _queue = [..._queue, (entry: card.entry, preview: const {'AGAIN': 10, 'HARD': 1440, 'GOOD': 1440, 'EASY': 5760})];
         if (_index + 1 >= _queue.length) {
           _phase = _Phase.done;
+          _sessions++;
           _loadDecks();
         } else {
           _index++;
@@ -287,6 +303,16 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
                 if (_phase == _Phase.setup) _setup(),
                 if (_phase == _Phase.review) _session(),
                 if (_phase == _Phase.done) _done(),
+                if (_phase != _Phase.review) ...[
+                  const SizedBox(height: 20),
+                  CardProgressPanel(
+                    key: ValueKey('progress-${_format.id}-$_sessions-${_phase.name}'),
+                    api: widget.api,
+                    collectionId: widget.collection.id,
+                    formatId: widget.collection.formats.length > 1 ? _format.id : null,
+                    formatName: widget.collection.formats.length > 1 ? _format.name : null,
+                  ),
+                ],
               ]),
             ),
           ),
