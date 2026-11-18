@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'collections_api.dart';
 
+const _maxCards = 6;
+
 /// New entry: the collection's data formats as small colored cards; a tap chooses one.
+/// At most 6 cards (the chosen one always among them); with more, a list gives every data format.
 class FormatChoiceCards extends StatelessWidget {
   const FormatChoiceCards({
     super.key,
@@ -26,22 +29,42 @@ class FormatChoiceCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
+    var shown = formats.take(_maxCards).toList();
+    final chosen = formats.where((format) => format.id == selectedId).firstOrNull;
+    if (chosen != null && !shown.contains(chosen)) shown = [...shown.take(_maxCards - 1), chosen];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
       const SizedBox(height: 8),
-      ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 236),
-        child: LayoutBuilder(builder: (context, constraints) {
-          final columns = constraints.maxWidth < 520 ? 2 : (constraints.maxWidth / 170).floor().clamp(2, 4);
-          final width = (constraints.maxWidth - 8 * (columns - 1)) / columns;
-          return SingleChildScrollView(
-            child: Wrap(spacing: 8, runSpacing: 8, children: [
-              for (final format in formats)
-                SizedBox(width: width, child: _card(context, format, dark)),
-            ]),
-          );
-        }),
-      ),
+      LayoutBuilder(builder: (context, constraints) {
+        final columns = constraints.maxWidth < 520 ? 2 : (constraints.maxWidth / 170).floor().clamp(2, 4);
+        final width = (constraints.maxWidth - 8 * (columns - 1)) / columns;
+        return Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final format in shown) SizedBox(width: width, child: _card(context, format, dark)),
+        ]);
+      }),
+      if (formats.length > _maxCards) ...[
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          key: ValueKey('all-formats-$selectedId'),
+          initialValue: selectedId,
+          isExpanded: true,
+          decoration: InputDecoration(labelText: isFrench ? 'Tous les formats de données (${formats.length})' : 'All data formats (${formats.length})', border: const OutlineInputBorder()),
+          items: [
+            for (final format in formats)
+              DropdownMenuItem(
+                value: format.id,
+                child: Row(children: [
+                  Container(width: 16, height: 16, decoration: BoxDecoration(color: tintOf(format), borderRadius: BorderRadius.circular(5))),
+                  const SizedBox(width: 9),
+                  Expanded(child: Text(nameOf(format), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                ]),
+              ),
+          ],
+          onChanged: (value) {
+            if (value != null) onChanged(value);
+          },
+        ),
+      ],
     ]);
   }
 
