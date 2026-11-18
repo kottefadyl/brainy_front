@@ -1,3 +1,4 @@
+import 'package:brainy/flip_card.dart';
 import 'package:brainy/link_media.dart';
 import 'package:brainy/auth_api.dart';
 import 'package:brainy/brainy_theme.dart';
@@ -76,6 +77,14 @@ void main() {
       await tester.tap(find.text('Retourner la carte'));
       await tester.pumpAndSettle();
       expect(find.text('bonjour'), findsOneWidget);
+      bool backShown() => tester.widget<Visibility>(find.ancestor(of: find.text('bonjour'), matching: find.byType(Visibility)).first).visible;
+      expect(backShown(), isTrue, reason: 'the card has turned over to its back');
+      await tester.tap(find.byType(FlipCard));
+      await tester.pumpAndSettle();
+      expect(backShown(), isFalse, reason: 'a tap turns the card back to its front');
+      await tester.tap(find.byType(FlipCard));
+      await tester.pumpAndSettle();
+      expect(backShown(), isTrue);
       expect(find.text('10 min'), findsOneWidget);
       await tester.tap(find.text('À revoir'));
       await tester.pumpAndSettle();

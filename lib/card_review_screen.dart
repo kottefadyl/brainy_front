@@ -1,5 +1,6 @@
 // T56: review of two-sided cards (same meaning as the web's card-review.tsx). The front is shown, the person turns
 // the card, then answers how well they knew it; Brainy schedules when it comes back (spaced repetition, per person).
+import 'flip_card.dart';
 import 'link_media.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -383,24 +384,17 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
         ]),
       ),
       const SizedBox(height: 14),
-      AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: Container(
-          key: ValueKey('${card.entry.id}-$_index-$_turned'),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: DataFormatColors.surface(format.color, dark),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: DataFormatColors.marker(format.color, dark).withValues(alpha: .35)),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _face(fr ? 'RECTO' : 'FRONT', front, card.entry),
-            if (_turned) ...[
-              Padding(padding: const EdgeInsets.symmetric(vertical: 14), child: Divider(color: DataFormatColors.marker(format.color, dark).withValues(alpha: .5), thickness: 1.5)),
-              _face(fr ? 'VERSO' : 'BACK', back, card.entry),
-            ],
-          ]),
+      FlipCard(
+        key: ValueKey('${card.entry.id}-$_index'),
+        turned: _turned,
+        onTurn: () => setState(() => _turned = true),
+        decoration: BoxDecoration(
+          color: DataFormatColors.surface(format.color, dark),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: DataFormatColors.marker(format.color, dark).withValues(alpha: .35)),
         ),
+        front: _face(fr ? 'RECTO' : 'FRONT', front, card.entry),
+        back: _face(fr ? 'VERSO' : 'BACK', back, card.entry),
       ),
       const SizedBox(height: 16),
       if (!_turned)
