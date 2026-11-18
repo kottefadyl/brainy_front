@@ -144,6 +144,7 @@ void main() {
     expect(auth.goals, [(20, null)]);
     expect(find.text('Objectif enregistré.'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(seconds: 4)); // lets the device-voice lookup give up (no voice engine in tests)
   });
 
   testWidgets('T57: the banner shows today’s goal and the streak', (tester) async {

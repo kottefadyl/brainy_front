@@ -1,6 +1,7 @@
 // T56: review of two-sided cards (same meaning as the web's card-review.tsx). The front is shown, the person turns
 // the card, then answers how well they knew it; Brainy schedules when it comes back (spaced repetition, per person).
 import 'card_progress.dart';
+import 'card_voices.dart';
 import 'flip_card.dart';
 import 'link_media.dart';
 import 'package:flutter/material.dart';
@@ -171,6 +172,7 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
   final Map<String, int> _answers = {'AGAIN': 0, 'HARD': 0, 'GOOD': 0, 'EASY': 0};
   String? _error;
   late final FlutterTts _tts = widget.tts ?? FlutterTts();
+  final _voiceMemory = CardVoiceMemory();
   final _focus = FocusNode();
 
   bool get _fr => AppStrings.of(context).isFrench;
@@ -266,9 +268,7 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
   Future<void> _speak(String text) async {
     final language = _speech[_format.id];
     try {
-      await _tts.stop();
-      if (language != null) await _tts.setLanguage(language);
-      await _tts.speak(text);
+      await speakCard(_tts, _voiceMemory, text, language);
     } catch (_) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_fr ? 'La lecture à voix haute n’est pas disponible sur cet appareil.' : 'Reading aloud is not available on this device.')));
     }
@@ -377,6 +377,14 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
             if (mounted) setState(() => _error = AppStrings.of(context).error(error));
           }
         },
+      ),
+      const SizedBox(height: 12),
+      CardVoiceSettings(
+        tts: _tts,
+        memory: _voiceMemory,
+        language: _speech[_format.id],
+        languageName: cardSpeechLanguages.where((item) => item.$1 == _speech[_format.id]).map((item) => fr ? item.$3 : item.$2).firstOrNull,
+        french: fr,
       ),
       const SizedBox(height: 12),
       Text(deck == null ? (fr ? 'Chargement…' : 'Loading…') : fr ? '${deck.due} à revoir aujourd’hui · ${deck.fresh} nouvelle(s) · ${deck.total} au total' : '${deck.due} due today · ${deck.fresh} new · ${deck.total} in all', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
