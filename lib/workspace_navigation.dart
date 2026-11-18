@@ -47,7 +47,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = BrainyNavigationColors.ink(dark);
     final muted = BrainyNavigationColors.muted(dark);
-    final line = dark ? BrainyColors.darkLine : const Color(0xFFE1E7F3);
+    final line = dark ? BrainyColors.darkLine : const Color(0x2EFFFFFF);
     final visible = widget.collections
         .where(
           (item) =>
@@ -64,7 +64,7 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
       decoration: BoxDecoration(
         color: dark ? BrainyColors.darkSidebar : null,
         gradient: dark ? null : BrainyAccents.sidebarLight,
-        border: Border(right: BorderSide(color: dark ? line : const Color(0xFFE1E7F3))),
+        border: dark ? Border(right: BorderSide(color: line)) : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,8 +227,8 @@ class _WorkspaceNavigationState extends State<WorkspaceNavigation> {
               label: Text(copy.text('New collection')),
               style: FilledButton.styleFrom(
                 alignment: Alignment.centerLeft,
-                backgroundColor: dark ? BrainyColors.darkPrimary : BrainyColors.blue,
-                foregroundColor: Colors.white,
+                backgroundColor: dark ? BrainyColors.darkPrimary : Colors.white,
+                foregroundColor: dark ? Colors.white : BrainyColors.navigationBlue,
                 minimumSize: const Size(double.infinity, 44),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 textStyle: const TextStyle(fontFamily: 'Inter', 
@@ -309,7 +309,9 @@ class _CollectionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ink = BrainyNavigationColors.ink(dark);
+    final ink = selected && !dark
+        ? BrainyColors.navigationBlue
+        : BrainyNavigationColors.ink(dark);
     final radius = BorderRadius.circular(10);
     return Semantics(
       selected: selected,
@@ -325,7 +327,7 @@ class _CollectionRow extends StatelessWidget {
             boxShadow: selected && !dark
                 ? const [
                     BoxShadow(
-                      color: Color(0x402454E6),
+                      color: Color(0x800A195A),
                       blurRadius: 12,
                       spreadRadius: -4,
                       offset: Offset(0, 4),
@@ -360,7 +362,7 @@ class _CollectionRow extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        CollectionGlyph.of(collection),
+                        CollectionGlyph.of(collection, size: 28, iconSize: 17),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -431,7 +433,7 @@ class _Count extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: dark ? BrainyColors.darkPrimary : BrainyColors.blue,
+        color: dark ? BrainyColors.darkPrimary : BrainyColors.navigationBlue,
         borderRadius: BorderRadius.circular(999),
       ),
       child: text,

@@ -10,11 +10,11 @@ abstract final class BrainyAccents {
     Color(0xFF084BC4),
     Color(0xFF063A9B),
   ];
-  /// Light sidebar: a soft blue-tinted surface (the web's polish.css), no longer solid blue.
   static const sidebarLight = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFF6F8FE), Color(0xFFEFF3FC)],
+    colors: lightBlueStops,
+    stops: [0, .52, 1],
   );
   static const stripLight = LinearGradient(
     colors: [Color(0xFF7CF0B4), Color(0xFFFFD166), Color(0xFFFF9AA0)],
@@ -67,6 +67,100 @@ class ShellLogo extends StatelessWidget {
   Widget build(BuildContext context) => BrainyMark(size: size);
 }
 
+/// The collection icon: a folder carrying a heart, drawn like the web's.
+class FolderHeartIcon extends StatelessWidget {
+  const FolderHeartIcon({super.key, required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: Size.square(size),
+    painter: _FolderHeartPainter(color),
+  );
+}
+
+class _FolderHeartPainter extends CustomPainter {
+  const _FolderHeartPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 24);
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    const r = Radius.circular(2);
+    canvas.drawPath(
+      Path()
+        ..moveTo(11, 20)
+        ..lineTo(4, 20)
+        ..arcToPoint(const Offset(2, 18), radius: r)
+        ..lineTo(2, 5)
+        ..arcToPoint(const Offset(4, 3), radius: r)
+        ..lineTo(7.9, 3)
+        ..arcToPoint(const Offset(9.59, 3.9), radius: r)
+        ..lineTo(10.4, 5.1)
+        ..arcToPoint(const Offset(12.07, 6), radius: r, clockwise: false)
+        ..lineTo(20, 6)
+        ..arcToPoint(const Offset(22, 8), radius: r)
+        ..lineTo(22, 9.5),
+      stroke,
+    );
+    const heart = Radius.circular(2.43);
+    canvas.drawPath(
+      Path()
+        ..moveTo(13.9, 17.45)
+        ..relativeCubicTo(-1.2, -1.2, -1.14, -2.8, -.2, -3.73)
+        ..relativeArcToPoint(const Offset(3.44, 0), radius: heart)
+        ..relativeLineTo(.36, .34)
+        ..relativeLineTo(.34, -.34)
+        ..relativeArcToPoint(const Offset(3.45, -.01), radius: heart)
+        ..relativeCubicTo(.95, .95, 1, 2.53, -.2, 3.74)
+        ..lineTo(17.5, 21)
+        ..close(),
+      stroke,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_FolderHeartPainter old) => old.color != color;
+}
+
+/// Coloured icon tile of a collection, rotated by its position in the list.
+class CollectionColorTile extends StatelessWidget {
+  const CollectionColorTile({
+    super.key,
+    required this.index,
+    required this.dark,
+  });
+
+  final int index;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = BrainyAccents.tile(index, dark);
+    return Container(
+      width: 28,
+      height: 28,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: tile.fill,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: FolderHeartIcon(size: 18, color: tile.ink),
+    );
+  }
+}
+
 /// Short multicolour line under the sidebar tagline.
 class BrainyAccentBar extends StatelessWidget {
   const BrainyAccentBar({super.key, required this.dark});
@@ -82,4 +176,64 @@ class BrainyAccentBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(2),
     ),
   );
+}
+
+/// Faint circuit decoration of the collection header.
+class CircuitPattern extends StatelessWidget {
+  const CircuitPattern({super.key, required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(painter: _CircuitPainter(color));
+}
+
+class _CircuitPainter extends CustomPainter {
+  const _CircuitPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.scale(size.width / 260);
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    for (final points in const [
+      [Offset(20, 40), Offset(80, 40), Offset(100, 60), Offset(170, 60)],
+      [
+        Offset(60, 100),
+        Offset(110, 100),
+        Offset(130, 80),
+        Offset(190, 80),
+        Offset(210, 100),
+        Offset(230, 100),
+      ],
+      [Offset(40, 150), Offset(130, 150), Offset(150, 130), Offset(190, 130)],
+    ]) {
+      final path = Path()..moveTo(points.first.dx, points.first.dy);
+      for (final point in points.skip(1)) {
+        path.lineTo(point.dx, point.dy);
+      }
+      canvas.drawPath(path, paint);
+    }
+    for (final (center, radius) in const [
+      (Offset(170, 60), 4.0),
+      (Offset(240, 100), 4.0),
+      (Offset(190, 130), 4.0),
+      (Offset(20, 40), 3.0),
+      (Offset(40, 150), 3.0),
+    ]) {
+      canvas.drawCircle(center, radius, paint);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_CircuitPainter old) => old.color != color;
 }

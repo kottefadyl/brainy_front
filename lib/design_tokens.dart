@@ -8,8 +8,8 @@ abstract final class BrainyColors {
   static const lightMuted = Color(0xFF586070);
   static const lightLine = Color(0xFFE4E7EC);
   static const navigationBlue = Color(0xFF084BC4);
-  static const lightSidebar = Color(0xFFF2F5FD);
-  static const lightHero = lightSurface;
+  static const lightSidebar = navigationBlue;
+  static const lightHero = navigationBlue;
   static const lightAccent = Color(0xFF1F4FD8);
   static const lightAccentSoft = Color(0xFFEEF3FE);
   static const blue = Color(0xFF2454E6);
@@ -33,20 +33,20 @@ abstract final class BrainyColors {
   static const lightControl = Color(0xFF8A92A1);
 }
 
-/// Navigation surfaces: a soft blue-tinted surface in the light theme, charcoal in the dark one.
+/// Navigation surfaces: deep blue in the light theme, charcoal in the dark one.
 abstract final class BrainyNavigationColors {
   static Color ink(bool dark) =>
-      dark ? BrainyColors.darkInk : BrainyColors.lightInk;
+      dark ? BrainyColors.darkInk : const Color(0xFFFFFFFF);
   static Color muted(bool dark) =>
-      dark ? BrainyColors.darkMuted : BrainyColors.lightMuted;
+      dark ? BrainyColors.darkMuted : const Color(0xFFDCE6FF);
   static Color field(bool dark) =>
-      dark ? BrainyColors.darkSurface : BrainyColors.lightSurface;
+      dark ? BrainyColors.darkSurface : const Color(0x1FFFFFFF);
   static Color selected(bool dark) =>
       dark ? const Color(0x245B8CFF) : const Color(0xFFFFFFFF);
   static Color border(bool dark) =>
-      dark ? BrainyColors.darkLineStrong : const Color(0xFFDCE3F1);
+      dark ? BrainyColors.darkLineStrong : const Color(0x6BFFFFFF);
   static Color hover(bool dark) =>
-      dark ? const Color(0xFF18191C) : const Color(0x122454E6);
+      dark ? const Color(0xFF18191C) : const Color(0x24FFFFFF);
 }
 
 /// Colors of the analysis chart, the same on the web client.

@@ -36,7 +36,9 @@ class WorkspaceMobileBar extends StatelessWidget {
       padding: const EdgeInsets.only(left: 14, right: 4),
       decoration: BoxDecoration(
         color: dark ? BrainyColors.darkSidebar : BrainyColors.lightSidebar,
-        border: Border(bottom: BorderSide(color: dark ? BrainyColors.darkLine : const Color(0xFFE1E7F3))),
+        border: dark
+            ? const Border(bottom: BorderSide(color: BrainyColors.darkLine))
+            : null,
       ),
       child: Row(
         children: [
