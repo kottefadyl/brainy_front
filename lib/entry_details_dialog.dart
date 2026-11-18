@@ -5,6 +5,7 @@ import 'app_strings.dart';
 import 'collections_api.dart';
 import 'entry_authors.dart';
 import 'entry_clipboard.dart';
+import 'link_media.dart';
 import 'link_preview_card.dart';
 
 Future<bool> showEntryDetailsDialog(
@@ -120,7 +121,12 @@ Future<bool> showEntryDetailsDialog(
                           child: Text(entry.values[field.id]!),
                         )
                       else if (field.kind == BrainyFieldKind.link) ...[
-                        if (api != null && previewableUrl(entry.values[field.id]) != null)
+                        if (const {LinkMediaKind.image, LinkMediaKind.audio, LinkMediaKind.video}.contains(linkMediaKind(entry.values[field.id]!)))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: LinkMediaView(url: entry.values[field.id]!, french: copy.isFrench, fallback: const SizedBox.shrink()),
+                          )
+                        else if (api != null && previewableUrl(entry.values[field.id]) != null)
                           LinkPreviewCard(
                             key: ValueKey('detail-preview-${field.id}'),
                             api: api,

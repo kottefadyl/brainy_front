@@ -1,3 +1,4 @@
+import 'package:brainy/format_choice_cards.dart';
 import 'package:brainy/auth_api.dart';
 import 'package:brainy/collections_api.dart';
 import 'package:brainy/workspace_screen.dart';
@@ -601,9 +602,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('New entry'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<String>).last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Data format 2').last);
+      final secondFormatCard = find.descendant(of: find.byType(FormatChoiceCards), matching: find.text('Data format 2'));
+      await tester.ensureVisible(secondFormatCard);
+      await tester.tap(secondFormatCard);
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.widgetWithText(TextField, 'Quote'));
       await tester.pumpAndSettle();

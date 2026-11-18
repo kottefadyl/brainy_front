@@ -1,3 +1,4 @@
+import 'format_choice_cards.dart';
 import 'realtime_sync.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -3721,45 +3722,14 @@ class _EntryEditorState extends State<_EntryEditor> {
             ),
             const SizedBox(height: 20),
             if (widget.entry == null && widget.initialFormatId == null)
-              DropdownButtonFormField<String>(
-                initialValue: _selectedFormatId,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: _t('Data format'),
-                  border: const OutlineInputBorder(),
-                ),
-                items: [
-                  for (final format in widget.collection.formats)
-                    DropdownMenuItem(
-                      value: format.id,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: _formatTint(format),
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                color: const Color(0xFFD9E3EE),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 9),
-                          Expanded(
-                            child: Text(
-                              _displayFormatName(context, format),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-                onChanged: (value) {
-                  if (value != null) setState(() => _selectedFormatId = value);
-                },
+              FormatChoiceCards(
+                formats: widget.collection.formats,
+                selectedId: _selectedFormatId,
+                label: _t('Choose a data format'),
+                isFrench: _copy.isFrench,
+                tintOf: _formatTint,
+                nameOf: (format) => _displayFormatName(context, format),
+                onChanged: (value) => setState(() => _selectedFormatId = value),
               )
             else
               Container(

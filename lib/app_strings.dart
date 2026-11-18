@@ -396,6 +396,7 @@ class AppStrings {
     'Continue to workspace': 'Continuer vers l’espace',
     'General': 'Général',
     'Add data format': 'Ajouter un format de données',
+    'Choose a data format': 'Choisissez un format de données',
     'data format': 'format de données',
     'data formats': 'formats de données',
     'Give this data format a name and choose its fields.':

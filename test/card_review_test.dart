@@ -1,3 +1,4 @@
+import 'package:brainy/link_media.dart';
 import 'package:brainy/auth_api.dart';
 import 'package:brainy/brainy_theme.dart';
 import 'package:brainy/card_review_screen.dart';
@@ -51,9 +52,13 @@ void main() {
     expect(cardFaceOf(BrainyFieldKind.title, null), 'FRONT');
     expect(cardFaceOf(BrainyFieldKind.text, null), 'BACK');
     expect(cardFaceOf(BrainyFieldKind.text, 'FRONT'), 'FRONT');
-    expect(cardMediaKind('https://example.com/cat.JPG'), 'image');
-    expect(cardMediaKind('https://example.com/hola.mp3?x=1'), 'audio');
-    expect(cardMediaKind('https://example.com/page'), isNull);
+    expect(linkMediaKind('https://example.com/cat.JPG'), LinkMediaKind.image);
+    expect(linkMediaKind('https://encrypted-tbn0.gstatic.com/images?q=tbn:abc&s=10'), LinkMediaKind.image);
+    expect(linkMediaKind('https://example.com/hola.mp3?x=1'), LinkMediaKind.audio);
+    expect(linkMediaKind('https://example.com/clip.mp4'), LinkMediaKind.video);
+    expect(linkMediaKind('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), LinkMediaKind.youtube);
+    expect(youtubeId('https://youtu.be/dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
+    expect(linkMediaKind('https://example.com/page'), isNull);
     expect([intervalLabel(10, false), intervalLabel(1440, true), intervalLabel(5760, false), intervalLabel(43200, true)], ['10 min', '1 j', '4 d', '1 mois']);
     expect(isFlashCards(_collection), isTrue);
   });

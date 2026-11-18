@@ -1,5 +1,6 @@
 // T56: review of two-sided cards (same meaning as the web's card-review.tsx). The front is shown, the person turns
 // the card, then answers how well they knew it; Brainy schedules when it comes back (spaced repetition, per person).
+import 'link_media.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -55,14 +56,6 @@ String intervalLabel(int minutes, bool french) {
   if (days < 30) return french ? '$days j' : '$days d';
   if (days < 365) return french ? '${(days / 30).round()} mois' : '${(days / 30).round()} mo';
   return french ? '${(days / 36.5).round() / 10} an(s)' : '${(days / 36.5).round() / 10} y';
-}
-
-final _image = RegExp(r'\.(png|jpe?g|gif|webp|avif|bmp)$', caseSensitive: false);
-final _audio = RegExp(r'\.(mp3|ogg|oga|wav|m4a|aac|opus|flac)$', caseSensitive: false);
-/// A web link shown as a picture or played as a sound (Brainy never stores the file).
-String? cardMediaKind(String url) {
-  final path = Uri.tryParse(url)?.path ?? '';
-  return _image.hasMatch(path) ? 'image' : _audio.hasMatch(path) ? 'audio' : null;
 }
 
 const cardSpeechLanguages = [
@@ -451,15 +444,17 @@ class _CardReviewScreenState extends State<CardReviewScreen> {
           padding: const EdgeInsets.only(top: 8),
           child: Builder(builder: (context) {
             final value = entry.values[field.id]!;
-            final media = field.kind == BrainyFieldKind.link ? cardMediaKind(value) : null;
             if (field.kind == BrainyFieldKind.title) return Text(value, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800));
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(field.name, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5, fontWeight: FontWeight.w600)),
               const SizedBox(height: 3),
-              if (media == 'image')
-                Center(child: ClipRRect(borderRadius: BorderRadius.circular(12), child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 240), child: Image.network(value, fit: BoxFit.contain, errorBuilder: (_, _, _) => Text(value)))))
-              else if (media == 'audio' || field.kind == BrainyFieldKind.link)
-                Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: () => launchUrl(Uri.parse(value), mode: LaunchMode.externalApplication), icon: Icon(media == 'audio' ? Icons.play_circle_outline : Icons.open_in_new, size: 18), label: Text(media == 'audio' ? (fr ? 'Écouter le son' : 'Play the sound') : value, overflow: TextOverflow.ellipsis)))
+              if (field.kind == BrainyFieldKind.link)
+                LinkMediaView(
+                  url: value,
+                  french: fr,
+                  probe: true,
+                  fallback: Align(alignment: Alignment.centerLeft, child: TextButton.icon(onPressed: () => launchUrl(Uri.parse(value), mode: LaunchMode.externalApplication), icon: const Icon(Icons.open_in_new, size: 18), label: Text(value, overflow: TextOverflow.ellipsis))),
+                )
               else
                 Text(displayEntryValue(field, value, copy, collection: widget.collection), style: const TextStyle(fontSize: 16, height: 1.5)),
             ]);
