@@ -1,3 +1,4 @@
+import 'field_kind_icons.dart';
 import 'format_choice_cards.dart';
 import 'realtime_sync.dart';
 import 'dart:async';
@@ -1958,6 +1959,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   }
 
   Widget _overviewBanner(BrainyCollection collection) => WorkspaceCollectionHeader(
+    templateId: collection.templateId,
+    color: collection.formats.firstOrNull?.color ?? '#EEF5FF',
     name: collection.name,
     entryCount: _totalCount ?? _entries.length,
     partialEntryCount: _totalCount == null && _pageCursor != null,
@@ -3540,6 +3543,7 @@ class _EntryEditorState extends State<_EntryEditor> {
           isExpanded: true,
           decoration: InputDecoration(
             labelText: field.name,
+            prefixIcon: Icon(fieldKindIcon(kind), size: 18),
             border: const OutlineInputBorder(),
           ),
           items: [
@@ -3661,6 +3665,7 @@ class _EntryEditorState extends State<_EntryEditor> {
             : TextInputType.text,
         decoration: InputDecoration(
           labelText: field.name,
+          prefixIcon: Icon(fieldKindIcon(kind), size: 18),
           helperText: kind == BrainyFieldKind.character
               ? _t('One character')
               : kind == BrainyFieldKind.link

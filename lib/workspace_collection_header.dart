@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'app_strings.dart';
+import 'collection_identity.dart';
+import 'data_format_colors.dart';
 import 'design_tokens.dart';
 import 'workspace_accents.dart';
 
@@ -23,7 +25,13 @@ class WorkspaceCollectionHeader extends StatelessWidget {
     this.memberCount = 0,
     this.calculations = true,
     this.onCalculations,
+    this.templateId,
+    this.color = '#EEF5FF',
   });
+
+  /// Kind of collection (icon) and color of its first data format (tint), for its look only.
+  final String? templateId;
+  final String color;
 
   /// Calculations and statistics: when off, "Insights" is not shown; the owner switches it in "Manage".
   final bool calculations;
@@ -52,40 +60,21 @@ class WorkspaceCollectionHeader extends StatelessWidget {
         boxShadow: dark
             ? null
             : const [
-                BoxShadow(
-                  color: Color(0xA6084BC4),
-                  blurRadius: 30,
-                  spreadRadius: -16,
-                  offset: Offset(0, 14),
-                ),
+                BoxShadow(color: Color(0x0D101828), blurRadius: 2, offset: Offset(0, 1)),
+                BoxShadow(color: Color(0x59101828), blurRadius: 28, spreadRadius: -22, offset: Offset(0, 12)),
               ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Stack(
           children: [
-            Positioned.fill(child: _Backdrop(dark: dark)),
-            // On a phone the pattern would run behind the title and chips.
-            if (!narrow)
-              Positioned(
-                right: 90,
-                top: 12,
-                width: 240,
-                height: 166,
-                child: IgnorePointer(
-                  child: CircuitPattern(
-                    color: dark
-                        ? const Color(0x338CB0FF)
-                        : const Color(0x1FFFFFFF),
-                  ),
-                ),
-              ),
+            Positioned.fill(child: _Backdrop(dark: dark, color: color)),
             Padding(
               padding: EdgeInsets.fromLTRB(
-                narrow ? 20 : 32,
-                narrow ? 28 : 40,
-                narrow ? 20 : 32,
-                narrow ? 22 : 36,
+                narrow ? 16 : 22,
+                narrow ? 18 : 20,
+                narrow ? 16 : 22,
+                narrow ? 16 : 18,
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -98,6 +87,9 @@ class WorkspaceCollectionHeader extends StatelessWidget {
                     memberCount: owner ? memberCount : 0,
                     onMembers: onShare,
                     dark: dark,
+                    templateId: templateId,
+                    color: color,
+                    narrow: narrow,
                   );
                   final actions = _Actions(
                     dark: dark,
@@ -118,7 +110,7 @@ class WorkspaceCollectionHeader extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         identity,
-                        const SizedBox(height: 22),
+                        const SizedBox(height: 14),
                         actions,
                       ],
                     );
@@ -156,65 +148,25 @@ class WorkspaceCollectionHeader extends StatelessWidget {
 }
 
 class _Backdrop extends StatelessWidget {
-  const _Backdrop({required this.dark});
+  const _Backdrop({required this.dark, required this.color});
 
   final bool dark;
+  final String color;
 
   @override
   Widget build(BuildContext context) {
-    final layers = dark
-        ? const [
-            RadialGradient(
-              center: Alignment.topLeft,
-              radius: 1.1,
-              colors: [Color(0x2E4C7DF5), Color(0x004C7DF5)],
-            ),
-            RadialGradient(
-              center: Alignment.bottomRight,
-              radius: 1,
-              colors: [Color(0x1734D27B), Color(0x0034D27B)],
-            ),
-            RadialGradient(
-              center: Alignment(.7, -1),
-              radius: .5,
-              colors: [Color(0x0FFF5A5F), Color(0x00FF5A5F)],
-            ),
-          ]
-        : const [
-            RadialGradient(
-              center: Alignment.topRight,
-              radius: 1.1,
-              colors: [Color(0x47A78BFA), Color(0x00A78BFA)],
-            ),
-            RadialGradient(
-              center: Alignment.bottomRight,
-              radius: 1,
-              colors: [Color(0x2934D399), Color(0x0034D399)],
-            ),
-          ];
+    final tint = DataFormatColors.surface(color, dark);
+    final edge = DataFormatColors.marker(color, dark).withValues(alpha: dark ? .18 : .14);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: dark ? BrainyColors.darkSurface : null,
-        gradient: dark
-            ? null
-            : const LinearGradient(
-                begin: Alignment(-1, -.6),
-                end: Alignment(1, .6),
-                colors: BrainyAccents.lightBlueStops,
-                stops: [0, .52, 1],
-              ),
+        color: dark ? BrainyColors.darkSurface : BrainyColors.lightSurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: dark ? BrainyColors.darkLine : BrainyColors.navigationBlue,
-        ),
+        border: Border.all(color: Color.alphaBlend(edge, dark ? BrainyColors.darkLine : BrainyColors.lightLine)),
       ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          for (final layer in layers)
-            DecoratedBox(decoration: BoxDecoration(gradient: layer)),
-        ],
-      ),
+      child: Stack(fit: StackFit.expand, children: [
+        DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(center: const Alignment(-1, -1), radius: 1.6, colors: [tint.withValues(alpha: dark ? .9 : .95), tint.withValues(alpha: 0)], stops: const [0, .62]))),
+        DecoratedBox(decoration: BoxDecoration(gradient: RadialGradient(center: const Alignment(1, 1), radius: 1.2, colors: [(dark ? const Color(0xFF4C7DF5) : BrainyColors.blue).withValues(alpha: dark ? .10 : .07), Colors.transparent]))),
+      ]),
     );
   }
 }
@@ -228,7 +180,14 @@ class _Identity extends StatelessWidget {
     required this.dark,
     this.memberCount = 0,
     this.onMembers,
+    this.templateId,
+    this.color = '#EEF5FF',
+    this.narrow = false,
   });
+
+  final String? templateId;
+  final String color;
+  final bool narrow;
 
   final String name;
   final int entryCount, formatCount, memberCount;
@@ -240,40 +199,12 @@ class _Identity extends StatelessWidget {
     final copy = AppStrings.of(context);
     return Row(
       children: [
-        Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: dark
-                  ? const [Color(0xFF3B82F6), Color(0xFF2454E6), Color(0xFF1A3FB0)]
-                  : const [Color(0xFFFFF3D1), Color(0xFFFFD98A)],
-            ),
-          ),
-          child: FolderHeartIcon(
-            size: 27,
-            color: dark ? Colors.white : const Color(0xFF8A4B00),
-          ),
-        ),
-        const SizedBox(width: 18),
+        CollectionGlyph(templateId: templateId, color: color, size: narrow ? 42 : 48, iconSize: narrow ? 22 : 25),
+        SizedBox(width: narrow ? 12 : 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                copy.text('Collection').toUpperCase(),
-                style: TextStyle(
-                  color: dark ? BrainyColors.darkAccent : const Color(0xFFDCE6FF),
-                  fontSize: 12,
-                  letterSpacing: 1.2,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
               Text(
                 name,
                 maxLines: 2,
@@ -281,13 +212,13 @@ class _Identity extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: 'Plus Jakarta Sans',
                   color: BrainyNavigationColors.ink(dark),
-                  fontSize: 28,
+                  fontSize: narrow ? 22 : 26,
                   fontWeight: FontWeight.w800,
                   height: 1.15,
                   letterSpacing: -.8,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -296,14 +227,15 @@ class _Identity extends StatelessWidget {
                     icon: Icons.description_outlined,
                     label:
                         '$entryCount${partialEntryCount ? '+' : ''} ${copy.text(entryCount == 1 ? 'entry' : 'entries').toLowerCase()}',
-                    fill: dark ? BrainyAccents.darkBlueTint : BrainyAccents.skyFill,
-                    ink: dark ? BrainyAccents.darkBlueInk : BrainyAccents.skyInk,
+                    fill: dark ? const Color(0x14FFFFFF) : const Color(0xB3FFFFFF),
+                    ink: dark ? BrainyColors.darkMuted : BrainyColors.lightMuted,
                   ),
                   _Chip(
                     label:
                         '$formatCount ${copy.text(formatCount == 1 ? 'data format' : 'data formats').toLowerCase()}',
-                    fill: dark ? BrainyAccents.darkGreenTint : BrainyAccents.mintFill,
-                    ink: dark ? BrainyAccents.darkGreenInk : BrainyAccents.mintInk,
+                    icon: Icons.category_outlined,
+                    fill: dark ? const Color(0x14FFFFFF) : const Color(0xB3FFFFFF),
+                    ink: dark ? BrainyColors.darkMuted : BrainyColors.lightMuted,
                   ),
                   if (memberCount > 0)
                     Semantics(
@@ -350,6 +282,7 @@ class _Chip extends StatelessWidget {
     decoration: BoxDecoration(
       color: fill,
       borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: ink.withValues(alpha: .18)),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -401,16 +334,16 @@ class _Actions extends StatelessWidget {
     final copy = AppStrings.of(context);
     final fr = copy.isFrench;
     final ink = BrainyNavigationColors.ink(dark);
-    final outline = dark ? BrainyColors.darkLineStrong : const Color(0x73FFFFFF);
-    final fill = dark ? Colors.transparent : const Color(0x1FFFFFFF);
+    final outline = dark ? BrainyColors.darkLineStrong : const Color(0xFFD5DBE6);
+    final fill = dark ? Colors.transparent : BrainyColors.lightSurface;
     const labelStyle = TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w700);
     final newEntry = FilledButton.icon(
       onPressed: onNewEntry,
       icon: const Icon(Icons.add_rounded, size: 19),
       label: Text(copy.text('New entry')),
       style: FilledButton.styleFrom(
-        backgroundColor: dark ? BrainyColors.darkPrimary : Colors.white,
-        foregroundColor: dark ? Colors.white : BrainyColors.navigationBlue,
+        backgroundColor: dark ? BrainyColors.darkPrimary : BrainyColors.blue,
+        foregroundColor: Colors.white,
         minimumSize: const Size(0, 44),
         padding: const EdgeInsets.symmetric(horizontal: 18),
         textStyle: labelStyle,
@@ -421,7 +354,7 @@ class _Actions extends StatelessWidget {
       icon: Icon(
         Icons.auto_graph_rounded,
         size: 17,
-        color: dark ? BrainyAccents.darkGreenInk : const Color(0xFF8CF0B8),
+        color: dark ? BrainyAccents.darkGreenInk : const Color(0xFF15803D),
       ),
       label: Text(fr ? 'Calculs' : 'Insights'),
       style: OutlinedButton.styleFrom(
@@ -490,6 +423,8 @@ class _Actions extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(Icons.tune_rounded, size: 17, color: dark ? BrainyColors.darkAccent : BrainyColors.blue),
+            const SizedBox(width: 8),
             Flexible(
               child: Text(
                 manageLabel,

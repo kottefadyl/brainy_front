@@ -38,6 +38,11 @@ class WorkspaceCollectionTabs extends StatelessWidget {
           children: [
             for (final entry in labels.entries)
               _Tab(
+                icon: switch (entry.key) {
+                  WorkspaceCollectionTab.entries => Icons.view_agenda_outlined,
+                  WorkspaceCollectionTab.formats => Icons.category_outlined,
+                  WorkspaceCollectionTab.tools => Icons.build_outlined,
+                },
                 label: entry.value,
                 selected: entry.key == value,
                 onTap: () => onChanged(entry.key),
@@ -51,11 +56,13 @@ class WorkspaceCollectionTabs extends StatelessWidget {
 
 class _Tab extends StatelessWidget {
   const _Tab({
+    required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
   });
 
+  final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -66,6 +73,8 @@ class _Tab extends StatelessWidget {
     final ink = dark ? BrainyColors.darkInk : BrainyColors.lightInk;
     final muted = dark ? BrainyColors.darkMuted : BrainyColors.lightMuted;
     final animate = !MediaQuery.disableAnimationsOf(context);
+    // Very narrow phones keep the labels only, so every section stays on screen.
+    final roomy = MediaQuery.sizeOf(context).width >= 400;
     return Semantics(
       selected: selected,
       button: true,
@@ -80,14 +89,20 @@ class _Tab extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Center(
                   widthFactor: 1,
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: selected ? ink : muted,
-                      fontSize: 15,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (roomy) ...[
+                      Icon(icon, size: 17, color: selected ? (dark ? BrainyColors.darkAccent : BrainyColors.blue) : muted),
+                      const SizedBox(width: 8),
+                    ],
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: selected ? ink : muted,
+                        fontSize: 15,
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      ),
                     ),
-                  ),
+                  ]),
                 ),
               ),
               Positioned(
@@ -213,8 +228,9 @@ class WorkspaceEntriesHeading extends StatelessWidget {
         ),
         if (onQuickEntry != null) ...[
         const SizedBox(width: 12),
-        OutlinedButton(
+        OutlinedButton.icon(
           onPressed: onQuickEntry,
+          icon: const Icon(Icons.bolt_rounded, size: 18),
           style: OutlinedButton.styleFrom(
             backgroundColor: soft,
             foregroundColor: accent,
@@ -228,7 +244,7 @@ class WorkspaceEntriesHeading extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          child: Text(copy.isFrench ? 'Saisie rapide' : 'Quick entry'),
+          label: Text(copy.isFrench ? 'Saisie rapide' : 'Quick entry'),
         ),
         ],
       ],
