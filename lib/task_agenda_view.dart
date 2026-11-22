@@ -196,13 +196,13 @@ class _TaskAgendaViewState extends State<TaskAgendaView> {
                       onChanged: busy == '${item.entryId}-${item.date}' ? null : (_) => _toggle(item),
                       title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         if (entry != null) EntryAuthors(entry: entry, collection: widget.collection, compact: true),
-                        Text(name, style: TextStyle(fontWeight: FontWeight.w600, decoration: item.done ? TextDecoration.lineThrough : null, color: item.done ? scheme.onSurfaceVariant : null)),
+                        Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w600, decoration: item.done ? TextDecoration.lineThrough : null, color: item.done ? scheme.onSurfaceVariant : null)),
                       ]),
                       subtitle: Builder(builder: (context) {
                         final estimate = _durations.estimate(entry), spent = item.repeating ? null : _durations.spent(entry);
                         if (info.isEmpty && estimate == null && spent == null) return const SizedBox.shrink();
                         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          if (info.isNotEmpty) Row(children: [if (item.repeating) Icon(Icons.repeat, size: 14, color: scheme.onSurfaceVariant), if (item.repeating) const SizedBox(width: 4), Flexible(child: Text(info, style: TextStyle(color: item.overdue ? scheme.error : scheme.onSurfaceVariant)))]),
+                          if (info.isNotEmpty) Row(children: [if (item.repeating) Icon(Icons.repeat, size: 14, color: scheme.onSurfaceVariant), if (item.repeating) const SizedBox(width: 4), Flexible(child: Text(info, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: item.overdue ? scheme.error : scheme.onSurfaceVariant)))]),
                           TaskTimeChip(estimate: estimate, spent: spent, french: fr),
                         ]);
                       }),
