@@ -586,11 +586,24 @@ class _InsightsDialogState extends State<_InsightsDialog> {
                     (value) => setState(() {
                       formatId = value!;
                       result = null;
-                      measure = null;
+                      measure = collection.formats
+                          .where((item) => item.id == value)
+                          .firstOrNull
+                          ?.fields
+                          .where((field) => field.kind == BrainyFieldKind.number)
+                          .firstOrNull
+                          ?.id;
+                      forecastResult = null;
                       left = null;
                       right = null;
                       dateFieldId = null;
                       groupFieldId = null;
+                      secondaryGroupFieldId = null;
+                      denominatorFieldId = null;
+                      weightFieldId = null;
+                      counterResetFieldId = null;
+                      formulaFromFieldId = null;
+                      formulaToFieldId = null;
                       filterFieldId = null;
                       filterValue.clear();
                       filters.clear();
