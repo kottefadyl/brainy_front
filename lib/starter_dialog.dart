@@ -1,9 +1,11 @@
 import 'calculations_choice.dart';
+
 import 'package:flutter/material.dart';
 
 import 'adaptive_form.dart';
 import 'app_strings.dart';
 import 'book_view_screen.dart';
+import 'collection_identity.dart';
 import 'collections_api.dart';
 
 Future<BrainyCollection?> showStarterDialog(
@@ -45,7 +47,8 @@ class _StarterDialogState extends State<_StarterDialog> {
             setState(() {
               templates = items;
               selected = items.firstOrNull?['id'] as String?;
-              calculations = items.firstOrNull?['calculations'] as bool? ?? false;
+              calculations =
+                  items.firstOrNull?['calculations'] as bool? ?? false;
               name.text = items.firstOrNull?['name'] as String? ?? '';
             });
           })
@@ -111,13 +114,18 @@ class _StarterDialogState extends State<_StarterDialog> {
                       widget.onPackages!();
                     },
                     icon: const Icon(Icons.inventory_2_outlined, size: 18),
-                    label: Text(fr ? 'Installer un paquet de domaine (fichier, lien ou paquet Brainy)…' : 'Install a domain package (file, link or Brainy package)…'),
+                    label: Text(
+                      fr
+                          ? 'Installer un paquet de domaine (fichier, lien ou paquet Brainy)…'
+                          : 'Install a domain package (file, link or Brainy package)…',
+                    ),
                   ),
                 ),
               const SizedBox(height: 20),
               TextField(
                 controller: name,
-                maxLength: 80, buildCounter: quietFormCounter,
+                maxLength: 80,
+                buildCounter: quietFormCounter,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
                   labelText: fr ? 'Nom de la collection' : 'Collection name',
@@ -140,94 +148,171 @@ class _StarterDialogState extends State<_StarterDialog> {
                   final columns = constraints.maxWidth >= 540 ? 2 : 1;
                   final cardWidth =
                       (constraints.maxWidth - (columns - 1) * 10) / columns;
-                  return Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                  // T58: templates come sorted by theme from the API; one titled section per theme.
+                  final groups = <(String, List<Map<String, dynamic>>)>[];
+                  for (final template in templates) {
+                    final group = template['groupName'] as String? ?? '';
+                    if (groups.isEmpty || groups.last.$1 != group) {
+                      groups.add((group, []));
+                    }
+                    groups.last.$2.add(template);
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final template in templates)
-                        SizedBox(
-                          width: cardWidth,
-                          child: Semantics(
-                            selected: selected == template['id'],
-                            button: true,
-                            child: Material(
-                              color: dark
-                                  ? selected == template['id']
-                                        ? const Color(0xFF303747)
-                                        : const Color(0xFF24282D)
-                                  : selected == template['id']
-                                  ? const Color(0xFFEAEDF7)
-                                  : const Color(0xFFF8F9FA),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: BorderSide(
+                      for (final (groupName, items) in groups) ...[
+                        if (groupName.isNotEmpty)
+                          Padding(
+                            padding: EdgeInsets.only(
+                              top: identical(items, groups.first.$2) ? 0 : 16,
+                              bottom: 8,
+                            ),
+                            child: Semantics(
+                              header: true,
+                              child: Text(
+                                groupName.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: .5,
                                   color: dark
-                                      ? selected == template['id']
-                                            ? const Color(0xFFAEBBE4)
-                                            : const Color(0xFF3D444D)
-                                      : selected == template['id']
-                                      ? const Color(0xFF6677A9)
-                                      : const Color(0xFFE0E5EA),
-                                ),
-                              ),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(14),
-                                onTap: () => setState(() {
-                                  final previous = templates
-                                      .where((item) => item['id'] == selected)
-                                      .firstOrNull;
-                                  if (name.text == previous?['name']) {
-                                    name.text = template['name'] as String;
-                                  }
-                                  selected = template['id'] as String;
-                                  calculations = template['calculations'] as bool? ?? false;
-                                }),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(15),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              template['name'] as String,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 5),
-                                            Text(
-                                              template['description'] as String,
-                                            ),
-                                            if (template['id'] == 'book')
-                                              BookTemplateArt(french: AppStrings.of(context).isFrench, dark: dark),
-                                          ],
-                                        ),
-                                      ),
-                                      if (selected == template['id'])
-                                        const Icon(
-                                          Icons.check_circle_rounded,
-                                          color: Color(0xFF3978D5),
-                                          size: 20,
-                                        ),
-                                    ],
-                                  ),
+                                      ? const Color(0xFFAEB6C2)
+                                      : const Color(0xFF5A6F8D),
                                 ),
                               ),
                             ),
                           ),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            for (final template in items)
+                              SizedBox(
+                                width: cardWidth,
+                                child: Semantics(
+                                  selected: selected == template['id'],
+                                  button: true,
+                                  child: Material(
+                                    color: dark
+                                        ? selected == template['id']
+                                              ? const Color(0xFF303747)
+                                              : const Color(0xFF24282D)
+                                        : selected == template['id']
+                                        ? const Color(0xFFEAEDF7)
+                                        : const Color(0xFFF8F9FA),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      side: BorderSide(
+                                        color: dark
+                                            ? selected == template['id']
+                                                  ? const Color(0xFFAEBBE4)
+                                                  : const Color(0xFF3D444D)
+                                            : selected == template['id']
+                                            ? const Color(0xFF6677A9)
+                                            : const Color(0xFFE0E5EA),
+                                      ),
+                                    ),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(14),
+                                      onTap: () => setState(() {
+                                        final previous = templates
+                                            .where(
+                                              (item) => item['id'] == selected,
+                                            )
+                                            .firstOrNull;
+                                        if (name.text == previous?['name']) {
+                                          name.text =
+                                              template['name'] as String;
+                                        }
+                                        selected = template['id'] as String;
+                                        calculations =
+                                            template['calculations'] as bool? ??
+                                            false;
+                                      }),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(15),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        collectionIconFor(
+                                                          template['id']
+                                                              as String?,
+                                                        ),
+                                                        size: 18,
+                                                        color: dark
+                                                            ? const Color(
+                                                                0xFFAEBBE4,
+                                                              )
+                                                            : const Color(
+                                                                0xFF3978D5,
+                                                              ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Text(
+                                                          template['name']
+                                                              as String,
+                                                          style:
+                                                              const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 5),
+                                                  Text(
+                                                    template['description']
+                                                        as String,
+                                                  ),
+                                                  if (template['id'] == 'book')
+                                                    BookTemplateArt(
+                                                      french: AppStrings.of(
+                                                        context,
+                                                      ).isFrench,
+                                                      dark: dark,
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            if (selected == template['id'])
+                                              const Icon(
+                                                Icons.check_circle_rounded,
+                                                color: Color(0xFF3978D5),
+                                                size: 20,
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
+                      ],
                     ],
                   );
                 },
               ),
               if (selected != null) ...[
                 const SizedBox(height: 14),
-                CalculationsChoice(value: calculations, french: fr, onChanged: (value) => setState(() => calculations = value)),
+                CalculationsChoice(
+                  value: calculations,
+                  french: fr,
+                  onChanged: (value) => setState(() => calculations = value),
+                ),
               ],
               if (error != null)
                 Padding(

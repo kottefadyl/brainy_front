@@ -99,6 +99,8 @@ class _FlowAuthApi extends AuthApi {
               'id': 'template-$index',
               'name': templates[index],
               'description': 'Editable collection',
+              'group': index < 2 ? 'start' : 'home',
+              'groupName': index < 2 ? 'Getting started' : 'Home',
             },
         ],
       };
@@ -524,6 +526,9 @@ void main() {
       for (final name in fake.templates) {
         await tester.tap(find.text('Open templates'));
         await tester.pumpAndSettle();
+        // T58: one titled section per theme.
+        expect(find.text('GETTING STARTED'), findsOneWidget);
+        expect(find.text('HOME'), findsOneWidget);
         final choice = find.text(name).last;
         await tester.ensureVisible(choice);
         await tester.pumpAndSettle();

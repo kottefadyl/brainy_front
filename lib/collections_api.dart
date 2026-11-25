@@ -835,7 +835,7 @@ class CollectionsApi {
 
   Future<List<Map<String, dynamic>>> starterTemplates(String language) async {
     final data = await auth.authenticatedRequest(
-      'query(\$language:String) { starterTemplates(language:\$language) { id name description calculations } }',
+      'query(\$language:String) { starterTemplates(language:\$language) { id name description calculations group groupName } }',
       {'language': language},
     );
     return (data['starterTemplates'] as List<dynamic>)

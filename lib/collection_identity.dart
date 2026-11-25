@@ -16,6 +16,25 @@ const _icons = <String, IconData>{
   'fitness': Icons.fitness_center_rounded,
   'shop': Icons.storefront_outlined,
   'capture': Icons.inbox_outlined,
+  // T58: everyday-life templates.
+  'pantry': Icons.shopping_basket_outlined,
+  'recipes': Icons.restaurant_menu_rounded,
+  'home': Icons.home_outlined,
+  'papers': Icons.badge_outlined,
+  'family_health': Icons.monitor_heart_outlined,
+  'kids': Icons.child_care_rounded,
+  'birthdays': Icons.cake_outlined,
+  'pets': Icons.pets_rounded,
+  'lending': Icons.handshake_outlined,
+  'budget': Icons.savings_outlined,
+  'debts': Icons.payments_outlined,
+  'valuables': Icons.inventory_2_outlined,
+  'journal': Icons.auto_stories_outlined,
+  'habits': Icons.repeat_rounded,
+  'watchlist': Icons.movie_outlined,
+  'travel': Icons.flight_takeoff_rounded,
+  'garden': Icons.local_florist_outlined,
+  'car': Icons.directions_car_outlined,
 };
 
 IconData collectionIconFor(String? templateId, {bool shared = false}) =>
