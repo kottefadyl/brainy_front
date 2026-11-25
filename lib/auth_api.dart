@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -100,20 +101,38 @@ class AuthApi {
     return _saveSession(data['loginWithGoogle'] as Map<String, dynamic>);
   }
 
+  /// Reopens the stored session and exchanges it for a fresh 30-day token,
+  /// so a person who keeps using Brainy is never signed out.
   Future<AppUser?> restoreSession() async {
     final token = await _storage.read(key: _tokenKey);
     if (token == null) return null;
-    try {
-      final data = await _request(
-        'query Me { me { $_userFields } }',
-        {},
-        token: token,
-      );
-      return AppUser.fromJson(data['me'] as Map<String, dynamic>);
-    } on AuthApiException catch (error) {
-      if (error.isUnauthorized) await signOut();
-      return null;
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await _renew(token);
+      } on AuthApiException catch (error) {
+        if (error.isUnauthorized) {
+          await signOut();
+          return null;
+        }
+        // A slow start of the API must not look like a signed-out session.
+        if (attempt >= 1) rethrow;
+      }
     }
+  }
+
+  /// When the session was last renewed; the app renews it again after 12 hours of use.
+  DateTime? _renewedAt;
+  static const _renewEvery = Duration(hours: 12);
+
+  Future<AppUser> _renew(String token) async {
+    final data = await _request(
+      'mutation Renew { renewSession { token user { $_userFields } } }',
+      {},
+      token: token,
+      timeout: const Duration(seconds: 25),
+    );
+    _renewedAt = DateTime.now();
+    return _saveSession(data['renewSession'] as Map<String, dynamic>);
   }
 
   Future<void> signOut() => _storage.delete(key: _tokenKey);
@@ -169,6 +188,11 @@ class AuthApi {
         'Sign in to continue.',
         isUnauthorized: true,
       );
+    }
+    final renewedAt = _renewedAt;
+    if (renewedAt == null || DateTime.now().difference(renewedAt) > _renewEvery) {
+      _renewedAt = DateTime.now();
+      unawaited(_renew(token).then((_) {}, onError: (_) => _renewedAt = renewedAt));
     }
     return _request(query, variables, token: token, timeout: timeout);
   }
